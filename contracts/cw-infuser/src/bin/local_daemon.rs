@@ -11,7 +11,7 @@ use cw_infuser::MY_APP_ID;
 
 use abstract_app::objects::namespace::Namespace;
 use abstract_client::{AbstractClient, Publisher};
-use cw_infuser::{msg::CwInfuserInstantiateMsg, MyAppInterface};
+use cw_infuser::{msg::CwInfuserInstantiateMsg, CwInfuserInterface};
 use cw_orch::{anyhow, prelude::*, tokio::runtime::Runtime};
 
 const LOCAL_MNEMONIC: &str = "clip hire initial neck maid actor venue client foam budget lock catalog sweet steak waste crater broccoli pipe steak sister coyote moment obvious choose";
@@ -46,13 +46,13 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Publish the App to the Abstract Platform
-    publisher.publish_app::<MyAppInterface<Daemon>>()?;
+    publisher.publish_app::<CwInfuserInterface<Daemon>>()?;
 
     // Install the App on a new account
 
     let account = abstract_client.account_builder().build()?;
     // Installs the app on the Account
-    let app = account.install_app::<MyAppInterface<_>>(
+    let app = account.install_app::<CwInfuserInterface<_>>(
         &CwInfuserInstantiateMsg {
             default_infusion_params: todo!(),
         },

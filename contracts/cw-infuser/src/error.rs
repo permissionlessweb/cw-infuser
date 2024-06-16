@@ -34,5 +34,7 @@ pub enum CwInfuserError {
 
     #[error("Bundle Not Accepted.")]
     BundleNotAccepted,
+    #[error("Not enough bundles in nft.")]
+    NotEnoughNFTsInBundle,
     
 }

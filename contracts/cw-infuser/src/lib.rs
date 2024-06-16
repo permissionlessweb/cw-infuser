@@ -10,7 +10,7 @@ pub use error::CwInfuserError;
 /// The version of your app
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub use contract::interface::MyAppInterface;
+pub use contract::interface::CwInfuserInterface;
 
 pub const MY_NAMESPACE: &str = "yournamespace";
 pub const MY_APP_NAME: &str = "cw-infuser";

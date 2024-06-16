@@ -39,12 +39,16 @@ pub struct MyAppMigrateMsg {}
 pub enum CwInfuserQueryMsg {
     #[returns(ConfigResponse)]
     Config {},
+    /// returns an infusion for a given infusion owner & infusion id. 
     #[returns(Infusion)]
     Infusion { addr: Addr, id: u64 },
+    /// returns an infusion for a given infusion id. 
     #[returns(Infusion)]
     InfusionById { id: u64 },
+    /// returns all infusions owned by a given address
     #[returns(InfusionsResponse)]
     Infusions { addr: Addr },
+    /// boolean if collection address is in bundle
     #[returns(bool)]
     IsInBundle { collection_addr: Addr },
 }

@@ -28,7 +28,9 @@ pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 
 #[cosmwasm_schema::cw_serde]
 pub struct DefaultInfusionParams {
+    /// min nfts required to be included in a bundle 
     pub min_required: u64,
+    /// cw721-base code_id
     pub code_id: u64,
 }
 #[cosmwasm_schema::cw_serde]
@@ -47,9 +49,6 @@ pub struct NFT {
 #[cosmwasm_schema::cw_serde]
 pub struct NFTCollection {
     pub addr: Addr,
-    pub admin: Option<String>,
-    pub name: String,
-    pub symbol: String,
 }
 
 #[cosmwasm_schema::cw_serde]

@@ -3,9 +3,11 @@
 NFT minter for infusing (burning) nfts in creative ways.
 
 ## What Can I Decide? 
-- which collections nfts can be used in a bundle
-- how many tokens are required to infuse a bundle
-- optional traits from each collection that are required to infuse a bundle
+- which collections are able to be bundled together       <!-- todo: - which traits from each collection are required in order to infuse -->
+- how many tokens are required to infuse a bundle         <!-- todo: - how many tokens from each collection in a bundle are required  -->
+                                                          
+### Creating An Infusion
+
 
 ## Using the Justfile
 

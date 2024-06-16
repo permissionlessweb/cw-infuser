@@ -31,13 +31,13 @@ const APP: CwInfuser = CwInfuser::new(MY_APP_ID, APP_VERSION, None)
 #[cfg(feature = "export")]
 abstract_app::export_endpoints!(APP, CwInfuser);
 
-abstract_app::cw_orch_interface!(APP, CwInfuser, MyAppInterface);
+abstract_app::cw_orch_interface!(APP, CwInfuser, CwInfuserInterface);
 
 // TODO: add to docmuentation
 // https://linear.app/abstract-sdk/issue/ABS-414/add-documentation-on-dependencycreation-trait
 #[cfg(not(target_arch = "wasm32"))]
 impl<Chain: cw_orch::environment::CwEnv> abstract_interface::DependencyCreation
-    for crate::MyAppInterface<Chain>
+    for crate::CwInfuserInterface<Chain>
 {
     type DependenciesConfig = cosmwasm_std::Empty;
 }

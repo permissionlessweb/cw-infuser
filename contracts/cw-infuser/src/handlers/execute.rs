@@ -1,14 +1,21 @@
 use crate::{
     contract::{CwInfuser, CwInfuserResult},
     msg::CwInfuserExecuteMsg,
-    state::{generate_instantiate_salt2, is_nft_owner, Bundle, InfusedCollection, Infusion, InfusionInfo, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO, NFT}, CwInfuserError,
+    state::{
+        generate_instantiate_salt2, is_nft_owner, Bundle, InfusedCollection, Infusion,
+        InfusionInfo, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO, NFT,
+    },
+    CwInfuserError,
 };
 
 use abstract_app::traits::AbstractResponse;
 use cosmwasm_schema::serde::Serialize;
-use cosmwasm_std::{instantiate2_address, to_json_binary, Addr, Coin, CosmosMsg, DepsMut, Empty, Env, MessageInfo, Response, StdResult, Storage, SubMsg, WasmMsg};
+use cosmwasm_std::{
+    instantiate2_address, to_json_binary, Addr, Coin, CosmosMsg, DepsMut, Empty, Env, MessageInfo,
+    Response, StdResult, Storage, SubMsg, WasmMsg,
+};
 use cw721::Cw721ExecuteMsg;
-use cw721_base::{ExecuteMsg as Cw721ExecuteMessage,InstantiateMsg as Cw721InstantiateMsg};
+use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
@@ -30,7 +37,6 @@ pub fn execute_handler(
         CwInfuserExecuteMsg::UpdateConfig {} => update_config(deps, info, app),
     }
 }
-
 
 /// Update the configuration of the app
 fn update_config(deps: DepsMut, msg_info: MessageInfo, app: CwInfuser) -> CwInfuserResult {
@@ -77,8 +83,13 @@ pub fn execute_create_infusion(
             })?
             .latest_infusion_id
             .unwrap();
-        
-            let admin = Some(infusion.infused_collection.admin.unwrap_or(env.contract.address.to_string()));
+
+        let admin = Some(
+            infusion
+                .infused_collection
+                .admin
+                .unwrap_or(env.contract.address.to_string()),
+        );
 
         let infusion_config = Infusion {
             collections: infusion.collections,
@@ -113,8 +124,8 @@ pub fn execute_create_infusion(
         // gets the next id for an address
         let id = get_next_id(deps.storage, info.sender.clone())?;
 
+        // saves the infusion bundle to state with (creator, id)
         let key = (info.sender.clone(), id);
-        // saves the infusion bundle to state for query by id for each address
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
 
@@ -123,7 +134,6 @@ pub fn execute_create_infusion(
 
     Ok(Response::new().add_submessages(msgs))
 }
-
 
 fn execute_infuse_bundle(
     deps: DepsMut,
@@ -136,15 +146,15 @@ fn execute_infuse_bundle(
 
     for bundle in bundle {
         let sender = info.sender.clone();
+        // confirm correct # of nfts
         // confirms ownership for each nft in bundle
-        is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;        
+        is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
 
         // burns nfts in each bundle, mint infused token also
         let messages = burn_bundle(deps.storage, sender, bundle.nfts, infusion_id)?;
         // add msgs to response
         msgs.extend(messages)
     }
-    println!("{:?}", msgs);
 
     Ok(res.add_messages(msgs))
 }
@@ -160,7 +170,6 @@ fn burn_bundle(
     println!("burn bundle");
     let key = INFUSION_ID.load(storage, id)?;
     let infusion = INFUSION.load(storage, key)?;
-    
 
     // confirm bundle is in current infusion
     check_bundles(storage, id, nfts.clone())?;
@@ -203,8 +212,19 @@ fn check_bundles(
     // get the InfusionConfig
     let key = INFUSION_ID.load(storage, id)?;
     let infusion = INFUSION.load(storage, key)?;
-    // verify that the bundle is include in i
 
+    println!(
+        "# sent: {:#?},# needed: {:#?}",
+        bundle.len().to_string(),
+        infusion.infusion_params.amount_required.to_string()
+    );
+
+    // verify correct # of nft's provided
+    if bundle.len().to_string() != infusion.infusion_params.amount_required.to_string() {
+        return Err(CwInfuserError::NotEnoughNFTsInBundle);
+    }
+
+    // verify that the bundle is include in i
     for nft in &infusion.collections {
         if !bundle.iter().any(|b| nft.addr == b.addr.clone()) {
             return Err(CwInfuserError::BundleNotAccepted);
