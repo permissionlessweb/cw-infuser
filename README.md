@@ -1,57 +1,85 @@
-# Collection Infuser 
+# CosmWasm Starter Pack
 
-NFT minter for infusing (burning) nfts in creative ways.
+This is a template to build smart contracts in Rust to run inside a
+[Cosmos SDK](https://github.com/cosmos/cosmos-sdk) module on all chains that enable it.
+To understand the framework better, please read the overview in the
+[cosmwasm repo](https://github.com/CosmWasm/cosmwasm/blob/master/README.md),
+and dig into the [cosmwasm docs](https://www.cosmwasm.com).
+This assumes you understand the theory and just want to get coding.
 
-## What Can I Decide? 
-- which collections are able to be bundled together       <!-- todo: - which traits from each collection are required in order to infuse -->
-- how many tokens are required to infuse a bundle         <!-- todo: - how many tokens from each collection in a bundle are required  -->
-                                                          
-### Creating An Infusion
+## Creating a new repo from template
 
+Assuming you have a recent version of Rust and Cargo installed
+(via [rustup](https://rustup.rs/)),
+then the following should get you a new repo to start a contract:
 
-## Using the Justfile
-
-This repository comes with a [`justfile`](https://github.com/casey/just), which is a handy task runner that helps with building, testing, and publishing your Abstract app module.
-
-### Installing Tools
-
-To fully make use of the `justfile`, you need to install a few tools first. You can do this by simply running `just install-tools`. See [tools used the template](https://docs.abstract.money/3_get_started/2_installation.html?#tools-used-in-the-template) for more information.
-
-### Available Tasks
-
-Here are some of the tasks available in the `justfile`:
-
-- `install-tools`: Install all the tools needed to run the tasks.
-- `wasm`: Optimize the contract.
-- `test`: Run all tests.
-- `fmt`: Format the codebase (including .toml).
-- `lint`: Lint-check the codebase.
-- `lintfix`: Fix linting errors automatically.
-- `watch`: Watch the codebase and run `cargo check` on changes.
-- `watch-test`: Watch the codebase and run tests on changes.
-- `publish {{chain-id}}`: Publish the App to a network.
-- `schema`: Generate the json schemas for the contract
-<!-- - `ts-codegen`: Generate the typescript app code for the contract -->
-<!-- - `ts-publish`: Publish the typescript app code to npm -->
-- `publish-schemas`: Publish the schemas by creating a PR on the Abstract [schemas](https://github.com/AbstractSDK/schemas) repository.
-
-You can see the full list of tasks available by running `just --list`.
-
-### Compiling
-
-You can compile your module(s) by running the following command:
+Install [cargo-generate](https://github.com/ashleygwilliams/cargo-generate) and cargo-run-script.
+Unless you did that before, run this line now:
 
 ```sh
-just wasm
+cargo install cargo-generate --features vendored-openssl
+cargo install cargo-run-script
 ```
 
-This should result in an artifacts directory being created in your project root. Inside you will find a `my_module.wasm` file that is your module’s binary.
+Now, use it to create your new contract.
+Go to the folder in which you want to place it and run:
 
-### Testing
+**Latest**
 
-You can test the module using the different provided methods.
+```sh
+cargo generate --git https://github.com/CosmWasm/cw-template.git --name PROJECT_NAME
+```
 
-1. **Integration testing:** We provide an integration testing setup in both contracts. The App tests can be found here [here](./contracts/app/tests/integration.rs). You can re-use the setup provided in this file to test different execution and query entry-points of your module. Once you are satisfied with the results you can try publishing it to a real chain.
-2. **Local Daemon (Optional):** Once you have confirmed that your module works as expected you can spin up a local node and deploy Abstract + your app onto the chain. You need [Docker](https://www.docker.com/) installed for this step. You can do this by running the [test-local](./contracts/app/examples/test-local.rs) example, which uses a locally running juno daemon to deploy to. You can setup local juno using `just juno-local` command. At this point you can also test your front-end with the contracts.
+For cloning minimal code repo:
 
-Once testing is done you can attempt an actual deployment on test and mainnet.
+```sh
+cargo generate --git https://github.com/CosmWasm/cw-template.git --name PROJECT_NAME -d minimal=true
+```
+
+You will now have a new folder called `PROJECT_NAME` (I hope you changed that to something else)
+containing a simple working contract and build system that you can customize.
+
+## Create a Repo
+
+After generating, you have a initialized local git repo, but no commits, and no remote.
+Go to a server (eg. github) and create a new upstream repo (called `YOUR-GIT-URL` below).
+Then run the following:
+
+```sh
+# this is needed to create a valid Cargo.lock file (see below)
+cargo check
+git branch -M main
+git add .
+git commit -m 'Initial Commit'
+git remote add origin YOUR-GIT-URL
+git push -u origin main
+```
+
+## CI Support
+
+We have template configurations for both [GitHub Actions](.github/workflows/Basic.yml)
+and [Circle CI](.circleci/config.yml) in the generated project, so you can
+get up and running with CI right away.
+
+One note is that the CI runs all `cargo` commands
+with `--locked` to ensure it uses the exact same versions as you have locally. This also means
+you must have an up-to-date `Cargo.lock` file, which is not auto-generated.
+The first time you set up the project (or after adding any dep), you should ensure the
+`Cargo.lock` file is updated, so the CI will test properly. This can be done simply by
+running `cargo check` or `cargo unit-test`.
+
+## Using your project
+
+Once you have your custom repo, you should check out [Developing](./Developing.md) to explain
+more on how to run tests and develop code. Or go through the
+[online tutorial](https://docs.cosmwasm.com/) to get a better feel
+of how to develop.
+
+[Publishing](./Publishing.md) contains useful information on how to publish your contract
+to the world, once you are ready to deploy it on a running blockchain. And
+[Importing](./Importing.md) contains information about pulling in other contracts or crates
+that have been published.
+
+Please replace this README file with information about your specific project. You can keep
+the `Developing.md` and `Publishing.md` files as useful references, but please set some
+proper description in the README.
