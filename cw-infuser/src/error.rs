@@ -13,6 +13,10 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
+    #[error("Fee payment not accepted. Ensure you are sending the correct amount for the fee payment.")]
+    FeeNotAccepted,
+
+
     #[error("{0}")]
     Instantiate2AddressError(#[from] Instantiate2AddressError),
 

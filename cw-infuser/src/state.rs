@@ -1,4 +1,4 @@
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Coin};
 use cw_storage_plus::{Item, Map};
 
 #[cosmwasm_schema::cw_serde]
@@ -22,6 +22,8 @@ pub struct Infusion {
     pub infused_collection: InfusedCollection,
     pub infusion_params: InfusionParams,
     pub infusion_id: u64,
+    pub mint_fee: Option<Coin>,
+    pub payment_recipient: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -34,6 +36,10 @@ pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 pub struct InfusionParams {
     pub amount_required: u64,
     pub params: BurnParams,
+}
+#[cosmwasm_schema::cw_serde]
+pub struct Bundle {
+    pub nfts: Vec<NFT>,
 }
 
 #[cosmwasm_schema::cw_serde]
@@ -53,6 +59,13 @@ pub struct InfusedCollection {
     pub admin: Option<String>,
     pub name: String,
     pub symbol: String,
+    pub base_uri: String,
+}
+
+#[cosmwasm_schema::cw_serde]
+#[derive(Default)]
+pub struct InfusionInfo {
+    pub next_id: u64,
 }
 
 #[cosmwasm_schema::cw_serde]
@@ -66,12 +79,3 @@ pub struct CompatibleTraits {
     pub b: String,
 }
 
-#[cosmwasm_schema::cw_serde]
-pub struct Bundle {
-    pub nfts: Vec<NFT>,
-}
-#[cosmwasm_schema::cw_serde]
-#[derive(Default)]
-pub struct InfusionInfo {
-    pub next_id: u64,
-}

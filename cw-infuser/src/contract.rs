@@ -1,8 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    instantiate2_address, to_json_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HexBinary, MessageInfo, QueryRequest, Response, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
+    instantiate2_address, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut,
+    Empty, Env, HexBinary, MessageInfo, QueryRequest, Response, StdResult, Storage, SubMsg,
+    WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
@@ -20,27 +21,26 @@ use cosmwasm_schema::serde::Serialize;
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cosmwasm-infuser";
+const CONTRACT_NAME: &str = "crates.io:cw-infuser";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    msg: InstantiateMsg,
+    msg_info: MessageInfo,
+    tx: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     CONFIG.save(
         deps.storage,
         &Config {
             min_per_bundle: 1u64,
-            max_per_bundle: msg.max_token_in_bundle.unwrap_or(10u64),
-            code_id: msg.cw721_code_id,
+            max_per_bundle: tx.max_token_in_bundle.unwrap_or(10u64),
+            code_id: tx.cw721_code_id,
             latest_infusion_id: None,
-            admin: info.sender,
-            max_infusions: msg.max_infusions.unwrap_or(2u64),
-            max_bundles: msg.max_bundles.unwrap_or(5),
+            admin: msg_info.sender,
+            max_infusions: tx.max_infusions.unwrap_or(2u64),
+            max_bundles: tx.max_bundles.unwrap_or(5),
         },
     )?;
     Ok(Response::new())
@@ -49,24 +49,31 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
     msg: ExecuteMsg,
+    tx: MessageInfo,
+    env: Env,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateInfusion { collections } => {
-            execute_create_infusion(deps, info, env, collections)
-        }
+        ExecuteMsg::CreateInfusion {
+            collections,
+            payment_recipient,
+        } => execute_create_infusion(
+            deps,
+            tx.clone(),
+            env,
+            collections,
+            payment_recipient.unwrap_or(tx.sender.clone()),
+        ),
         ExecuteMsg::Infuse {
             infusion_id,
             bundle,
-        } => execute_infuse_bundle(deps, info, infusion_id, bundle),
-        ExecuteMsg::UpdateConfig {} => update_config(deps, info),
+        } => execute_infuse_bundle(deps, tx, infusion_id, bundle),
+        ExecuteMsg::UpdateConfig {} => update_config(deps, tx),
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::Infusion { addr, id } => to_json_binary(&query_infusion(deps, addr, id)?),
@@ -79,14 +86,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// Update the configuration of the app
-fn update_config(deps: DepsMut, msg_info: MessageInfo) -> Result<Response, ContractError> {
+fn update_config(deps: DepsMut, msg: MessageInfo) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     // Only the admin should be able to call this
-    if config.admin != msg_info.sender {
+    if config.admin != msg.sender {
         return Err(ContractError::Admin(AdminError::NotAdmin {}));
     }
 
-    //todo: update configs
+    // todo: update configs
 
     Ok(Response::new())
 }
@@ -96,6 +103,7 @@ pub fn execute_create_infusion(
     info: MessageInfo,
     env: Env,
     infusions: Vec<Infusion>,
+    payment_recipient: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let mut msgs: Vec<SubMsg> = Vec::new();
@@ -161,9 +169,12 @@ pub fn execute_create_infusion(
                 admin: admin.clone(),
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.to_string(),
+                base_uri: infusion.infused_collection.base_uri,
             },
             infusion_params: infusion.infusion_params,
             infusion_id,
+            mint_fee: infusion.mint_fee,
+            payment_recipient: payment_recipient.clone(),
         };
 
         let init_msg = Cw721InstantiateMsg {
@@ -206,15 +217,28 @@ fn execute_infuse_bundle(
 ) -> Result<Response, ContractError> {
     let res = Response::new();
     let mut msgs: Vec<CosmosMsg> = Vec::new();
+    let config = CONFIG.load(deps.storage)?;
+    let key = INFUSION_ID.load(deps.storage, infusion_id)?;
+    let infusion = INFUSION.load(deps.storage, key)?;
+
+    // add optional fee required for minting
+    if let Some(fee) = infusion.mint_fee.clone() {
+        if fee != info.funds[0] {
+            return Err(ContractError::FeeNotAccepted {});
+        } else {
+            let fee_msg = CosmosMsg::Bank(BankMsg::Send {
+                to_address: config.admin.to_string(),
+                amount: vec![fee],
+            });
+            msgs.push(fee_msg);
+        }
+    }
 
     for bundle in bundle {
         let sender = info.sender.clone();
-        // confirm correct # of nfts
-        // confirms ownership for each nft in bundle
         is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
-
         // burns nfts in each bundle, mint infused token also
-        let messages = burn_bundle(deps.storage, sender, bundle.nfts, infusion_id)?;
+        let messages = burn_bundle(deps.storage, sender, bundle.nfts, &infusion)?;
         // add msgs to response
         msgs.extend(messages)
     }
@@ -227,21 +251,16 @@ fn burn_bundle(
     storage: &mut dyn Storage,
     sender: Addr,
     nfts: Vec<NFT>,
-    id: u64,
+    infusion: &Infusion,
 ) -> Result<Vec<CosmosMsg>, ContractError> {
-    let _config = CONFIG.load(storage)?;
-    println!("burn bundle");
-    let key = INFUSION_ID.load(storage, id)?;
-    let infusion = INFUSION.load(storage, key)?;
-
+    // println!("burn bundle");
     // confirm bundle is in current infusion
-    check_bundles(storage, id, nfts.clone())?;
+    check_bundles(storage, infusion.infusion_id, nfts.clone())?;
 
     let mut messages: Vec<CosmosMsg> = Vec::new();
     for nft in nfts {
         let token_id = nft.token_id;
         let address = nft.addr;
-
         let message = Cw721ExecuteMsg::Burn {
             token_id: token_id.to_string(),
         };
@@ -256,14 +275,12 @@ fn burn_bundle(
     let mint_msg = Cw721ExecuteMessage::<Empty, Empty>::Mint {
         token_id: token_id.to_string(),
         owner: sender.to_string(),
-        token_uri: None,
+        token_uri: Some(infusion.infused_collection.base_uri.clone() + &token_id.to_string()),
         extension: Empty {},
     };
 
-    let msg = into_cosmos_msg(mint_msg, infusion.infused_collection.addr, None)?;
-
+    let msg = into_cosmos_msg(mint_msg, infusion.infused_collection.addr.clone(), None)?;
     messages.push(msg);
-
     Ok(messages)
 }
 
@@ -276,11 +293,11 @@ fn check_bundles(
     let key = INFUSION_ID.load(storage, id)?;
     let infusion = INFUSION.load(storage, key)?;
 
-    println!(
-        "# sent: {:#?},# needed: {:#?}",
-        bundle.len().to_string(),
-        infusion.infusion_params.amount_required.to_string()
-    );
+    // println!(
+    //     "# sent: {:#?},# needed: {:#?}",
+    //     bundle.len().to_string(),
+    //     infusion.infusion_params.amount_required.to_string()
+    // );
 
     // verify correct # of nft's provided
     if bundle.len().to_string() != infusion.infusion_params.amount_required.to_string() {
@@ -392,4 +409,6 @@ pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), Cont
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    // TODO: reimplement tests written, include test for payment token 
+}

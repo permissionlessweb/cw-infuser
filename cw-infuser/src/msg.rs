@@ -15,9 +15,9 @@ pub struct InstantiateMsg {
 #[derive(cw_orch::ExecuteFns)]
 pub enum ExecuteMsg {
     UpdateConfig {},
-    /// Increment count by 1
     CreateInfusion {
         collections: Vec<Infusion>,
+        payment_recipient: Option<Addr>,
     },
     Infuse {
         infusion_id: u64,
