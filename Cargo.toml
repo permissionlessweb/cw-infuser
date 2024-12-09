@@ -1,12 +1,28 @@
 [workspace]
-members = [ "cw-infuser"]
+members = [ "cw-infuser", "scripts","test-suite"]
 resolver = "2"
 
 [workspace.features]
 default = []
 
 [workspace.dependencies]
-
+anyhow = "1.0.79"
+cosmwasm-schema = "1.5.3"
+cosmwasm-std = { version = "1.5.3", features = [
+  "cosmwasm_1_4",
+  # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
+  # "cosmwasm_2_0",
+] }
+cw-asset = { version = "3.0.0" }
+cw-storage-plus = "1.2.0"
+cw2 = "1.1.2"
+cw-orch = { version = "0.22.2" }
+abstract-cw20 = "2.0.0"
+abstract-cw20-base = "2.0.0"
+cw721 =  "0.18.0"
+cw721-base  = { version = "0.18.0", features = ["library"] }
+serde = { version = "1.0.197", default-features = false, features = ["derive"] }
+scripts = { path = "../scripts" }
 [profile.release]
 rpath = false
 lto = true

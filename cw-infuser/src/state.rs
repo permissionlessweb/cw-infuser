@@ -1,12 +1,14 @@
-use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{Addr, Coin, HexBinary};
 use cw_storage_plus::{Item, Map};
 
 #[cosmwasm_schema::cw_serde]
 pub struct Config {
-    pub latest_infusion_id: Option<u64>,
+    // Default at 0.
+    pub latest_infusion_id: u64,
     pub admin: Addr,
+    /// maximum unique infusion that can be created at once. Defaults to 2
     pub max_infusions: u64,
-    /// minimum nfts bundles must require
+    /// contract global minimum nft each collection in infusion must require to burn. hard coded to 1
     pub min_per_bundle: u64,
     /// maximum nfts bundles can require
     pub max_per_bundle: u64,
@@ -14,29 +16,38 @@ pub struct Config {
     pub max_bundles: u64,
     /// cw721-base code_id
     pub code_id: u64,
+    pub code_hash: HexBinary,
 }
 
 #[cosmwasm_schema::cw_serde]
 pub struct Infusion {
+    /// NFT collections eligible for a specific infusion
     pub collections: Vec<NFTCollection>,
+    /// Current data of the new infused collection
     pub infused_collection: InfusedCollection,
+    /// Parameters of a specific infusion
     pub infusion_params: InfusionParams,
-    pub infusion_id: u64,
-    pub mint_fee: Option<Coin>,
+    /// Recipient of payments for an infusion
     pub payment_recipient: Addr,
 }
 
+
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COUNT: Item<i32> = Item::new("count");
+/// Map of Infusion params with key of (new infused collection addr, contract global infusion id )
 pub const INFUSION: Map<(Addr, u64), Infusion> = Map::new("infusion");
+/// Map of the infusion id with the infused collection addr
 pub const INFUSION_ID: Map<u64, (Addr, u64)> = Map::new("infusion_id");
+/// New infused collection info
 pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionParams {
     pub amount_required: u64,
+    pub mint_fee: Option<Coin>,
     pub params: BurnParams,
 }
+
 #[cosmwasm_schema::cw_serde]
 pub struct Bundle {
     pub nfts: Vec<NFT>,
@@ -50,7 +61,16 @@ pub struct NFT {
 
 #[cosmwasm_schema::cw_serde]
 pub struct NFTCollection {
+    /// Contract address of collection
     pub addr: Addr,
+    /// Minimum tokens required to infuse
+    pub min_req: u64,
+}
+
+impl PartialEq<String> for NFTCollection {
+    fn eq(&self, other: &String) -> bool {
+        self.addr.to_string().eq(other)
+    }
 }
 
 #[cosmwasm_schema::cw_serde]
@@ -78,4 +98,3 @@ pub struct CompatibleTraits {
     pub a: String,
     pub b: String,
 }
-

@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     instantiate2_address, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut,
-    Empty, Env, HexBinary, MessageInfo, QueryRequest, Response, StdResult, Storage, SubMsg,
+    Empty, Env, HexBinary, MessageInfo, QueryRequest, Reply, Response, StdResult, Storage, SubMsg,
     WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
@@ -13,8 +13,8 @@ use cw_controllers::AdminError;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, QueryMsg};
 use crate::state::{
-    Bundle, Config, InfusedCollection, Infusion, InfusionInfo, CONFIG, INFUSION, INFUSION_ID,
-    INFUSION_INFO, NFT,
+    Bundle, Config, InfusedCollection, Infusion, InfusionInfo, NFTCollection, CONFIG, INFUSION,
+    INFUSION_ID, INFUSION_INFO, NFT,
 };
 use cosmwasm_schema::serde::Serialize;
 
@@ -27,20 +27,24 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    msg_info: MessageInfo,
-    tx: InstantiateMsg,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    // get checksum of cw721
+    let cw721_checksum = deps.querier.query_wasm_code_info(msg.cw721_code_id)?;
     CONFIG.save(
         deps.storage,
         &Config {
-            min_per_bundle: 1u64,
-            max_per_bundle: tx.max_token_in_bundle.unwrap_or(10u64),
-            code_id: tx.cw721_code_id,
-            latest_infusion_id: None,
-            admin: msg_info.sender,
-            max_infusions: tx.max_infusions.unwrap_or(2u64),
-            max_bundles: tx.max_bundles.unwrap_or(5),
+            min_per_bundle: msg.min_per_bundle.unwrap_or(1),
+            max_per_bundle: msg.max_per_bundle.unwrap_or(10u64),
+            code_id: msg.cw721_code_id,
+            latest_infusion_id: 0,
+            admin: info.sender,
+            max_infusions: msg.max_infusions.unwrap_or(2u64),
+            max_bundles: msg.max_bundles.unwrap_or(5),
+            code_hash: cw721_checksum.checksum,
         },
     )?;
     Ok(Response::new())
@@ -49,9 +53,9 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    msg: ExecuteMsg,
-    tx: MessageInfo,
     env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::CreateInfusion {
@@ -59,35 +63,44 @@ pub fn execute(
             payment_recipient,
         } => execute_create_infusion(
             deps,
-            tx.clone(),
+            info.clone(),
             env,
             collections,
-            payment_recipient.unwrap_or(tx.sender.clone()),
+            payment_recipient.unwrap_or(info.sender.clone()),
         ),
         ExecuteMsg::Infuse {
             infusion_id,
             bundle,
-        } => execute_infuse_bundle(deps, tx, infusion_id, bundle),
-        ExecuteMsg::UpdateConfig {} => update_config(deps, tx),
+        } => execute_infuse_bundle(deps, info, infusion_id, bundle),
+        ExecuteMsg::UpdateConfig {} => update_config(deps, info),
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::Infusion { addr, id } => to_json_binary(&query_infusion(deps, addr, id)?),
         QueryMsg::InfusionById { id } => to_json_binary(&query_infusion_by_id(deps, id)?),
-        QueryMsg::Infusions { addr } => to_json_binary(&query_infusions(deps, addr)?),
-        QueryMsg::IsInBundle { collection_addr } => {
-            to_json_binary(&query_infusions(deps, collection_addr)?)
-        }
+        QueryMsg::Infusions { addr, index } => to_json_binary(&query_infusions(deps, addr, index)?),
+        QueryMsg::IsInBundle {
+            collection_addr,
+            infusion_id,
+        } => to_json_binary(&query_if_is_in_bundle(deps, collection_addr, infusion_id)?),
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        INFUSION_COLLECTION_INIT_MSG_ID => Ok(Response::new()),
+        _ => Err(ContractError::Unauthorized {}),
     }
 }
 
 /// Update the configuration of the app
 fn update_config(deps: DepsMut, msg: MessageInfo) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     // Only the admin should be able to call this
     if config.admin != msg.sender {
         return Err(ContractError::Admin(AdminError::NotAdmin {}));
@@ -121,9 +134,13 @@ pub fn execute_create_infusion(
     // loop through each infusion
     for infusion in infusions {
         let required = infusion.infusion_params.amount_required;
-        // checks # of bundles
+        // checks # of collections
         if config.max_bundles < infusion.collections.len().try_into().unwrap() {
-            return Err(ContractError::NotEnoughNFTsInBundle {});
+            return Err(ContractError::NotEnoughNFTsInBundle {
+                have: infusion.collections.len().try_into().unwrap(),
+                min: config.max_bundles,
+                max: config.max_bundles,
+            });
         }
         // checks # of nft required per bundle
         if config.min_per_bundle > required.clone() || config.max_per_bundle < required.clone() {
@@ -148,11 +165,10 @@ pub fn execute_create_infusion(
         // get the global infusion id
         let infusion_id: u64 = CONFIG
             .update(deps.storage, |mut c| -> StdResult<_> {
-                c.latest_infusion_id = c.latest_infusion_id.map_or(Some(0), |id| Some(id + 1));
+                c.latest_infusion_id = c.latest_infusion_id + 1u64;
                 Ok(c)
             })?
-            .latest_infusion_id
-            .unwrap();
+            .latest_infusion_id;
 
         // sets infuser contract as admin if no admin specified (not sure if we want this)
         let admin = Some(
@@ -162,24 +178,9 @@ pub fn execute_create_infusion(
                 .unwrap_or(env.contract.address.to_string()),
         );
 
-        let infusion_config = Infusion {
-            collections: infusion.collections,
-            infused_collection: InfusedCollection {
-                addr: infusion_collection_addr_human,
-                admin: admin.clone(),
-                name: infusion.infused_collection.name.clone(),
-                symbol: infusion.infused_collection.symbol.to_string(),
-                base_uri: infusion.infused_collection.base_uri,
-            },
-            infusion_params: infusion.infusion_params,
-            infusion_id,
-            mint_fee: infusion.mint_fee,
-            payment_recipient: payment_recipient.clone(),
-        };
-
         let init_msg = Cw721InstantiateMsg {
             name: infusion.infused_collection.name.clone(),
-            symbol: infusion.infused_collection.symbol,
+            symbol: infusion.infused_collection.symbol.clone(),
             minter: env.contract.address.to_string(),
         };
 
@@ -198,8 +199,21 @@ pub fn execute_create_infusion(
         // gets the next id for an address
         let id = get_next_id(deps.storage, info.sender.clone())?;
 
-        // saves the infusion bundle to state with (creator, id)
-        let key = (info.sender.clone(), id);
+        let infusion_config = Infusion {
+            collections: infusion.collections,
+            infused_collection: InfusedCollection {
+                addr: infusion_collection_addr_human.clone(),
+                admin: admin.clone(),
+                name: infusion.infused_collection.name.clone(),
+                symbol: infusion.infused_collection.symbol.clone(),
+                base_uri: infusion.infused_collection.base_uri,
+            },
+            infusion_params: infusion.infusion_params,
+            payment_recipient: payment_recipient.clone(),
+        };
+
+        // saves the infusion bundle to state with (infused_collection, id)
+        let key = (infusion_collection_addr_human, id);
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
 
@@ -222,7 +236,8 @@ fn execute_infuse_bundle(
     let infusion = INFUSION.load(deps.storage, key)?;
 
     // add optional fee required for minting
-    if let Some(fee) = infusion.mint_fee.clone() {
+    if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
+        // must be first token in tx.
         if fee != info.funds[0] {
             return Err(ContractError::FeeNotAccepted {});
         } else {
@@ -234,13 +249,17 @@ fn execute_infuse_bundle(
         }
     }
 
+    // check lens
+    if bundle.len() == 0 {
+        return Err(ContractError::BundleNotAccepted {});
+    }
+    // for each nft collection bundle sent to infuse
     for bundle in bundle {
         let sender = info.sender.clone();
+        // assert ownership
         is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
-        // burns nfts in each bundle, mint infused token also
-        let messages = burn_bundle(deps.storage, sender, bundle.nfts, &infusion)?;
-        // add msgs to response
-        msgs.extend(messages)
+        // add each burn nft & mint infused token to response
+        msgs.extend(burn_bundle(deps.storage, sender, bundle.nfts, &infusion)?)
     }
 
     Ok(res.add_messages(msgs))
@@ -253,9 +272,8 @@ fn burn_bundle(
     nfts: Vec<NFT>,
     infusion: &Infusion,
 ) -> Result<Vec<CosmosMsg>, ContractError> {
-    // println!("burn bundle");
-    // confirm bundle is in current infusion
-    check_bundles(storage, infusion.infusion_id, nfts.clone())?;
+    // confirm bundle is in current infusion, and expected amount sent
+    check_bundles(nfts.clone(), infusion.collections.clone())?;
 
     let mut messages: Vec<CosmosMsg> = Vec::new();
     for nft in nfts {
@@ -284,30 +302,20 @@ fn burn_bundle(
     Ok(messages)
 }
 
-fn check_bundles(
-    storage: &mut dyn Storage,
-    id: u64,
-    bundle: Vec<NFT>,
-) -> Result<(), ContractError> {
-    // get the InfusionConfig
-    let key = INFUSION_ID.load(storage, id)?;
-    let infusion = INFUSION.load(storage, key)?;
-
-    // println!(
-    //     "# sent: {:#?},# needed: {:#?}",
-    //     bundle.len().to_string(),
-    //     infusion.infusion_params.amount_required.to_string()
-    // );
-
-    // verify correct # of nft's provided
-    if bundle.len().to_string() != infusion.infusion_params.amount_required.to_string() {
-        return Err(ContractError::NotEnoughNFTsInBundle);
-    }
-
-    // verify that the bundle is include in i
-    for nft in &infusion.collections {
-        if !bundle.iter().any(|b| nft.addr == b.addr.clone()) {
+fn check_bundles(bundle: Vec<NFT>, collections: Vec<NFTCollection>) -> Result<(), ContractError> {
+    // verify correct # of nft's provided, filter  collection from collections map
+    // verify that the bundle is include in infusion
+    for col in &collections {
+        let matching_nfts: Vec<_> = bundle.iter().filter(|b| b.addr == col.addr).collect();
+        if matching_nfts.is_empty() {
             return Err(ContractError::BundleNotAccepted);
+        }
+        if matching_nfts.len() as u64 != col.min_req {
+            return Err(ContractError::NotEnoughNFTsInBundle {
+                have: matching_nfts.len().try_into().unwrap(),
+                min: col.min_req,
+                max: col.min_req,
+            });
         }
     }
 
@@ -328,6 +336,8 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     Ok(execute.into())
 }
 
+/// Get the next token id for the infused collection addr being minted
+/// TODO: will prob need hook or query to collection to confirm accurate
 fn get_next_id(storage: &mut dyn Storage, addr: Addr) -> Result<u64, ContractError> {
     let token_id = INFUSION_INFO
         .update::<_, ContractError>(storage, &addr, |x| match x {
@@ -361,11 +371,10 @@ pub fn query_infusion_by_id(deps: Deps, id: u64) -> StdResult<Infusion> {
     Ok(infusion)
 }
 
-pub fn query_infusions(deps: Deps, addr: Addr) -> StdResult<InfusionsResponse> {
+pub fn query_infusions(deps: Deps, addr: Addr, index: u64) -> StdResult<InfusionsResponse> {
     let mut infusions = vec![];
-    let current_id = INFUSION_INFO.load(deps.storage, &addr.clone())?.next_id;
 
-    for i in 0..=current_id {
+    for i in index..=index + 30 {
         let id = i as u64;
         // return the response for each
         let state = INFUSION.load(deps.storage, (addr.clone(), id))?;
@@ -375,6 +384,16 @@ pub fn query_infusions(deps: Deps, addr: Addr) -> StdResult<InfusionsResponse> {
     Ok(InfusionsResponse {
         infusions: infusions,
     })
+}
+
+pub fn query_if_is_in_bundle(deps: Deps, addr: Addr, id: u64) -> StdResult<bool> {
+    let key = INFUSION_ID.load(deps.storage, id)?;
+    Ok(INFUSION
+        .load(deps.storage, key)?
+        .collections
+        .iter()
+        .find(|a| a.addr == addr)
+        .is_some())
 }
 
 /// Generates the value used with instantiate2, via a hash of the infusers checksum.
@@ -410,5 +429,5 @@ pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), Cont
 
 #[cfg(test)]
 mod tests {
-    // TODO: reimplement tests written, include test for payment token 
+    // TODO: reimplement tests written, include test for payment token
 }

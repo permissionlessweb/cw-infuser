@@ -4,10 +4,12 @@ use cosmwasm_std::Addr;
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// Admin of this contract
     pub admin: Option<String>,
+    pub min_per_bundle: Option<u64>,
+    pub max_per_bundle: Option<u64>,
     pub max_bundles: Option<u64>,
     pub max_infusions: Option<u64>,
-    pub max_token_in_bundle: Option<u64>,
     pub cw721_code_id: u64,
 }
 
@@ -37,11 +39,16 @@ pub enum QueryMsg {
     #[returns(Infusion)]
     InfusionById { id: u64 },
     /// returns all infusions owned by a given address
+    /// defaults to 30 entries from a given index point of the infusion map.
+    /// TODO: optimize pagination
     #[returns(InfusionsResponse)]
-    Infusions { addr: Addr },
-    /// boolean if collection address is in bundle
+    Infusions { addr: Addr, index: u64 },
+    /// boolean if addr is an eligible collection for bundle
     #[returns(bool)]
-    IsInBundle { collection_addr: Addr },
+    IsInBundle {
+        collection_addr: Addr,
+        infusion_id: u64,
+    },
 }
 
 #[cosmwasm_schema::cw_serde]
