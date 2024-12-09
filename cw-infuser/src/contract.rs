@@ -125,10 +125,7 @@ pub fn execute_create_infusion(
         return Err(ContractError::TooManyInfusions {});
     }
 
-    let collection_checksum = deps
-        .querier
-        .query_wasm_code_info(config.code_id.clone())?
-        .checksum;
+    let collection_checksum = deps.querier.query_wasm_code_info(config.code_id)?.checksum;
     let salt1 = generate_instantiate_salt2(&collection_checksum);
 
     // loop through each infusion
@@ -143,7 +140,7 @@ pub fn execute_create_infusion(
             });
         }
         // checks # of nft required per bundle
-        if config.min_per_bundle > required.clone() || config.max_per_bundle < required.clone() {
+        if config.min_per_bundle > required || config.max_per_bundle < required {
             return Err(ContractError::BadBundle {
                 have: required,
                 min: config.min_per_bundle,
@@ -153,7 +150,7 @@ pub fn execute_create_infusion(
 
         // predict the contract address
         let infusion_addr = match instantiate2_address(
-            &collection_checksum.as_slice(),
+            collection_checksum.as_slice(),
             &deps.api.addr_canonicalize(env.contract.address.as_str())?,
             salt1.as_slice(),
         ) {
@@ -165,7 +162,7 @@ pub fn execute_create_infusion(
         // get the global infusion id
         let infusion_id: u64 = CONFIG
             .update(deps.storage, |mut c| -> StdResult<_> {
-                c.latest_infusion_id = c.latest_infusion_id + 1u64;
+                c.latest_infusion_id += 1u64;
                 Ok(c)
             })?
             .latest_infusion_id;
@@ -250,7 +247,7 @@ fn execute_infuse_bundle(
     }
 
     // check lens
-    if bundle.len() == 0 {
+    if bundle.is_empty() {
         return Err(ContractError::BundleNotAccepted {});
     }
     // for each nft collection bundle sent to infuse
@@ -375,15 +372,13 @@ pub fn query_infusions(deps: Deps, addr: Addr, index: u64) -> StdResult<Infusion
     let mut infusions = vec![];
 
     for i in index..=index + 30 {
-        let id = i as u64;
+        let id = i;
         // return the response for each
         let state = INFUSION.load(deps.storage, (addr.clone(), id))?;
         infusions.push(state);
     }
 
-    Ok(InfusionsResponse {
-        infusions: infusions,
-    })
+    Ok(InfusionsResponse { infusions })
 }
 
 pub fn query_if_is_in_bundle(deps: Deps, addr: Addr, id: u64) -> StdResult<bool> {
@@ -392,8 +387,7 @@ pub fn query_if_is_in_bundle(deps: Deps, addr: Addr, id: u64) -> StdResult<bool>
         .load(deps.storage, key)?
         .collections
         .iter()
-        .find(|a| a.addr == addr)
-        .is_some())
+        .any(|a| a.addr == addr))
 }
 
 /// Generates the value used with instantiate2, via a hash of the infusers checksum.
@@ -420,7 +414,7 @@ pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), Cont
                 })?,
             }))?;
 
-        if owner_response.owner != sender.to_string() {
+        if owner_response.owner != sender {
             return Err(ContractError::SenderNotOwner {});
         }
     }
