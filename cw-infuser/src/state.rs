@@ -31,7 +31,6 @@ pub struct Infusion {
     pub payment_recipient: Addr,
 }
 
-
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COUNT: Item<i32> = Item::new("count");
 /// Map of Infusion params with key of (new infused collection addr, contract global infusion id )

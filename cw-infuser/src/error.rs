@@ -13,9 +13,10 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
-    #[error("Fee payment not accepted. Ensure you are sending the correct amount for the fee payment.")]
+    #[error(
+        "Fee payment not accepted. Ensure you are sending the correct amount for the fee payment."
+    )]
     FeeNotAccepted,
-
 
     #[error("{0}")]
     Instantiate2AddressError(#[from] Instantiate2AddressError),
@@ -27,7 +28,7 @@ pub enum ContractError {
     BundleNotAccepted,
 
     #[error("Not enough bundles in nft.  Have: {have}. Min: {min}, Max: {max}")]
-    NotEnoughNFTsInBundle  { have: u64, min: u64, max: u64 },
+    NotEnoughNFTsInBundle { have: u64, min: u64, max: u64 },
 
     #[error("Too many infusions specified. Have: {have}. Min: {min}, Max: {max}")]
     BadBundle { have: u64, min: u64, max: u64 },
