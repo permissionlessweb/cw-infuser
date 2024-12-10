@@ -28,9 +28,6 @@ pub fn main() -> anyhow::Result<()> {
         "mainnet" => STARGAZE_1,
         _ => panic!(),
     };
-
-    // 
-    // chain.authz_granter(CONTRACT_MIGRATION_OWNER);
-
+ 
     Ok(())
 }

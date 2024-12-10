@@ -1,12 +1,10 @@
 use std::error::Error;
 
 use abstract_cw_multi_test::{Contract, IntoAddr};
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{coin, coins, HexBinary};
 use cw_infuser::{
     msg::{ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
-    state::{
-        Bundle, BurnParams, Config, InfusedCollection, Infusion, InfusionParams, NFTCollection, NFT,
-    },
+    state::{Bundle, Config, InfusedCollection, Infusion, InfusionParams, NFTCollection, NFT},
 };
 // Use prelude to get all the necessary imports
 use cw_orch::{anyhow, prelude::*};
@@ -31,6 +29,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
     fn setup() -> anyhow::Result<InfuserSuite<MockBech32>> {
         let mock = MockBech32::new("mock");
         let sender = mock.sender_addr();
+        mock.add_balance(&sender, coins(100, "ubtsg"))?;
         let treasury = mock.addr_make("treasury");
         let infuser = CwInfuser::new(mock.clone());
 
@@ -48,7 +47,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 cw721_code_id,
                 &cw721_base::InstantiateMsg {
                     name: "good-chronic".to_string(),
-                    symbol: "CHRONIC".to_string(),
+                    symbol: "CHRONIC-".to_owned() + i.to_string().as_str(),
                     minter: Some(sender.to_string()),
                     withdraw_address: Some(treasury.to_string()),
                 },
@@ -85,6 +84,9 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 max_per_bundle: None,
                 min_per_bundle: None,
                 cw721_code_id,
+                admin_fee: 10,
+                min_creation_fee: None,
+                min_infusion_fee: None,
             },
             None,
             None,
@@ -155,7 +157,10 @@ fn successful_install() -> anyhow::Result<()> {
             code_id: 2,
             code_hash: HexBinary::from_hex(
                 "7e961e9369f7a3619b102834beec5bc2463f9008b40de972c91c45e3b300a805"
-            )?
+            )?,
+            admin_fee: 10u64,
+            min_creation_fee: None,
+            min_infusion_fee: None,
         }
     );
     Ok(())

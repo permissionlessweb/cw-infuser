@@ -1,19 +1,36 @@
 use clap::Parser;
+use cosmwasm_std::coin;
 use cw_infuser::msg::InstantiateMsg;
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
 use scripts::{ELGAFAR_1, STARGAZE_1};
 
 const CONTRACT_MIGRATION_OWNER: &str = "stars1ampqmqrmuc03d7828qqw296q9ygnt5quf778hv";
-const CW721_CODE_ID: u64 = 274; 
+const CW721_CODE_ID: u64 = 274;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// create infusion json message
+    /// select network
     #[arg(short, long)]
     network: String,
+    #[arg(long)]
+    admin: Option<String>,
+    #[arg(long)]
+    min_creation_fee_denom: Option<String>,
+    #[arg(long)]
+    min_creation_fee_amount: Option<String>,
+    #[arg(long)]
+    min_infusion_fee_denom: Option<String>,
+    #[arg(long)]
+    min_infusion_fee_amount: Option<String>,
+    #[arg(long)]
+    min_per_bundle: Option<String>,
+    #[arg(long)]
+    max_infusions: Option<String>,
+    #[arg(long)]
+    max_bundles: Option<String>,
 }
 
 pub fn main() -> anyhow::Result<()> {
@@ -29,7 +46,7 @@ pub fn main() -> anyhow::Result<()> {
     let chain = Daemon::builder(network.clone()).build()?;
     // chain.authz_granter(CONTRACT_MIGRATION_OWNER);
 
-    let mut infuser = CwInfuser::new(chain.clone());
+    let infuser = CwInfuser::new(chain.clone());
     infuser.upload()?;
 
     infuser.instantiate(
@@ -40,6 +57,9 @@ pub fn main() -> anyhow::Result<()> {
             max_bundles: None,
             max_infusions: None,
             cw721_code_id: CW721_CODE_ID,
+            admin_fee: 10u64,
+            min_creation_fee: None,
+            min_infusion_fee: None,
         },
         Some(&Addr::unchecked(CONTRACT_MIGRATION_OWNER)),
         None,

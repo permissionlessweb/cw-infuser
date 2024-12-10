@@ -13,9 +13,7 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
-    #[error(
-        "Fee payment not accepted. Ensure you are sending the correct amount for the fee payment."
-    )]
+    #[error("Fee payment not accepted. Ensure you are sending the correct amount for the fee payment.")]
     FeeNotAccepted,
 
     #[error("{0}")]
@@ -35,6 +33,15 @@ pub enum ContractError {
 
     #[error("Too many infusions specified.")]
     TooManyInfusions,
+
+    #[error("The max_bundles being set is greater than possible. Current hard-coded at 5.")]
+    MaxBundleError,
+
+    #[error("You are attempting to create more bundles than possible. Current hard-coded limit set at 2")]
+    MaxInfusionErrror,
+
+    #[error("Error setting the fee for your infusion.")]
+    CreateInfusionFeeError,
 
     #[error("Unauthorized.")]
     Unauthorized,

@@ -1,10 +1,9 @@
 use std::str::FromStr;
 
 use clap::{arg, command, Parser};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{coin, Uint128};
 use cw_infuser::msg::ExecuteMsgFns;
 use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
-use cw_orch::core::serde_json;
 use cw_orch::daemon::TxSender;
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
@@ -72,19 +71,22 @@ pub fn main() -> anyhow::Result<()> {
         params: None,
     };
 
-    // pass infusions to orchestrator to create scripts
+    let infused_collection = InfusedCollection {
+        addr: None,
+        admin: args.infuse_col_admin,
+        name: args.infuse_col_name,
+        symbol: args.infuse_col_symbol,
+        base_uri: args.infuse_col_base_uri,
+    };
+
+    // pass infusions to orchestrator
     let chain = Daemon::builder(ELGAFAR_1).build()?;
     let infuser = CwInfuser::new(chain.clone());
+    // create infusion
     infuser.create_infusion(
         vec![Infusion {
             collections: infusions,
-            infused_collection: InfusedCollection {
-                addr: None,
-                admin: args.infuse_col_admin,
-                name: args.infuse_col_name,
-                symbol: args.infuse_col_symbol,
-                base_uri: args.infuse_col_base_uri,
-            },
+            infused_collection,
             infusion_params,
             payment_recipient: chain.sender_addr(),
         }],

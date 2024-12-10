@@ -6,6 +6,12 @@ pub struct Config {
     // Default at 0.
     pub latest_infusion_id: u64,
     pub admin: Addr,
+    /// % fee from any infusion fee set to go to admin. 10 == 10% , 71 == 71%
+    pub admin_fee: u64,
+    /// Minimum fee that is required for creating an infusion
+    pub min_creation_fee: Option<Coin>,
+    /// Minimum fee that is required to be set when new infusions are being created
+    pub min_infusion_fee: Option<Coin>,
     /// maximum unique infusion that can be created at once. Defaults to 2
     pub max_infusions: u64,
     /// contract global minimum nft each collection in infusion must require to burn. hard coded to 1

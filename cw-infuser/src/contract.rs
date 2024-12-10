@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    instantiate2_address, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut,
-    Empty, Env, HexBinary, MessageInfo, QueryRequest, Reply, Response, StdResult, Storage, SubMsg,
-    WasmMsg, WasmQuery,
+    coin, instantiate2_address, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps,
+    DepsMut, Empty, Env, HexBinary, MessageInfo, QueryRequest, Reply, Response, StdError,
+    StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
@@ -12,7 +12,7 @@ use cw_controllers::AdminError;
 use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
     Bundle, Config, InfusedCollection, Infusion, InfusionInfo, NFTCollection, CONFIG, INFUSION,
     INFUSION_ID, INFUSION_INFO, NFT,
@@ -33,6 +33,33 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    if msg.max_infusions.is_some_and(|f| f > 2u64) {
+        return Err(ContractError::MaxInfusionErrror);
+    }
+    if msg.max_bundles.is_some_and(|f| f > 5u64) {
+        return Err(ContractError::MaxBundleError);
+    }
+    if msg.min_per_bundle.is_some_and(|f| f < 1u64) {
+        return Err(ContractError::MaxInfusionErrror);
+    }
+    if msg.max_per_bundle.is_some_and(|f| f > 10u64) {
+        return Err(ContractError::MaxInfusionErrror);
+    }
+    if !(msg.admin_fee <= 100u64) {
+        return Err(ContractError::Std(StdError::generic_err(
+            "admin fee incorrect. Must be less than or 100%",
+        )));
+    }
+    if msg
+        .min_creation_fee
+        .clone()
+        .is_some_and(|f| f.amount.u128() == 0u128)
+    {
+        return Err(ContractError::Std(StdError::generic_err(
+            "admin fee incorrect. Must be less than 100%",
+        )));
+    }
+
     // get checksum of cw721
     let cw721_checksum = deps.querier.query_wasm_code_info(msg.cw721_code_id)?;
     CONFIG.save(
@@ -41,11 +68,14 @@ pub fn instantiate(
             min_per_bundle: msg.min_per_bundle.unwrap_or(1),
             max_per_bundle: msg.max_per_bundle.unwrap_or(10u64),
             code_id: msg.cw721_code_id,
+            code_hash: cw721_checksum.checksum,
             latest_infusion_id: 0,
             admin: info.sender,
             max_infusions: msg.max_infusions.unwrap_or(2u64),
             max_bundles: msg.max_bundles.unwrap_or(5),
-            code_hash: cw721_checksum.checksum,
+            admin_fee: msg.admin_fee,
+            min_creation_fee: msg.min_creation_fee,
+            min_infusion_fee: msg.min_infusion_fee,
         },
     )?;
     Ok(Response::new())
@@ -121,18 +151,18 @@ pub fn execute_create_infusion(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let mut msgs: Vec<SubMsg> = Vec::new();
+    let mut fee_msgs: Vec<CosmosMsg<Empty>> = Vec::new();
 
     if infusions.len() > config.max_infusions.try_into().unwrap() {
         return Err(ContractError::TooManyInfusions {});
     }
 
-    let collection_checksum = deps.querier.query_wasm_code_info(config.code_id)?.checksum;
+    let collection_checksum = config.code_hash;
     let salt1 = generate_instantiate_salt2(&collection_checksum);
 
     // loop through each infusion
     for infusion in infusions {
-        let required = infusion.infusion_params.min_per_bundle;
-        // checks # of collections
+        // checks min_per_bundle
         if config.max_bundles < infusion.collections.len().try_into().unwrap() {
             return Err(ContractError::NotEnoughNFTsInBundle {
                 have: infusion.collections.len().try_into().unwrap(),
@@ -141,12 +171,40 @@ pub fn execute_create_infusion(
             });
         }
         // checks # of nft required per bundle
+        let required = infusion.infusion_params.min_per_bundle;
         if config.min_per_bundle > required || config.max_per_bundle < required {
             return Err(ContractError::BadBundle {
                 have: required,
                 min: config.min_per_bundle,
                 max: config.max_per_bundle,
             });
+        }
+
+        // assert fees
+        if let Some(creation_fee) = config.min_creation_fee.clone() {
+            if info.funds.iter().find(|&e| e == &creation_fee).is_some() {
+                let base_fee = CosmosMsg::Bank(BankMsg::Send {
+                    to_address: config.admin.to_string(),
+                    amount: vec![creation_fee],
+                });
+                fee_msgs.push(base_fee);
+            } else {
+                return Err(ContractError::CreateInfusionFeeError);
+            }
+        }
+        if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
+            if !fee.amount.is_zero() {
+                if !(config
+                    .min_infusion_fee
+                    .clone()
+                    .is_some_and(|f| f.amount > fee.amount))
+                {
+                } else {
+                    return Err(ContractError::CreateInfusionFeeError);
+                }
+            } else {
+                return Err(ContractError::CreateInfusionFeeError);
+            }
         }
 
         // predict the contract address
@@ -177,12 +235,12 @@ pub fn execute_create_infusion(
         );
 
         // cw721-collection
-        let init_msg = Cw721InstantiateMsg {
+        let _init_msg = Cw721InstantiateMsg {
             name: infusion.infused_collection.name.clone(),
             symbol: infusion.infused_collection.symbol.clone(),
             minter: env.contract.address.to_string(),
         };
-        
+
         // sg721-collection
         let sg_init_msg = Sg721InitMsg {
             name: infusion.infused_collection.name.clone(),
@@ -204,7 +262,7 @@ pub fn execute_create_infusion(
             code_id: config.code_id,
             msg: to_json_binary(&sg_init_msg)?,
             funds: vec![],
-            label: "Infused collection".to_string() + infusion.infused_collection.name.as_ref(),
+            label: "Infused collection".to_string() + infusion.infused_collection.name.as_ref() + &env.block.height.to_string(),
             salt: salt1.clone(),
         };
 
@@ -235,7 +293,7 @@ pub fn execute_create_infusion(
         msgs.push(infusion_collection_submsg)
     }
 
-    Ok(Response::new().add_submessages(msgs))
+    Ok(Response::new().add_submessages(msgs).add_messages(fee_msgs))
 }
 
 fn execute_infuse_bundle(
@@ -252,15 +310,27 @@ fn execute_infuse_bundle(
 
     // add optional fee required for minting
     if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
-        // must be first token in tx.
-        if fee != info.funds[0] {
+        // must be first token in tx & more than mint fee
+        if info.funds.iter().find(|&e| e == &fee).is_none() {
             return Err(ContractError::FeeNotAccepted {});
         } else {
+            // split fees between admin and infusion owner
+            let base_fee_amount = fee.amount.u128() as u64 * config.admin_fee / 100;
+            let remaining_fee_amount = fee.amount.u128() as u64 * (100 - config.admin_fee) / 100;
+
+            if base_fee_amount != 0 {
+                let base_fee = CosmosMsg::Bank(BankMsg::Send {
+                    to_address: config.admin.to_string(),
+                    amount: vec![coin(base_fee_amount.into(), fee.denom.clone())],
+                });
+                msgs.push(base_fee);
+            }
+            // remaining fee to infusion owner
             let fee_msg = CosmosMsg::Bank(BankMsg::Send {
-                to_address: config.admin.to_string(),
-                amount: vec![fee],
+                to_address: infusion.payment_recipient.to_string(),
+                amount: vec![coin(remaining_fee_amount.into(), fee.denom.clone())],
             });
-            msgs.push(fee_msg);
+            msgs.extend(vec![fee_msg]);
         }
     }
 
@@ -317,7 +387,7 @@ fn burn_bundle(
     let mint_msg = Cw721ExecuteMessage::<Empty, Empty>::Mint {
         token_id: token_id.to_string(),
         owner: sender.to_string(),
-        token_uri: Some(infusion.infused_collection.base_uri.clone() + &token_id.to_string()),
+        token_uri: Some(infusion.infused_collection.base_uri.clone() + "/" + &token_id.to_string()),
         extension: Empty {},
     };
 
@@ -456,7 +526,10 @@ pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), Cont
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    // TODO: reimplement tests written, include test for payment token
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::new())
 }
+
+#[cfg(test)]
+mod tests {}

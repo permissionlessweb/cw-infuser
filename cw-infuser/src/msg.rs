@@ -1,15 +1,27 @@
 use crate::state::*;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Coin};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Admin of this contract
     pub admin: Option<String>,
+    /// Fee from each infusion payment, if required. Goes to admin during a successful infusion
+    pub admin_fee: u64,
+    /// Minimum fee that is required for creating an infusion
+    pub min_creation_fee: Option<Coin>,
+    /// Minimum fee that is required to be set when new infusions are being created
+    pub min_infusion_fee: Option<Coin>,
+    /// Minimum tokens required for any infusions eligible collections
     pub min_per_bundle: Option<u64>,
+    /// Maximim tokens required for any infusions eligible collections
     pub max_per_bundle: Option<u64>,
+    /// Maximum bundles any infusion is able to require
     pub max_bundles: Option<u64>,
+    /// Maximum infusions that may be created at once
     pub max_infusions: Option<u64>,
+
+    /// Code-ID of the cw721-collection
     pub cw721_code_id: u64,
 }
 
@@ -68,3 +80,6 @@ pub struct InfusedCollectionParams {
 pub struct InfusionsResponse {
     pub infusions: Vec<Infusion>,
 }
+
+#[cw_serde]
+pub struct MigrateMsg {}
