@@ -41,34 +41,39 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         let cw721 = cw721_contract();
         let cw721_code_id = mock.upload_custom("cw721", cw721)?.uploaded_code_id()?;
 
-        // instanatiate cw721
-        let msg_a = mock.instantiate(
-            cw721_code_id,
-            &cw721_base::InstantiateMsg {
-                name: "good-chronic".to_string(),
-                symbol: "CHRONIC".to_string(),
-                minter: Some(sender.to_string()),
-                withdraw_address: Some(treasury.to_string()),
-            },
-            Some("cw721-base-good-chronic"),
-            None,
-            &[],
-        )?;
-        let cw721_a = msg_a.instantiated_contract_address()?;
-
-        // mint 11 nfts?
-        for n in 0..10 {
-            // mint cw721
-            mock.execute(
-                &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Mint {
-                    token_id: n.to_string(),
-                    owner: sender.to_string(),
-                    token_uri: None,
-                    extension: None,
+        let mut addrs = vec![];
+        // create 3 collections
+        for i in 0..3 {
+            let msg_a = mock.instantiate(
+                cw721_code_id,
+                &cw721_base::InstantiateMsg {
+                    name: "good-chronic".to_string(),
+                    symbol: "CHRONIC".to_string(),
+                    minter: Some(sender.to_string()),
+                    withdraw_address: Some(treasury.to_string()),
                 },
+                Some("cw721-base-good-chronic"),
+                None,
                 &[],
-                &cw721_a.clone(),
             )?;
+            let cw721_a = msg_a.instantiated_contract_address()?;
+            addrs.push(cw721_a);
+        }
+
+        for i in addrs.clone() {
+            // mint 11 nfts?
+            for n in 0..10 {
+                mock.execute(
+                    &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Mint {
+                        token_id: n.to_string(),
+                        owner: sender.to_string(),
+                        token_uri: None,
+                        extension: None,
+                    },
+                    &[],
+                    &i.clone(),
+                )?;
+            }
         }
 
         // create cw-infsion app
@@ -85,49 +90,49 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             None,
         )?;
 
-        for n in 0..10 {
-            // approve infuser for nft
-            mock.execute(
-                &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Approve {
-                    spender: infuser.address()?.to_string(),
-                    token_id: n.to_string(),
-                    expires: None,
-                },
-                &[],
-                &cw721_a.clone(),
+        for i in addrs.clone() {
+            for n in 0..10 {
+                // approve infuser for nft
+                mock.execute(
+                    &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Approve {
+                        spender: infuser.address()?.to_string(),
+                        token_id: n.to_string(),
+                        expires: None,
+                    },
+                    &[],
+                    &i.clone(),
+                )?;
+            }
+        }
+        for i in addrs.clone() {
+            // create infusion
+            infuser.create_infusion(
+                vec![Infusion {
+                    collections: vec![NFTCollection {
+                        addr: i.clone(),
+                        min_req: 2,
+                    }],
+                    infused_collection: InfusedCollection {
+                        addr: None,
+                        admin: None,
+                        name: "test".to_string(),
+                        symbol: "TEST".to_string(),
+                        base_uri: "ipfs".to_string(),
+                    },
+                    infusion_params: InfusionParams {
+                        params: None,
+                        mint_fee: None,
+                        min_per_bundle: 1,
+                    },
+                    payment_recipient: treasury.clone(),
+                }],
+                None,
             )?;
         }
-
-        // create infusion
-        infuser.create_infusion(
-            vec![Infusion {
-                collections: vec![NFTCollection {
-                    addr: cw721_a.clone(),
-                    min_req: 2,
-                }],
-                infused_collection: InfusedCollection {
-                    addr: Addr::unchecked("test"),
-                    admin: None,
-                    name: "test".to_string(),
-                    symbol: "TEST".to_string(),
-                    base_uri: "ipfs".to_string(),
-                },
-                infusion_params: InfusionParams {
-                    params: BurnParams {
-                        compatible_traits: None,
-                    },
-                    amount_required: 1,
-                    mint_fee: None,
-                },
-                payment_recipient: treasury.clone(),
-            }],
-            None,
-        )?;
-
         Ok(InfuserSuite {
             chain: mock,
             infuser,
-            nfts: vec![cw721_a],
+            nfts: addrs,
         })
     }
 }
@@ -181,7 +186,7 @@ fn successful_infusion() -> anyhow::Result<()> {
     // confirm infused collection mint
     let res = app.infusion_by_id(1)?;
     assert_eq!(
-        res.infused_collection.addr.as_str(),
+        res.infused_collection.addr.unwrap().as_str(),
         "mock1h7fqqvv9enn34w36qselazjvs7exkcw90cl8unnj9zgngkshaktslpljlk"
     );
 
@@ -242,3 +247,5 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
 fn correct_feed() -> anyhow::Result<()> {
     Ok(())
 }
+
+// burn during cw721 send

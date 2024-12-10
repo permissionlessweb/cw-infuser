@@ -1,6 +1,9 @@
+use std::str::FromStr;
+
 use clap::{arg, command, Parser};
+use cosmwasm_std::Uint128;
 use cw_infuser::msg::ExecuteMsgFns;
-use cw_infuser::state::Infusion;
+use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
 use cw_orch::core::serde_json;
 use cw_orch::daemon::TxSender;
 use cw_orch::prelude::*;
@@ -11,29 +14,80 @@ use scripts::ELGAFAR_1;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// create infusion json message
-    #[arg(short, long)]
-    infusion: String,
+    /// collections eligble. stars1..,stars2...,stars...
+    #[arg(long)]
+    col_addrs_eligible: String,
+    /// min token required. Sort in order collections are defined
+    #[arg(long)]
+    col_min_required: String,
+    /// infused collection name
+    #[arg(long)]
+    infuse_col_admin: Option<String>,
+    /// infused collection name
+    #[arg(long)]
+    infuse_col_name: String,
+    /// infused collection symbol
+    #[arg(long)]
+    infuse_col_symbol: String,
+    /// infused collection base uri
+    #[arg(long)]
+    infuse_col_base_uri: String,
+    /// min num of tokens in collection bundle for all infusions of this contract
+    #[arg(long)]
+    config_min_per_bundle: String,
     /// optional recipient of infusions. defaults to sender
-    #[arg(short, long)]
+    #[arg(long)]
     treasury: Option<String>,
 }
 
-// cargo run -- --infusion-id <ID> --infusion-json '{}'
+// cargo run --bin create -- --col_addrs_eligible  --col_min_required --infuse_col_admin --infuse_col_name --infuse_col_symbol --infuse_col_base_uri --config_min_per_bundle
 pub fn main() -> anyhow::Result<()> {
     dotenv::dotenv()?;
     env_logger::init();
     let args = Args::parse();
+    // grab count and each collection addr from args
+    let bundle_collections = args.col_addrs_eligible;
+    let mint_nft_per_bundle = args.col_min_required;
+    let mut infusions: Vec<NFTCollection> = vec![];
+    // create infusion msg type from args
+    let collections: Vec<String> = bundle_collections
+        .split(',')
+        .map(|s| s.to_string())
+        .collect();
+    let min_required: Vec<String> = mint_nft_per_bundle
+        .split(',')
+        .map(|s| s.to_string())
+        .collect();
+
+    for (collection, min) in collections.iter().zip(min_required.iter()) {
+        let addr = Addr::unchecked(collection);
+        let min_req: u64 = min.parse().unwrap_or(0);
+        let infusion = NFTCollection { addr, min_req };
+        infusions.push(infusion);
+    }
+
+    let infusion_params = InfusionParams {
+        min_per_bundle: Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64,
+        mint_fee: None,
+        params: None,
+    };
+
+    // pass infusions to orchestrator to create scripts
     let chain = Daemon::builder(ELGAFAR_1).build()?;
-    // chain.authz_granter(CONTRACT_MIGRATION_OWNER);
-    let infusions: Vec<Infusion> = serde_json::from_str(&args.infusion)?;
-    // require flags to be infusion id and json string of infusion
-
     let infuser = CwInfuser::new(chain.clone());
-    infuser.upload()?;
-
     infuser.create_infusion(
-        infusions,
+        vec![Infusion {
+            collections: infusions,
+            infused_collection: InfusedCollection {
+                addr: None,
+                admin: args.infuse_col_admin,
+                name: args.infuse_col_name,
+                symbol: args.infuse_col_symbol,
+                base_uri: args.infuse_col_base_uri,
+            },
+            infusion_params,
+            payment_recipient: chain.sender_addr(),
+        }],
         Some(Addr::unchecked(
             args.treasury
                 .unwrap_or(chain.sender().address().to_string()),

@@ -1,0 +1,7 @@
+
+
+## Testnet collection 
+
+Open Edition Minter Contract Address: stars15wjw88mhscwqc2rn255clz57wavcwqa9vwexjqpx3ksudapq3lfs4lzz2y
+SG721 Contract Address: stars18vng693zqjgwd08p3ypzy26h8f7d7yjweahn5hxq2xnuu837emuslfzn5w
+Transaction Hash: C251E4142002A548E38625222AE227C7E5C2336C6821BF39503CFB558C31B80A

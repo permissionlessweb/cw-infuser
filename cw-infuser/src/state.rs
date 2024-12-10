@@ -42,9 +42,11 @@ pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionParams {
-    pub amount_required: u64,
+    /// Minimum amount each collection in any infusion is required
+    pub min_per_bundle: u64,
+    /// Minium amount of mint fee required for any infusion if set. Rewards will go to either infusion creator, or reward granted
     pub mint_fee: Option<Coin>,
-    pub params: BurnParams,
+    pub params: Option<BurnParams>,
 }
 
 #[cosmwasm_schema::cw_serde]
@@ -74,7 +76,7 @@ impl PartialEq<String> for NFTCollection {
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusedCollection {
-    pub addr: Addr,
+    pub addr: Option<String>,
     pub admin: Option<String>,
     pub name: String,
     pub symbol: String,

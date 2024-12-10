@@ -9,6 +9,7 @@ use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
+use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, QueryMsg};
@@ -130,7 +131,7 @@ pub fn execute_create_infusion(
 
     // loop through each infusion
     for infusion in infusions {
-        let required = infusion.infusion_params.amount_required;
+        let required = infusion.infusion_params.min_per_bundle;
         // checks # of collections
         if config.max_bundles < infusion.collections.len().try_into().unwrap() {
             return Err(ContractError::NotEnoughNFTsInBundle {
@@ -175,16 +176,33 @@ pub fn execute_create_infusion(
                 .unwrap_or(env.contract.address.to_string()),
         );
 
+        // cw721-collection
         let init_msg = Cw721InstantiateMsg {
             name: infusion.infused_collection.name.clone(),
             symbol: infusion.infused_collection.symbol.clone(),
             minter: env.contract.address.to_string(),
         };
+        
+        // sg721-collection
+        let sg_init_msg = Sg721InitMsg {
+            name: infusion.infused_collection.name.clone(),
+            symbol: infusion.infused_collection.symbol.clone(),
+            minter: env.contract.address.to_string(),
+            collection_info: CollectionInfo {
+                creator: admin.clone().unwrap(),
+                description: "Infused Collection".into(),
+                image: infusion.infused_collection.base_uri.clone(),
+                external_link: None,
+                explicit_content: None,
+                start_trading_time: None,
+                royalty_info: None,
+            },
+        };
 
         let init_infusion = WasmMsg::Instantiate2 {
             admin: admin.clone(),
             code_id: config.code_id,
-            msg: to_json_binary(&init_msg)?,
+            msg: to_json_binary(&sg_init_msg)?,
             funds: vec![],
             label: "Infused collection".to_string() + infusion.infused_collection.name.as_ref(),
             salt: salt1.clone(),
@@ -199,7 +217,7 @@ pub fn execute_create_infusion(
         let infusion_config = Infusion {
             collections: infusion.collections,
             infused_collection: InfusedCollection {
-                addr: infusion_collection_addr_human.clone(),
+                addr: Some(infusion_collection_addr_human.to_string()),
                 admin: admin.clone(),
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
@@ -284,7 +302,16 @@ fn burn_bundle(
     }
 
     // increment tokens
-    let token_id = get_next_id(storage, infusion.infused_collection.addr.clone())?;
+    let token_id = get_next_id(
+        storage,
+        Addr::unchecked(
+            infusion
+                .infused_collection
+                .addr
+                .clone()
+                .expect("no infused colection"),
+        ),
+    )?;
 
     // mint_msg
     let mint_msg = Cw721ExecuteMessage::<Empty, Empty>::Mint {
@@ -294,7 +321,15 @@ fn burn_bundle(
         extension: Empty {},
     };
 
-    let msg = into_cosmos_msg(mint_msg, infusion.infused_collection.addr.clone(), None)?;
+    let msg = into_cosmos_msg(
+        mint_msg,
+        infusion
+            .infused_collection
+            .addr
+            .clone()
+            .expect("no infused colection"),
+        None,
+    )?;
     messages.push(msg);
     Ok(messages)
 }
