@@ -25,6 +25,15 @@ pub enum ContractError {
     #[error("Bundle Not Accepted.")]
     BundleNotAccepted,
 
+    #[error("Invalid base token URI (must be an IPFS URI)")]
+    InvalidBaseTokenURI {},
+
+    #[error("Token id: {token_id} already sold")]
+    TokenIdAlreadySold { token_id: u32 },
+
+    #[error("Sold out")]
+    SoldOut {},
+    
     #[error("Not enough bundles in nft.  Have: {have}. Min: {min}, Max: {max}")]
     NotEnoughNFTsInBundle { have: u64, min: u64, max: u64 },
 

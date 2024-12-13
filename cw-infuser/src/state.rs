@@ -1,6 +1,19 @@
 use cosmwasm_std::{Addr, Coin, HexBinary};
 use cw_storage_plus::{Item, Map};
 
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const COUNT: Item<i32> = Item::new("count");
+/// infusions saved to map with key of (infused_collection_addr, infusion_id )
+pub const INFUSION: Map<(Addr, u64), Infusion> = Map::new("infusion");
+/// Map of the infusion id with the infused collection addr
+pub const INFUSION_ID: Map<u64, (Addr, u64)> = Map::new("infusion_id");
+/// New infused collection info
+pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
+// map of index position and token id
+pub const MINTABLE_TOKEN_POSITIONS: Map<u32, u32> = Map::new("mt");
+pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
+
+
 #[cosmwasm_schema::cw_serde]
 pub struct Config {
     // Default at 0.
@@ -36,15 +49,6 @@ pub struct Infusion {
     /// Recipient of payments for an infusion
     pub payment_recipient: Addr,
 }
-
-pub const CONFIG: Item<Config> = Item::new("config");
-pub const COUNT: Item<i32> = Item::new("count");
-/// Map of Infusion params with key of (new infused collection addr, contract global infusion id )
-pub const INFUSION: Map<(Addr, u64), Infusion> = Map::new("infusion");
-/// Map of the infusion id with the infused collection addr
-pub const INFUSION_ID: Map<u64, (Addr, u64)> = Map::new("infusion_id");
-/// New infused collection info
-pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionParams {
@@ -82,11 +86,13 @@ impl PartialEq<String> for NFTCollection {
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusedCollection {
+    pub sg: bool,
     pub addr: Option<String>,
     pub admin: Option<String>,
     pub name: String,
     pub symbol: String,
     pub base_uri: String,
+    pub num_tokens: u32,
 }
 
 #[cosmwasm_schema::cw_serde]
@@ -104,4 +110,9 @@ pub struct BurnParams {
 pub struct CompatibleTraits {
     pub a: String,
     pub b: String,
+}
+
+pub struct TokenPositionMapping {
+    pub position: u32,
+    pub token_id: u32,
 }

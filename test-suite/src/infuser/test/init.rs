@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use abstract_cw_multi_test::{Contract, IntoAddr};
-use cosmwasm_std::{coin, coins, HexBinary};
+use cosmwasm_std::{coins, HexBinary};
 use cw_infuser::{
     msg::{ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
     state::{Bundle, Config, InfusedCollection, Infusion, InfusionParams, NFTCollection, NFT},
@@ -41,6 +41,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         let cw721_code_id = mock.upload_custom("cw721", cw721)?.uploaded_code_id()?;
 
         let mut addrs = vec![];
+
         // create 3 collections
         for i in 0..3 {
             let msg_a = mock.instantiate(
@@ -56,8 +57,26 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 &[],
             )?;
             let cw721_a = msg_a.instantiated_contract_address()?;
+            println!("test nft collection: {:#?},{:#?}", i, cw721_a.to_string());
             addrs.push(cw721_a);
         }
+
+        // create cw-infsion app
+        infuser.instantiate(
+            &InstantiateMsg {
+                admin: Some(sender.to_string()),
+                max_bundles: None,
+                max_infusions: None,
+                max_per_bundle: None,
+                min_per_bundle: None,
+                cw721_code_id,
+                admin_fee: 10, // 10%
+                min_creation_fee: None,
+                min_infusion_fee: None,
+            },
+            None,
+            None,
+        )?;
 
         for i in addrs.clone() {
             // mint 11 nfts?
@@ -72,28 +91,6 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                     &[],
                     &i.clone(),
                 )?;
-            }
-        }
-
-        // create cw-infsion app
-        infuser.instantiate(
-            &InstantiateMsg {
-                admin: Some(sender.to_string()),
-                max_bundles: None,
-                max_infusions: None,
-                max_per_bundle: None,
-                min_per_bundle: None,
-                cw721_code_id,
-                admin_fee: 10,
-                min_creation_fee: None,
-                min_infusion_fee: None,
-            },
-            None,
-            None,
-        )?;
-
-        for i in addrs.clone() {
-            for n in 0..10 {
                 // approve infuser for nft
                 mock.execute(
                     &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Approve {
@@ -106,9 +103,10 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 )?;
             }
         }
+
         for i in addrs.clone() {
             // create infusion
-            infuser.create_infusion(
+            let res = infuser.create_infusion(
                 vec![Infusion {
                     collections: vec![NFTCollection {
                         addr: i.clone(),
@@ -117,9 +115,13 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                     infused_collection: InfusedCollection {
                         addr: None,
                         admin: None,
-                        name: "test".to_string(),
+                        name: "test-".to_string() + &i.to_string().to_owned(),
                         symbol: "TEST".to_string(),
-                        base_uri: "ipfs".to_string(),
+                        base_uri:
+                            "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
+                                .to_string(),
+                        num_tokens: 100,
+                        sg: false,
                     },
                     infusion_params: InfusionParams {
                         params: None,
@@ -130,6 +132,8 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 }],
                 None,
             )?;
+            println!("test nft collection: {:#?},{:#?}", i, res);
+            mock.next_block()?;
         }
         Ok(InfuserSuite {
             chain: mock,
@@ -148,7 +152,7 @@ fn successful_install() -> anyhow::Result<()> {
     assert_eq!(
         config,
         Config {
-            latest_infusion_id: 1,
+            latest_infusion_id: 3,
             admin: env.chain.sender_addr(),
             max_infusions: 2u64,
             min_per_bundle: 1u64,
@@ -172,7 +176,7 @@ fn successful_infusion() -> anyhow::Result<()> {
     let app = env.infuser;
 
     // create first infusion.
-    app.infuse(
+    let res = app.infuse(
         vec![Bundle {
             nfts: vec![
                 NFT {
@@ -188,11 +192,12 @@ fn successful_infusion() -> anyhow::Result<()> {
         1,
     )?;
 
+    println!("{:#?}", res);
     // confirm infused collection mint
     let res = app.infusion_by_id(1)?;
     assert_eq!(
         res.infused_collection.addr.unwrap().as_str(),
-        "mock1h7fqqvv9enn34w36qselazjvs7exkcw90cl8unnj9zgngkshaktslpljlk"
+        "mock1mq0jsuzkdfqh8n9l4g7kpf72ynxxf0d2qsgkf3rnup48988x5elszl78cd"
     );
 
     // error if too few nfts provided in bundle
@@ -254,3 +259,5 @@ fn correct_feed() -> anyhow::Result<()> {
 }
 
 // burn during cw721 send
+// confirm random token mints 
+// confirm funds go to destination

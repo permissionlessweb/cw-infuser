@@ -33,6 +33,9 @@ struct Args {
     infuse_col_base_uri: String,
     /// min num of tokens in collection bundle for all infusions of this contract
     #[arg(long)]
+    infuse_col_num_tokens: String,
+    /// min num of tokens in collection bundle for all infusions of this contract
+    #[arg(long)]
     config_min_per_bundle: String,
     /// optional recipient of infusions. defaults to sender
     #[arg(long)]
@@ -77,6 +80,8 @@ pub fn main() -> anyhow::Result<()> {
         name: args.infuse_col_name,
         symbol: args.infuse_col_symbol,
         base_uri: args.infuse_col_base_uri,
+        num_tokens: args.infuse_col_num_tokens.parse().unwrap(),
+        sg: true,
     };
 
     // pass infusions to orchestrator
