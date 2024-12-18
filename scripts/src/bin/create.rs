@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{arg, command, Parser};
-use cosmwasm_std::{coin, Uint128};
+use cosmwasm_std::Uint128;
 use cw_infuser::msg::ExecuteMsgFns;
 use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
 use cw_orch::daemon::TxSender;
@@ -69,7 +69,7 @@ pub fn main() -> anyhow::Result<()> {
     }
 
     let infusion_params = InfusionParams {
-        min_per_bundle: Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64,
+        min_per_bundle: Some(Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64),
         mint_fee: None,
         params: None,
     };
@@ -93,7 +93,7 @@ pub fn main() -> anyhow::Result<()> {
             collections: infusions,
             infused_collection,
             infusion_params,
-            payment_recipient: chain.sender_addr(),
+            payment_recipient: Some(chain.sender_addr()),
         }],
         Some(Addr::unchecked(
             args.treasury

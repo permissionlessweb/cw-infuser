@@ -78,7 +78,7 @@ pub struct InfusedCollectionParams {
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionsResponse {
-    pub infusions: Vec<Infusion>,
+    pub infusions: Vec<InfusionState>,
 }
 
 #[cw_serde]

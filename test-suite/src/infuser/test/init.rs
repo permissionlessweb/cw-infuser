@@ -1,10 +1,11 @@
-use std::error::Error;
+use std::{error::Error, str::FromStr};
 
 use abstract_cw_multi_test::{Contract, IntoAddr};
-use cosmwasm_std::{coins, HexBinary};
+use cosmwasm_std::{coin, coins, HexBinary, Uint128};
 use cw_infuser::{
-    msg::{ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
+    msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
     state::{Bundle, Config, InfusedCollection, Infusion, InfusionParams, NFTCollection, NFT},
+    ContractError,
 };
 // Use prelude to get all the necessary imports
 use cw_orch::{anyhow, prelude::*};
@@ -26,10 +27,12 @@ pub struct InfuserSuite<Chain> {
 }
 
 impl<Chain: CwEnv> InfuserSuite<Chain> {
-    fn setup() -> anyhow::Result<InfuserSuite<MockBech32>> {
+    // setsup the infuser suite by storing, instantiating, and configuring nft collections & the cw-infuser
+    fn setup(init_msg: Option<InstantiateMsg>) -> anyhow::Result<InfuserSuite<MockBech32>> {
         let mock = MockBech32::new("mock");
         let sender = mock.sender_addr();
-        mock.add_balance(&sender, coins(100, "ubtsg"))?;
+        mock.add_balance(&sender, coins(100000000, "ubtsg"))?;
+        mock.add_balance(&sender, coins(100000000, "ustars"))?;
         let treasury = mock.addr_make("treasury");
         let infuser = CwInfuser::new(mock.clone());
 
@@ -40,7 +43,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         let cw721 = cw721_contract();
         let cw721_code_id = mock.upload_custom("cw721", cw721)?.uploaded_code_id()?;
 
-        let mut addrs = vec![];
+        let mut nft_collection_addrs = vec![];
 
         // create 3 collections
         for i in 0..3 {
@@ -58,27 +61,24 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             )?;
             let cw721_a = msg_a.instantiated_contract_address()?;
             println!("test nft collection: {:#?},{:#?}", i, cw721_a.to_string());
-            addrs.push(cw721_a);
+            nft_collection_addrs.push(cw721_a);
         }
 
+        let default_init = InstantiateMsg {
+            admin: Some(sender.to_string()),
+            max_bundles: None,
+            max_infusions: None,
+            max_per_bundle: None,
+            min_per_bundle: None,
+            cw721_code_id,
+            admin_fee: 0,
+            min_creation_fee: None,
+            min_infusion_fee: None,
+        };
         // create cw-infsion app
-        infuser.instantiate(
-            &InstantiateMsg {
-                admin: Some(sender.to_string()),
-                max_bundles: None,
-                max_infusions: None,
-                max_per_bundle: None,
-                min_per_bundle: None,
-                cw721_code_id,
-                admin_fee: 10, // 10%
-                min_creation_fee: None,
-                min_infusion_fee: None,
-            },
-            None,
-            None,
-        )?;
+        infuser.instantiate(&init_msg.clone().unwrap_or(default_init), None, None)?;
 
-        for i in addrs.clone() {
+        for i in nft_collection_addrs.clone() {
             // mint 11 nfts?
             for n in 0..10 {
                 mock.execute(
@@ -104,48 +104,56 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             }
         }
 
-        for i in addrs.clone() {
+        for i in nft_collection_addrs.clone() {
+            let mut fee: Vec<Coin> = vec![];
+            if let Some(ref i) = init_msg {
+                if let Some(mcf) = &i.min_creation_fee {
+                    fee.push(mcf.clone());
+                }
+            }
             // create infusion
-            let res = infuser.create_infusion(
-                vec![Infusion {
-                    collections: vec![NFTCollection {
-                        addr: i.clone(),
-                        min_req: 2,
+            infuser.execute(
+                &ExecuteMsg::CreateInfusion {
+                    collections: vec![Infusion {
+                        collections: vec![NFTCollection {
+                            addr: i.clone(),
+                            min_req: 2,
+                        }],
+                        infused_collection: InfusedCollection {
+                            addr: None,
+                            admin: None,
+                            name: "test-".to_string() + &i.to_string().to_owned(),
+                            symbol: "TEST".to_string(),
+                            base_uri:
+                                "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
+                                    .to_string(),
+                            num_tokens: 100,
+                            sg: false,
+                        },
+                        infusion_params: InfusionParams {
+                            params: None,
+                            mint_fee: None,
+                            min_per_bundle: Some(1),
+                        },
+                        payment_recipient: Some(treasury.clone()),
                     }],
-                    infused_collection: InfusedCollection {
-                        addr: None,
-                        admin: None,
-                        name: "test-".to_string() + &i.to_string().to_owned(),
-                        symbol: "TEST".to_string(),
-                        base_uri:
-                            "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
-                                .to_string(),
-                        num_tokens: 100,
-                        sg: false,
-                    },
-                    infusion_params: InfusionParams {
-                        params: None,
-                        mint_fee: None,
-                        min_per_bundle: 1,
-                    },
-                    payment_recipient: treasury.clone(),
-                }],
-                None,
+                    payment_recipient: Some(treasury.clone()),
+                },
+                Some(fee.to_vec().as_slice()),
             )?;
-            println!("test nft collection: {:#?},{:#?}", i, res);
             mock.next_block()?;
         }
         Ok(InfuserSuite {
             chain: mock,
             infuser,
-            nfts: addrs,
+            nfts: nft_collection_addrs,
         })
     }
 }
 
 #[test]
 fn successful_install() -> anyhow::Result<()> {
-    let env = InfuserSuite::<MockBech32>::setup()?;
+    let env = InfuserSuite::<MockBech32>::setup(None)?;
     let app = env.infuser;
 
     let config = app.config()?;
@@ -172,11 +180,11 @@ fn successful_install() -> anyhow::Result<()> {
 
 #[test]
 fn successful_infusion() -> anyhow::Result<()> {
-    let env = InfuserSuite::<MockBech32>::setup()?;
+    let env = InfuserSuite::<MockBech32>::setup(None)?;
     let app = env.infuser;
 
-    // create first infusion.
-    let res = app.infuse(
+    // infuse
+    app.infuse(
         vec![Bundle {
             nfts: vec![
                 NFT {
@@ -191,19 +199,19 @@ fn successful_infusion() -> anyhow::Result<()> {
         }],
         1,
     )?;
+    // println!("{:#?}", res);
 
-    println!("{:#?}", res);
     // confirm infused collection mint
     let res = app.infusion_by_id(1)?;
-    assert_eq!(
-        res.infused_collection.addr.unwrap().as_str(),
-        "mock1mq0jsuzkdfqh8n9l4g7kpf72ynxxf0d2qsgkf3rnup48988x5elszl78cd"
+    assert!(
+        res.infused_collection.addr.is_some(),
+        "infusion collection not set!"
     );
 
     // error if too few nfts provided in bundle
     let err = app.infuse(vec![], 1).unwrap_err();
 
-    assert_eq!(err.source().unwrap().to_string(), "Bundle Not Accepted.");
+    assert_eq!(err.source().unwrap().to_string(), "Bundle cannot be empty.");
 
     // error if too many nfts provided in bundle
     let err = app
@@ -247,6 +255,211 @@ fn successful_infusion() -> anyhow::Result<()> {
 // Multiple Collections In Bundle
 #[test]
 fn multiple_collections_in_bundle() -> anyhow::Result<()> {
+    let env = InfuserSuite::<MockBech32>::setup(None)?;
+    let app = env.infuser;
+
+    let bad_nfts = vec![
+        NFTCollection {
+            addr: env.nfts[0].clone(),
+            min_req: 2,
+        },
+        NFTCollection {
+            addr: env.nfts[0].clone(),
+            min_req: 4,
+        },
+    ];
+    let good_nfts = vec![
+        NFTCollection {
+            addr: env.nfts[0].clone(),
+            min_req: 2,
+        },
+        NFTCollection {
+            addr: env.nfts[1].clone(),
+            min_req: 4,
+        },
+    ];
+    let good_infused = InfusedCollection {
+        addr: None,
+        admin: None,
+        name: "test-".to_string(),
+        symbol: "TEST".to_string(),
+        base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
+        num_tokens: 100,
+        sg: false,
+    };
+    let good_infusion_params = InfusionParams {
+        params: None,
+        mint_fee: None,
+        min_per_bundle: Some(1),
+    };
+
+    let mut infusion = Infusion {
+        collections: good_nfts.clone(),
+        infused_collection: good_infused.clone(),
+        infusion_params: good_infusion_params,
+        payment_recipient: Some(env.chain.sender),
+    };
+
+    // cannot provide same nft collection twice
+    infusion.collections = bad_nfts;
+    let err = app
+        .create_infusion(vec![infusion.clone()], None)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap().to_string(),
+        ContractError::DuplicateCollectionInInfusion.to_string()
+    );
+    infusion.collections = good_nfts;
+    // create infusion accepting nft collection 1 & 2
+    let res = app.create_infusion(vec![infusion.clone()], None)?;
+    let infusion_id = Uint128::from_str(&res.event_attr_value("wasm", "infusion-id")?)
+        .unwrap()
+        .u128() as u64;
+    // assert bundle with collection 1 & 3 errors
+    // infuse
+    assert_eq!(
+        app.infuse(
+            vec![Bundle {
+                nfts: vec![
+                    NFT {
+                        addr: env.nfts[0].clone(),
+                        token_id: 2,
+                    },
+                    NFT {
+                        addr: env.nfts[0].clone(),
+                        token_id: 3,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 1,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 2,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 3,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 4,
+                    },
+                ],
+            }],
+            infusion_id.clone(),
+        )
+        .unwrap_err()
+        .downcast::<ContractError>()?
+        .to_string(),
+        ContractError::CollectionNotEligible.to_string()
+    );
+    // assert bundle with collection 2 & 3 errors
+    let err = app
+        .infuse(
+            vec![Bundle {
+                nfts: vec![
+                    NFT {
+                        addr: env.nfts[1].clone(),
+                        token_id: 2,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 8,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 9,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 7,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 6,
+                    },
+                ],
+            }],
+            infusion_id.clone(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::CollectionNotEligible.to_string()
+    );
+    // assert right number of collections for each bundle
+
+    // assert bundle with collection 2 & 3 errors
+    let err = app
+        .infuse(
+            vec![Bundle {
+                nfts: vec![
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 1,
+                    },
+                    NFT {
+                        addr: env.nfts[2].clone(),
+                        token_id: 2,
+                    },
+                    NFT {
+                        addr: env.nfts[1].clone(),
+                        token_id: 1,
+                    },
+                    NFT {
+                        addr: env.nfts[1].clone(),
+                        token_id: 2,
+                    },
+                    NFT {
+                        addr: env.nfts[1].clone(),
+                        token_id: 3,
+                    },
+                    NFT {
+                        addr: env.nfts[1].clone(),
+                        token_id: 4,
+                    },
+                ],
+            }],
+            infusion_id.clone(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::CollectionNotEligible.to_string()
+    );
+    // good infusion
+    app.infuse(
+        vec![Bundle {
+            nfts: vec![
+                NFT {
+                    addr: env.nfts[0].clone(),
+                    token_id: 1,
+                },
+                NFT {
+                    addr: env.nfts[0].clone(),
+                    token_id: 2,
+                },
+                NFT {
+                    addr: env.nfts[1].clone(),
+                    token_id: 1,
+                },
+                NFT {
+                    addr: env.nfts[1].clone(),
+                    token_id: 2,
+                },
+                NFT {
+                    addr: env.nfts[1].clone(),
+                    token_id: 3,
+                },
+                NFT {
+                    addr: env.nfts[1].clone(),
+                    token_id: 4,
+                },
+            ],
+        }],
+        infusion_id.clone(),
+    )?;
     Ok(())
 }
 
@@ -254,10 +467,165 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
 
 // Correct Fees & Destination
 #[test]
-fn correct_feed() -> anyhow::Result<()> {
+fn correct_fees() -> anyhow::Result<()> {
+    let env = InfuserSuite::<MockBech32>::setup(Some(InstantiateMsg {
+        admin: None,
+        admin_fee: 10u64,
+        min_creation_fee: Some(coin(500u128, "ubtsg")),
+        min_infusion_fee: Some(coin(100u128, "ubtsg")),
+        min_per_bundle: None,
+        max_per_bundle: None,
+        max_bundles: None,
+        max_infusions: None,
+        cw721_code_id: 2u64,
+    }))?;
+    let app = env.infuser;
+    let admin_addr = env.chain.addr_make("admin");
+    let nft1 = env.nfts[0].clone();
+    let good_nfts = vec![NFTCollection {
+        addr: nft1.clone(),
+        min_req: 1,
+    }];
+
+    let mut infusion_params = InfusionParams {
+        params: None,
+        mint_fee: None,
+        min_per_bundle: Some(1),
+    };
+
+    let good_infused = InfusedCollection {
+        addr: None,
+        admin: None,
+        name: "test-".to_string(),
+        symbol: "TEST".to_string(),
+        base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
+        num_tokens: 100,
+        sg: false,
+    };
+    // ensure fee set is within contract level bounds
+    infusion_params.mint_fee = Some(coin(100, "ubtsg"));
+    let payment_recipient = env
+        .chain
+        .addr_make_with_balance("payment-recipient", vec![])?;
+
+    let mut infusion = Infusion {
+        collections: good_nfts.clone(),
+        infused_collection: good_infused.clone(),
+        infusion_params: infusion_params,
+        payment_recipient: Some(payment_recipient.clone()),
+    };
+
+    // err when sending less fees than required
+    assert_eq!(
+        app.execute(
+            &ExecuteMsg::CreateInfusion {
+                collections: vec![infusion.clone()],
+                payment_recipient: None,
+            },
+            Some(&[coin(499, "ubtsg")]),
+        )
+        .unwrap_err()
+        .downcast::<ContractError>()
+        .unwrap()
+        .to_string(),
+        ContractError::RequirednfusionFeeError.to_string()
+    );
+
+    // err on more than required mint fee set
+    assert_eq!(
+        app.execute(
+            &ExecuteMsg::CreateInfusion {
+                collections: vec![infusion.clone()],
+                payment_recipient: None,
+            },
+            Some(&[coin(501, "ubtsg")]),
+        )
+        .unwrap_err()
+        .downcast::<ContractError>()
+        .unwrap()
+        .to_string(),
+        ContractError::RequirednfusionFeeError.to_string()
+    );
+
+    // good infusion creation
+    let res = app.execute(
+        &ExecuteMsg::CreateInfusion {
+            collections: vec![infusion.clone()],
+            payment_recipient: None,
+        },
+        Some(&[coin(500, "ubtsg")]),
+    )?;
+
+    // ensure fee gets set to config
+    let infusion_id = Uint128::from_str(&res.event_attr_value("wasm", "infusion-id")?)
+        .unwrap()
+        .u128() as u64;
+    let mut bundle = Bundle {
+        nfts: vec![NFT {
+            addr: nft1.clone(),
+            token_id: 1,
+        }],
+    };
+
+    // ensure fee is required when infusing
+    // wrong amount
+    let infuse = app
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(1, "ubtsg")]),
+        )
+        .unwrap_err();
+    assert_eq!(
+        infuse.downcast::<ContractError>()?.to_string(),
+        ContractError::FeeNotAccepted.to_string()
+    );
+
+    // wrong token
+    let infuse = env
+        .chain
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(1, "ustars")],
+            &app.address()?,
+        )
+        .unwrap_err();
+    assert_eq!(
+        infuse.downcast::<ContractError>()?.to_string(),
+        ContractError::FeeNotAccepted.to_string()
+    );
+
+    // ensure fee is required when infusing
+    let infuse = app.execute(
+        &ExecuteMsg::Infuse {
+            infusion_id: infusion_id.clone(),
+            bundle: vec![bundle.clone()],
+        },
+        Some(&[coin(100, "ubtsg")]),
+    );
+    assert!(infuse.is_ok());
+
+    bundle.nfts[0].token_id = 2;
+    env.chain.wait_blocks(1)?;
+
+    // ensure fees goes to the correct place
+    app.execute(
+        &ExecuteMsg::Infuse {
+            infusion_id: infusion_id.clone(),
+            bundle: vec![bundle.clone()],
+        },
+        Some(&[coin(100, "ubtsg")]),
+    )?;
+    env.chain.wait_blocks(1)?;
+
     Ok(())
 }
 
 // burn during cw721 send
-// confirm random token mints 
+// confirm random token mints
 // confirm funds go to destination

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Instantiate2AddressError, StdError};
+use cosmwasm_std::{Coin, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
 
@@ -13,7 +13,9 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
-    #[error("Fee payment not accepted. Ensure you are sending the correct amount for the fee payment.")]
+    #[error(
+        "Fee payment not accepted. Ensure you are sending the correct amount for the fee payment."
+    )]
     FeeNotAccepted,
 
     #[error("{0}")]
@@ -22,8 +24,16 @@ pub enum ContractError {
     #[error("The Message sender has to be the owner of the NFT to prevent hacks")]
     SenderNotOwner {},
 
+    #[error("Cannot specify the same contract address more than once")]
+    DuplicateCollectionInInfusion,
+
+    #[error("CollectionNotEligible")]
+    CollectionNotEligible,
+
     #[error("Bundle Not Accepted.")]
     BundleNotAccepted,
+    #[error("Bundle cannot be empty.")]
+    EmptyBundle,
 
     #[error("Invalid base token URI (must be an IPFS URI)")]
     InvalidBaseTokenURI {},
@@ -33,9 +43,17 @@ pub enum ContractError {
 
     #[error("Sold out")]
     SoldOut {},
-    
-    #[error("Not enough bundles in nft.  Have: {have}. Min: {min}, Max: {max}")]
-    NotEnoughNFTsInBundle { have: u64, min: u64, max: u64 },
+
+    #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]
+    TooManyCollectionsInInfusion { have: u64, max: u64 },
+
+    #[error("Not enough bundles in nft. Collection: {col} Have: {have}. Min: {min}, Max: {max}")]
+    NotEnoughNFTsInBundle {
+        col: String,
+        have: u64,
+        min: u64,
+        max: u64,
+    },
 
     #[error("Too many infusions specified. Have: {have}. Min: {min}, Max: {max}")]
     BadBundle { have: u64, min: u64, max: u64 },
@@ -49,8 +67,14 @@ pub enum ContractError {
     #[error("You are attempting to create more bundles than possible. Current hard-coded limit set at 2")]
     MaxInfusionErrror,
 
-    #[error("Error setting the fee for your infusion.")]
-    CreateInfusionFeeError,
+    #[error("New infusion require a minimum fee of {min} to be created.")]
+    InfusionFeeLessThanMinimumRequired { min: Coin },
+
+    #[error("RequirednfusionFeeError: New infusion fee required not sent. Retry infusion creation with correct funds.")]
+    RequirednfusionFeeError,
+
+    #[error("You cannot set the infusion fee as 0. Omit this value from the create_infsuion message to disable infusion fee requirements.")]
+    InfusionFeeCannotbeZero,
 
     #[error("Unauthorized.")]
     Unauthorized,
