@@ -1,5 +1,4 @@
 use clap::Parser;
-use cosmwasm_std::coin;
 use cw_infuser::msg::InstantiateMsg;
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;

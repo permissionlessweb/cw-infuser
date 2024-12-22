@@ -88,18 +88,12 @@ pub fn main() -> anyhow::Result<()> {
     let chain = Daemon::builder(ELGAFAR_1).build()?;
     let infuser = CwInfuser::new(chain.clone());
     // create infusion
-    infuser.create_infusion(
-        vec![Infusion {
-            collections: infusions,
-            infused_collection,
-            infusion_params,
-            payment_recipient: Some(chain.sender_addr()),
-        }],
-        Some(Addr::unchecked(
-            args.treasury
-                .unwrap_or(chain.sender().address().to_string()),
-        )),
-    )?;
+    infuser.create_infusion(vec![Infusion {
+        collections: infusions,
+        infused_collection,
+        infusion_params,
+        payment_recipient: Some(chain.sender_addr()),
+    }])?;
 
     Ok(())
 }

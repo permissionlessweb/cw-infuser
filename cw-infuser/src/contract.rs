@@ -95,16 +95,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateInfusion {
-            collections,
-            payment_recipient,
-        } => execute_create_infusion(
-            deps,
-            info.clone(),
-            env,
-            collections,
-            payment_recipient.unwrap_or(info.sender.clone()),
-        ),
+        ExecuteMsg::CreateInfusion { collections } => {
+            execute_create_infusion(deps, info.clone(), env, collections)
+        }
         ExecuteMsg::Infuse {
             infusion_id,
             bundle,
@@ -153,7 +146,6 @@ pub fn execute_create_infusion(
     info: MessageInfo,
     env: Env,
     infusions: Vec<Infusion>,
-    payment_recipient: Addr,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     let mut msgs: Vec<SubMsg> = Vec::new();
@@ -331,7 +323,7 @@ pub fn execute_create_infusion(
                 mint_fee: infusion.infusion_params.mint_fee,
                 params: infusion.infusion_params.params,
             },
-            payment_recipient: payment_recipient.clone(),
+            payment_recipient: infusion.payment_recipient.unwrap_or(info.sender.clone()),
         };
 
         // saves the infusion bundle to state with (infused_collection, id)
@@ -375,13 +367,13 @@ fn execute_infuse_bundle(
             return Err(ContractError::FeeNotAccepted {});
         } else {
             // split fees between admin and infusion owner
-            let base_fee_amount = fee.amount.u128() as u64 * config.admin_fee / 100;
+            let contract_fee = fee.amount.u128() as u64 * config.admin_fee / 100;
             let remaining_fee_amount = fee.amount.u128() as u64 * (100 - config.admin_fee) / 100;
 
-            if base_fee_amount != 0 {
+            if contract_fee != 0 {
                 let base_fee = CosmosMsg::Bank(BankMsg::Send {
                     to_address: config.admin.to_string(),
-                    amount: vec![coin(base_fee_amount.into(), fee.denom.clone())],
+                    amount: vec![coin(contract_fee.into(), fee.denom.clone())],
                 });
                 msgs.push(base_fee);
             }
@@ -490,7 +482,10 @@ fn check_bundles(bundle: Vec<NFT>, elig_col: Vec<NFTCollection>) -> Result<(), C
         if elig.is_empty() {
             return Err(ContractError::CollectionNotEligible);
         } else if elig.len() as u64 != c.min_req {
-            return Err(ContractError::BundleNotAccepted);
+            return Err(ContractError::BundleNotAccepted {
+                have: elig.len() as u64,
+                want: c.min_req,
+            });
         }
         // if not correct number of nfts sent, error
     }

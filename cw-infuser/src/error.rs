@@ -30,8 +30,9 @@ pub enum ContractError {
     #[error("CollectionNotEligible")]
     CollectionNotEligible,
 
-    #[error("Bundle Not Accepted.")]
-    BundleNotAccepted,
+    #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
+    BundleNotAccepted{ have: u64, want: u64},
+
     #[error("Bundle cannot be empty.")]
     EmptyBundle,
 
