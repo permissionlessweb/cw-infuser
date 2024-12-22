@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{arg, command, Parser};
-use cosmwasm_std::{coin, Uint128};
+use cosmwasm_std::Uint128;
 use cw_infuser::msg::ExecuteMsgFns;
 use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
 use cw_orch::daemon::TxSender;
@@ -31,6 +31,9 @@ struct Args {
     /// infused collection base uri
     #[arg(long)]
     infuse_col_base_uri: String,
+    /// min num of tokens in collection bundle for all infusions of this contract
+    #[arg(long)]
+    infuse_col_num_tokens: String,
     /// min num of tokens in collection bundle for all infusions of this contract
     #[arg(long)]
     config_min_per_bundle: String,
@@ -66,7 +69,7 @@ pub fn main() -> anyhow::Result<()> {
     }
 
     let infusion_params = InfusionParams {
-        min_per_bundle: Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64,
+        min_per_bundle: Some(Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64),
         mint_fee: None,
         params: None,
     };
@@ -77,24 +80,20 @@ pub fn main() -> anyhow::Result<()> {
         name: args.infuse_col_name,
         symbol: args.infuse_col_symbol,
         base_uri: args.infuse_col_base_uri,
+        num_tokens: args.infuse_col_num_tokens.parse().unwrap(),
+        sg: true,
     };
 
     // pass infusions to orchestrator
     let chain = Daemon::builder(ELGAFAR_1).build()?;
     let infuser = CwInfuser::new(chain.clone());
     // create infusion
-    infuser.create_infusion(
-        vec![Infusion {
-            collections: infusions,
-            infused_collection,
-            infusion_params,
-            payment_recipient: chain.sender_addr(),
-        }],
-        Some(Addr::unchecked(
-            args.treasury
-                .unwrap_or(chain.sender().address().to_string()),
-        )),
-    )?;
+    infuser.create_infusion(vec![Infusion {
+        collections: infusions,
+        infused_collection,
+        infusion_params,
+        payment_recipient: Some(chain.sender_addr()),
+    }])?;
 
     Ok(())
 }

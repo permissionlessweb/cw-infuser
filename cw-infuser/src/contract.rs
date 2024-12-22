@@ -1,23 +1,29 @@
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::state::{
+    Bundle, Config, InfusedCollection, Infusion, InfusionParamState, InfusionState, NFTCollection,
+    TokenPositionMapping, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS,
+    MINTABLE_TOKEN_POSITIONS, NFT,
+};
+use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, instantiate2_address, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps,
-    DepsMut, Empty, Env, HexBinary, MessageInfo, QueryRequest, Reply, Response, StdError,
-    StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
+    coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
+    Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Order, QueryRequest, Reply, Response,
+    StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
-use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg};
 
-use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::state::{
-    Bundle, Config, InfusedCollection, Infusion, InfusionInfo, NFTCollection, CONFIG, INFUSION,
-    INFUSION_ID, INFUSION_INFO, NFT,
-};
-use cosmwasm_schema::serde::Serialize;
+use rand_core::{RngCore, SeedableRng};
+use rand_xoshiro::Xoshiro128PlusPlus;
+use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg};
+use sha2::{Digest, Sha256};
+use shuffle::{fy::FisherYates, shuffler::Shuffler};
+use url::Url;
 
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
@@ -89,20 +95,13 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateInfusion {
-            collections,
-            payment_recipient,
-        } => execute_create_infusion(
-            deps,
-            info.clone(),
-            env,
-            collections,
-            payment_recipient.unwrap_or(info.sender.clone()),
-        ),
+        ExecuteMsg::CreateInfusion { collections } => {
+            execute_create_infusion(deps, info.clone(), env, collections)
+        }
         ExecuteMsg::Infuse {
             infusion_id,
             bundle,
-        } => execute_infuse_bundle(deps, info, infusion_id, bundle),
+        } => execute_infuse_bundle(deps, env, info, infusion_id, bundle),
         ExecuteMsg::UpdateConfig {} => update_config(deps, info),
     }
 }
@@ -147,40 +146,22 @@ pub fn execute_create_infusion(
     info: MessageInfo,
     env: Env,
     infusions: Vec<Infusion>,
-    payment_recipient: Addr,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     let mut msgs: Vec<SubMsg> = Vec::new();
     let mut fee_msgs: Vec<CosmosMsg<Empty>> = Vec::new();
+    let mut attrs = vec![];
 
     if infusions.len() > config.max_infusions.try_into().unwrap() {
         return Err(ContractError::TooManyInfusions {});
     }
 
-    let collection_checksum = config.code_hash;
-    let salt1 = generate_instantiate_salt2(&collection_checksum);
+    let collection_checksum = config.code_hash.clone();
+    let salt1 = generate_instantiate_salt2(&collection_checksum, env.block.height);
 
     // loop through each infusion
     for infusion in infusions {
-        // checks min_per_bundle
-        if config.max_bundles < infusion.collections.len().try_into().unwrap() {
-            return Err(ContractError::NotEnoughNFTsInBundle {
-                have: infusion.collections.len().try_into().unwrap(),
-                min: config.max_bundles,
-                max: config.max_bundles,
-            });
-        }
-        // checks # of nft required per bundle
-        let required = infusion.infusion_params.min_per_bundle;
-        if config.min_per_bundle > required || config.max_per_bundle < required {
-            return Err(ContractError::BadBundle {
-                have: required,
-                min: config.min_per_bundle,
-                max: config.max_per_bundle,
-            });
-        }
-
-        // assert fees
+        // assert creation fees
         if let Some(creation_fee) = config.min_creation_fee.clone() {
             if info.funds.iter().find(|&e| e == &creation_fee).is_some() {
                 let base_fee = CosmosMsg::Bank(BankMsg::Send {
@@ -189,25 +170,66 @@ pub fn execute_create_infusion(
                 });
                 fee_msgs.push(base_fee);
             } else {
-                return Err(ContractError::CreateInfusionFeeError);
-            }
-        }
-        if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
-            if !fee.amount.is_zero() {
-                if !(config
-                    .min_infusion_fee
-                    .clone()
-                    .is_some_and(|f| f.amount > fee.amount))
-                {
-                } else {
-                    return Err(ContractError::CreateInfusionFeeError);
-                }
-            } else {
-                return Err(ContractError::CreateInfusionFeeError);
+                return Err(ContractError::RequirednfusionFeeError);
             }
         }
 
-        // predict the contract address
+        // assert fees being set
+        if let Some(mf) = infusion.infusion_params.mint_fee.clone() {
+            if !mf.amount.is_zero() {
+                if !(config
+                    .min_infusion_fee
+                    .clone()
+                    .is_some_and(|f| f.amount > mf.amount))
+                {
+                } else {
+                    return Err(ContractError::InfusionFeeLessThanMinimumRequired {
+                        min: config.min_infusion_fee.unwrap(),
+                    });
+                }
+            } else {
+                return Err(ContractError::InfusionFeeCannotbeZero);
+            }
+        }
+
+        // checks min_per_bundle
+        if config.max_bundles < infusion.collections.len().try_into().unwrap() {
+            return Err(ContractError::TooManyCollectionsInInfusion {
+                have: infusion.collections.len().try_into().unwrap(),
+                max: config.max_bundles,
+            });
+        }
+
+        let mut unique_collections = Vec::new();
+        for col in infusion.collections.iter() {
+            if unique_collections.contains(&col.addr) {
+                return Err(ContractError::DuplicateCollectionInInfusion);
+            } else {
+                unique_collections.push(col.addr.clone());
+            }
+        }
+
+        // checks # of nft required per bundle
+        let required = infusion
+            .infusion_params
+            .min_per_bundle
+            .unwrap_or(config.min_per_bundle);
+        if config.min_per_bundle > required || config.max_per_bundle < required {
+            return Err(ContractError::BadBundle {
+                have: required,
+                min: config.min_per_bundle,
+                max: config.max_per_bundle,
+            });
+        }
+
+        // sanitize base token uri
+        let mut base_token_uri = infusion.infused_collection.base_uri.trim().to_string();
+        // Token URI must be a valid URL (ipfs, https, etc.)
+        let parsed_token_uri =
+            Url::parse(&base_token_uri).map_err(|_| ContractError::InvalidBaseTokenURI {})?;
+        base_token_uri = parsed_token_uri.to_string();
+
+        // predict the infused collection contract address
         let infusion_addr = match instantiate2_address(
             collection_checksum.as_slice(),
             &deps.api.addr_canonicalize(env.contract.address.as_str())?,
@@ -219,12 +241,8 @@ pub fn execute_create_infusion(
 
         let infusion_collection_addr_human = deps.api.addr_humanize(&infusion_addr)?;
         // get the global infusion id
-        let infusion_id: u64 = CONFIG
-            .update(deps.storage, |mut c| -> StdResult<_> {
-                c.latest_infusion_id += 1u64;
-                Ok(c)
-            })?
-            .latest_infusion_id;
+        let infusion_id: u64 = config.latest_infusion_id + 1;
+        config.latest_infusion_id = infusion_id;
 
         // sets infuser contract as admin if no admin specified (not sure if we want this)
         let admin = Some(
@@ -234,45 +252,62 @@ pub fn execute_create_infusion(
                 .unwrap_or(env.contract.address.to_string()),
         );
 
-        // cw721-collection
-        let _init_msg = Cw721InstantiateMsg {
-            name: infusion.infused_collection.name.clone(),
-            symbol: infusion.infused_collection.symbol.clone(),
-            minter: env.contract.address.to_string(),
-        };
-
-        // sg721-collection
-        let sg_init_msg = Sg721InitMsg {
-            name: infusion.infused_collection.name.clone(),
-            symbol: infusion.infused_collection.symbol.clone(),
-            minter: env.contract.address.to_string(),
-            collection_info: CollectionInfo {
-                creator: admin.clone().unwrap(),
-                description: "Infused Collection".into(),
-                image: infusion.infused_collection.base_uri.clone(),
-                external_link: None,
-                explicit_content: None,
-                start_trading_time: None,
-                royalty_info: None,
-            },
+        // select if sg or vanilla cw721
+        let init_msg = match infusion.infused_collection.sg {
+            false => to_json_binary(&Cw721InstantiateMsg {
+                name: infusion.infused_collection.name.clone(),
+                symbol: infusion.infused_collection.symbol.clone(),
+                minter: env.contract.address.to_string(),
+            })?,
+            true => to_json_binary(&Sg721InitMsg {
+                name: infusion.infused_collection.name.clone(),
+                symbol: infusion.infused_collection.symbol.clone(),
+                minter: env.contract.address.to_string(), // this contract
+                collection_info: CollectionInfo {
+                    creator: admin.clone().unwrap(),
+                    description: "Infused Collection".into(),
+                    image: base_token_uri.clone(),
+                    external_link: None,
+                    explicit_content: None,
+                    start_trading_time: None,
+                    royalty_info: None, // todo: implement royalty info
+                },
+            })?,
         };
 
         let init_infusion = WasmMsg::Instantiate2 {
             admin: admin.clone(),
             code_id: config.code_id,
-            msg: to_json_binary(&sg_init_msg)?,
+            msg: init_msg,
             funds: vec![],
-            label: "Infused collection".to_string() + infusion.infused_collection.name.as_ref() + &env.block.height.to_string(),
+            label: "Infused without permission".to_string()
+                + infusion.infused_collection.name.as_ref()
+                + &env.block.height.to_string(),
             salt: salt1.clone(),
         };
 
         let infusion_collection_submsg =
             SubMsg::<Empty>::reply_on_success(init_infusion, INFUSION_COLLECTION_INIT_MSG_ID);
 
-        // gets the next id for an address
-        let id = get_next_id(deps.storage, info.sender.clone())?;
+        let token_ids = random_token_list(
+            &env,
+            deps.api.addr_validate(
+                &infusion
+                    .infused_collection
+                    .addr
+                    .unwrap_or(info.sender.to_string()),
+            )?,
+            (1..=infusion.infused_collection.num_tokens).collect::<Vec<u32>>(),
+        )?;
 
-        let infusion_config = Infusion {
+        // Save mintable token ids map
+        let mut token_position = 1;
+        for token_id in token_ids {
+            MINTABLE_TOKEN_POSITIONS.save(deps.storage, token_position, &token_id)?;
+            token_position += 1;
+        }
+
+        let infusion_config = InfusionState {
             collections: infusion.collections,
             infused_collection: InfusedCollection {
                 addr: Some(infusion_collection_addr_human.to_string()),
@@ -280,24 +315,41 @@ pub fn execute_create_infusion(
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
                 base_uri: infusion.infused_collection.base_uri,
+                num_tokens: infusion.infused_collection.num_tokens,
+                sg: infusion.infused_collection.sg,
             },
-            infusion_params: infusion.infusion_params,
-            payment_recipient: payment_recipient.clone(),
+            infusion_params: InfusionParamState {
+                min_per_bundle: infusion.infusion_params.min_per_bundle.unwrap_or(0),
+                mint_fee: infusion.infusion_params.mint_fee,
+                params: infusion.infusion_params.params,
+            },
+            payment_recipient: infusion.payment_recipient.unwrap_or(info.sender.clone()),
         };
 
         // saves the infusion bundle to state with (infused_collection, id)
-        let key = (infusion_collection_addr_human, id);
+        let key = (infusion_collection_addr_human.clone(), infusion_id);
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
+        MINTABLE_NUM_TOKENS.save(
+            deps.storage,
+            infusion_collection_addr_human.to_string(),
+            &infusion.infused_collection.num_tokens,
+        )?;
+        CONFIG.save(deps.storage, &config)?;
 
-        msgs.push(infusion_collection_submsg)
+        msgs.push(infusion_collection_submsg);
+        attrs.push(Attribute::new("infusion-id", infusion_id.to_string()));
     }
 
-    Ok(Response::new().add_submessages(msgs).add_messages(fee_msgs))
+    Ok(Response::new()
+        .add_submessages(msgs)
+        .add_messages(fee_msgs)
+        .add_attributes(attrs))
 }
 
 fn execute_infuse_bundle(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     infusion_id: u64,
     bundle: Vec<Bundle>,
@@ -308,43 +360,52 @@ fn execute_infuse_bundle(
     let key = INFUSION_ID.load(deps.storage, infusion_id)?;
     let infusion = INFUSION.load(deps.storage, key)?;
 
-    // add optional fee required for minting
+    // first, any fee parameters are validated
     if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
-        // must be first token in tx & more than mint fee
+        // must be first token in tx & more than
         if info.funds.iter().find(|&e| e == &fee).is_none() {
             return Err(ContractError::FeeNotAccepted {});
         } else {
             // split fees between admin and infusion owner
-            let base_fee_amount = fee.amount.u128() as u64 * config.admin_fee / 100;
+            let contract_fee = fee.amount.u128() as u64 * config.admin_fee / 100;
             let remaining_fee_amount = fee.amount.u128() as u64 * (100 - config.admin_fee) / 100;
 
-            if base_fee_amount != 0 {
+            if contract_fee != 0 {
                 let base_fee = CosmosMsg::Bank(BankMsg::Send {
                     to_address: config.admin.to_string(),
-                    amount: vec![coin(base_fee_amount.into(), fee.denom.clone())],
+                    amount: vec![coin(contract_fee.into(), fee.denom.clone())],
                 });
                 msgs.push(base_fee);
             }
+
             // remaining fee to infusion owner
             let fee_msg = CosmosMsg::Bank(BankMsg::Send {
-                to_address: infusion.payment_recipient.to_string(),
+                to_address: infusion.payment_recipient.clone().into(),
                 amount: vec![coin(remaining_fee_amount.into(), fee.denom.clone())],
             });
+
             msgs.extend(vec![fee_msg]);
         }
     }
 
     // check lens
     if bundle.is_empty() {
-        return Err(ContractError::BundleNotAccepted {});
+        return Err(ContractError::EmptyBundle);
     }
+
     // for each nft collection bundle sent to infuse
     for bundle in bundle {
         let sender = info.sender.clone();
         // assert ownership
         is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
         // add each burn nft & mint infused token to response
-        msgs.extend(burn_bundle(deps.storage, sender, bundle.nfts, &infusion)?)
+        msgs.extend(burn_bundle(
+            &deps,
+            env.clone(),
+            bundle.nfts,
+            sender,
+            &infusion,
+        )?)
     }
 
     Ok(res.add_messages(msgs))
@@ -352,28 +413,29 @@ fn execute_infuse_bundle(
 
 // burns all nft bundles
 fn burn_bundle(
-    storage: &mut dyn Storage,
-    sender: Addr,
+    deps: &DepsMut,
+    env: Env,
     nfts: Vec<NFT>,
-    infusion: &Infusion,
+    sender: Addr,
+    infusion: &InfusionState,
 ) -> Result<Vec<CosmosMsg>, ContractError> {
+    let mut msgs: Vec<CosmosMsg> = Vec::new();
     // confirm bundle is in current infusion, and expected amount sent
     check_bundles(nfts.clone(), infusion.collections.clone())?;
-
-    let mut messages: Vec<CosmosMsg> = Vec::new();
     for nft in nfts {
-        let token_id = nft.token_id;
-        let address = nft.addr;
-        let message = Cw721ExecuteMsg::Burn {
-            token_id: token_id.to_string(),
-        };
-        let msg = into_cosmos_msg(message, address, None)?;
-        messages.push(msg);
+        msgs.push(into_cosmos_msg(
+            Cw721ExecuteMsg::Burn {
+                token_id: nft.token_id.to_string(),
+            },
+            nft.addr,
+            None,
+        )?);
     }
 
     // increment tokens
     let token_id = get_next_id(
-        storage,
+        deps,
+        env.clone(),
         Addr::unchecked(
             infusion
                 .infused_collection
@@ -381,13 +443,16 @@ fn burn_bundle(
                 .clone()
                 .expect("no infused colection"),
         ),
+        sender.clone(),
     )?;
 
     // mint_msg
     let mint_msg = Cw721ExecuteMessage::<Empty, Empty>::Mint {
-        token_id: token_id.to_string(),
+        token_id: token_id.token_id.to_string(),
         owner: sender.to_string(),
-        token_uri: Some(infusion.infused_collection.base_uri.clone() + "/" + &token_id.to_string()),
+        token_uri: Some(
+            infusion.infused_collection.base_uri.clone() + "/" + &token_id.token_id.to_string(),
+        ),
         extension: Empty {},
     };
 
@@ -400,27 +465,30 @@ fn burn_bundle(
             .expect("no infused colection"),
         None,
     )?;
-    messages.push(msg);
-    Ok(messages)
+    msgs.push(msg);
+    Ok(msgs)
 }
 
-fn check_bundles(bundle: Vec<NFT>, collections: Vec<NFTCollection>) -> Result<(), ContractError> {
-    // verify correct # of nft's provided, filter  collection from collections map
+fn check_bundles(bundle: Vec<NFT>, elig_col: Vec<NFTCollection>) -> Result<(), ContractError> {
+    // verify correct # of nft's provided, filter collection from collections map
     // verify that the bundle is include in infusion
-    for col in &collections {
-        let matching_nfts: Vec<_> = bundle.iter().filter(|b| b.addr == col.addr).collect();
-        if matching_nfts.is_empty() {
-            return Err(ContractError::BundleNotAccepted);
-        }
-        if matching_nfts.len() as u64 != col.min_req {
-            return Err(ContractError::NotEnoughNFTsInBundle {
-                have: matching_nfts.len().try_into().unwrap(),
-                min: col.min_req,
-                max: col.min_req,
+    for c in &elig_col {
+        let elig = bundle
+            .iter()
+            .filter(|b| b.addr == c.addr)
+            .collect::<Vec<_>>();
+        // if there are none, or one of the matching_nfts is not an accepted collection
+
+        if elig.is_empty() {
+            return Err(ContractError::CollectionNotEligible);
+        } else if elig.len() as u64 != c.min_req {
+            return Err(ContractError::BundleNotAccepted {
+                have: elig.len() as u64,
+                want: c.min_req,
             });
         }
+        // if not correct number of nfts sent, error
     }
-
     Ok(())
 }
 
@@ -440,17 +508,22 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
 
 /// Get the next token id for the infused collection addr being minted
 /// TODO: will prob need hook or query to collection to confirm accurate
-fn get_next_id(storage: &mut dyn Storage, addr: Addr) -> Result<u64, ContractError> {
-    let token_id = INFUSION_INFO
-        .update::<_, ContractError>(storage, &addr, |x| match x {
-            Some(mut info) => {
-                info.next_id += 1;
-                Ok(info)
-            }
-            None => Ok(InfusionInfo::default()),
-        })?
-        .next_id;
-    Ok(token_id)
+fn get_next_id(
+    deps: &DepsMut,
+    env: Env,
+    infused_col_addr: Addr,
+    sender: Addr,
+) -> Result<TokenPositionMapping, ContractError> {
+    let mintable_num_tokens =
+        MINTABLE_NUM_TOKENS.load(deps.storage, infused_col_addr.to_string())?;
+    if mintable_num_tokens == 0 {
+        return Err(ContractError::SoldOut {});
+    }
+
+    let mintable_token_mapping =
+        random_mintable_token_mapping(deps.as_ref(), env, sender.clone(), mintable_num_tokens)?;
+
+    Ok(mintable_token_mapping)
 }
 
 pub fn get_current_id(storage: &mut dyn Storage, addr: Addr) -> Result<u64, ContractError> {
@@ -463,11 +536,11 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
     Ok(config)
 }
 
-pub fn query_infusion(deps: Deps, addr: Addr, id: u64) -> StdResult<Infusion> {
+pub fn query_infusion(deps: Deps, addr: Addr, id: u64) -> StdResult<InfusionState> {
     let infusion = INFUSION.load(deps.storage, (addr, id))?;
     Ok(infusion)
 }
-pub fn query_infusion_by_id(deps: Deps, id: u64) -> StdResult<Infusion> {
+pub fn query_infusion_by_id(deps: Deps, id: u64) -> StdResult<InfusionState> {
     let infuser = INFUSION_ID.load(deps.storage, id)?;
     let infusion = INFUSION.load(deps.storage, infuser)?;
     Ok(infusion)
@@ -495,15 +568,6 @@ pub fn query_if_is_in_bundle(deps: Deps, addr: Addr, id: u64) -> StdResult<bool>
         .any(|a| a.addr == addr))
 }
 
-/// Generates the value used with instantiate2, via a hash of the infusers checksum.
-pub const SALT_POSTFIX: &[u8] = b"infusion";
-pub fn generate_instantiate_salt2(checksum: &HexBinary) -> Binary {
-    let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(checksum.to_string());
-    let mut hash = checksum_hash.to_vec();
-    hash.extend(SALT_POSTFIX);
-    Binary(hash.to_vec())
-}
-
 /// verifies all nfts defined in bundle are of ownership of the current sender
 pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), ContractError> {
     for nft in nfts {
@@ -524,6 +588,81 @@ pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), Cont
         }
     }
     Ok(())
+}
+/// Generates the value used with instantiate2, via a hash of the infusers checksum.
+pub const SALT_POSTFIX: &[u8] = b"infusion";
+pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
+    let mut hash = Vec::new();
+    hash.extend_from_slice(checksum.as_slice());
+    hash.extend_from_slice(&height.to_be_bytes());
+    let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(hash);
+    let mut result = checksum_hash.to_vec();
+    result.extend_from_slice(SALT_POSTFIX);
+    Binary(result)
+}
+
+fn random_token_list(
+    env: &Env,
+    sender: Addr,
+    mut tokens: Vec<u32>,
+) -> Result<Vec<u32>, ContractError> {
+    let tx_index = if let Some(tx) = &env.transaction {
+        tx.index
+    } else {
+        0
+    };
+    let sha256 = Sha256::digest(
+        format!("{}{}{}{}", sender, env.block.height, tokens.len(), tx_index).into_bytes(),
+    );
+    // Cut first 16 bytes from 32 byte value
+    let randomness: [u8; 16] = sha256.to_vec()[0..16].try_into().unwrap();
+    let mut rng = Xoshiro128PlusPlus::from_seed(randomness);
+    let mut shuffler = FisherYates::default();
+    shuffler
+        .shuffle(&mut tokens, &mut rng)
+        .map_err(StdError::generic_err)?;
+    Ok(tokens)
+}
+
+// Does a baby shuffle, picking a token_id from the first or last 50 mintable positions.
+fn random_mintable_token_mapping(
+    deps: Deps,
+    env: Env,
+    sender: Addr,
+    num_tokens: u32,
+) -> Result<TokenPositionMapping, ContractError> {
+    let tx_index = if let Some(tx) = &env.transaction {
+        tx.index
+    } else {
+        0
+    };
+    let sha256 = Sha256::digest(
+        format!("{}{}{}{}", sender, num_tokens, env.block.height, tx_index).into_bytes(),
+    );
+    // Cut first 16 bytes from 32 byte value
+    let randomness: [u8; 16] = sha256.to_vec()[0..16].try_into().unwrap();
+
+    let mut rng = Xoshiro128PlusPlus::from_seed(randomness);
+
+    let r = rng.next_u32();
+
+    let order = match r % 2 {
+        1 => Order::Descending,
+        _ => Order::Ascending,
+    };
+    let mut rem = 50;
+    if rem > num_tokens {
+        rem = num_tokens;
+    }
+    let n = r % rem;
+    let position = MINTABLE_TOKEN_POSITIONS
+        .keys(deps.storage, None, None, order)
+        .skip(n as usize)
+        .take(1)
+        .collect::<StdResult<Vec<_>>>()?[0];
+
+    let token_id = MINTABLE_TOKEN_POSITIONS.load(deps.storage, position)?;
+    Ok(TokenPositionMapping { position, token_id })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

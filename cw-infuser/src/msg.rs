@@ -20,7 +20,6 @@ pub struct InstantiateMsg {
     pub max_bundles: Option<u64>,
     /// Maximum infusions that may be created at once
     pub max_infusions: Option<u64>,
-
     /// Code-ID of the cw721-collection
     pub cw721_code_id: u64,
 }
@@ -31,7 +30,6 @@ pub enum ExecuteMsg {
     UpdateConfig {},
     CreateInfusion {
         collections: Vec<Infusion>,
-        payment_recipient: Option<Addr>,
     },
     Infuse {
         infusion_id: u64,
@@ -78,7 +76,7 @@ pub struct InfusedCollectionParams {
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionsResponse {
-    pub infusions: Vec<Infusion>,
+    pub infusions: Vec<InfusionState>,
 }
 
 #[cw_serde]
