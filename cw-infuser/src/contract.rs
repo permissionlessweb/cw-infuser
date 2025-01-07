@@ -275,7 +275,7 @@ pub fn execute_create_infusion(
                     external_link: None,
                     explicit_content: None,
                     start_trading_time: None,
-                    royalty_info: None, // todo: implement royalty info
+                    royalty_info: infusion.infused_collection.extension.clone(),
                 },
             })?,
         };
@@ -322,6 +322,7 @@ pub fn execute_create_infusion(
                 base_uri: infusion.infused_collection.base_uri,
                 num_tokens: infusion.infused_collection.num_tokens,
                 sg: infusion.infused_collection.sg,
+                extension:infusion.infused_collection.extension,
             },
             infusion_params: InfusionParamState {
                 min_per_bundle: infusion.infusion_params.min_per_bundle.unwrap_or(0),
@@ -463,7 +464,7 @@ fn burn_bundle(
         token_id: token_id.token_id.to_string(),
         owner: sender.to_string(),
         token_uri: Some(infusion.infused_collection.base_uri.clone()),
-        extension: Some(Empty {}),
+        extension: None,
     };
 
     let mint_msg = match infusion.infused_collection.sg {

@@ -1,5 +1,6 @@
 use cosmwasm_std::{Addr, Coin, HexBinary};
 use cw_storage_plus::{Item, Map};
+use sg721::RoyaltyInfoResponse;
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COUNT: Item<i32> = Item::new("count");
@@ -112,6 +113,7 @@ pub struct InfusedCollection {
     pub symbol: String,
     pub base_uri: String,
     pub num_tokens: u32,
+    pub extension: Option<RoyaltyInfoResponse>,
 }
 
 #[cosmwasm_schema::cw_serde]

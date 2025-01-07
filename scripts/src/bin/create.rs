@@ -82,6 +82,7 @@ pub fn main() -> anyhow::Result<()> {
         base_uri: args.infuse_col_base_uri,
         num_tokens: args.infuse_col_num_tokens.parse().unwrap(),
         sg: true,
+        extension: None,
     };
 
     // pass infusions to orchestrator

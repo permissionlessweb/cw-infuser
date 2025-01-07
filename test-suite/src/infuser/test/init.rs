@@ -79,30 +79,24 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         infuser.instantiate(&default_init, None, None)?;
 
         for i in nft_collection_addrs.clone() {
-          
             // mint 11 nfts?
             for n in 0..10 {
-                let mint_msg: cw721_base::ExecuteMsg<Option<Empty>, Empty> = cw721_base::ExecuteMsg::Mint {
-                    token_id: n.to_string(),
-                    owner: sender.to_string(),
-                    token_uri: None,
-                    extension: None,
-                };
-                mock.execute(
-                    &mint_msg,
-                    &[],
-                    &i.clone(),
-                )?;
+                let mint_msg: cw721_base::ExecuteMsg<Option<Empty>, Empty> =
+                    cw721_base::ExecuteMsg::Mint {
+                        token_id: n.to_string(),
+                        owner: sender.to_string(),
+                        token_uri: None,
+                        extension: None,
+                    };
+                mock.execute(&mint_msg, &[], &i.clone())?;
                 // approve infuser for nft
-                mock.execute(
-                    &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Approve {
+                let approve_msg: cw721_base::ExecuteMsg<Option<Empty>, Empty> =
+                    cw721_base::ExecuteMsg::Approve {
                         spender: infuser.address()?.to_string(),
                         token_id: n.to_string(),
                         expires: None,
-                    },
-                    &[],
-                    &i.clone(),
-                )?;
+                    };
+                mock.execute(&approve_msg, &[], &i.clone())?;
             }
         }
 
@@ -125,6 +119,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                                     .to_string(),
                             num_tokens: 100,
                             sg: false,
+                            extension: None,
                         },
                         infusion_params: InfusionParams {
                             params: None,
@@ -281,6 +276,7 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
         base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
         num_tokens: 100,
         sg: false,
+        extension: None,
     };
     let good_infusion_params = InfusionParams {
         params: None,
@@ -504,6 +500,7 @@ fn correct_fees() -> anyhow::Result<()> {
         base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
         num_tokens: 100,
         sg: false,
+        extension: None,
     };
     // ensure fee set is within contract level bounds
     infusion_params.mint_fee = Some(coin(100, "ustars"));
@@ -535,15 +532,13 @@ fn correct_fees() -> anyhow::Result<()> {
         // mint 11 nfts?
         for n in 0..10 {
             // approve infuser for nft
-            env.chain.execute(
-                &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Approve {
+            let approve_msg: cw721_base::ExecuteMsg<Option<Empty>, Empty> =
+                cw721_base::ExecuteMsg::Approve {
                     spender: app.address()?.to_string(),
                     token_id: n.to_string(),
                     expires: None,
-                },
-                &[],
-                &i.clone(),
-            )?;
+                };
+            env.chain.execute(&approve_msg, &[], &i.clone())?;
         }
     }
 
