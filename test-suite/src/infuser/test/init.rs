@@ -79,15 +79,17 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         infuser.instantiate(&default_init, None, None)?;
 
         for i in nft_collection_addrs.clone() {
+          
             // mint 11 nfts?
             for n in 0..10 {
+                let mint_msg: cw721_base::ExecuteMsg<Option<Empty>, Empty> = cw721_base::ExecuteMsg::Mint {
+                    token_id: n.to_string(),
+                    owner: sender.to_string(),
+                    token_uri: None,
+                    extension: None,
+                };
                 mock.execute(
-                    &cw721_base::ExecuteMsg::<Option<Empty>, Empty>::Mint {
-                        token_id: n.to_string(),
-                        owner: sender.to_string(),
-                        token_uri: None,
-                        extension: None,
-                    },
+                    &mint_msg,
                     &[],
                     &i.clone(),
                 )?;

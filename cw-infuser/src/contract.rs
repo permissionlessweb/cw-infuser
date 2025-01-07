@@ -209,6 +209,11 @@ pub fn execute_create_infusion(
             }
         }
 
+        if infusion.infused_collection.sg && !env.contract.address.to_string().starts_with("stars1")
+        {
+            return Err(ContractError::UnauthorizedSg);
+        }
+
         // checks # of nft required per bundle
         let required = infusion
             .infusion_params
@@ -447,24 +452,35 @@ fn burn_bundle(
     )?;
 
     // mint_msg
-    let mint_msg = Cw721ExecuteMessage::<Empty, Empty>::Mint {
+    let cw721_mint: Cw721ExecuteMessage<Empty, Empty> = cw721_base::ExecuteMsg::Mint {
         token_id: token_id.token_id.to_string(),
         owner: sender.to_string(),
-        token_uri: Some(
-            infusion.infused_collection.base_uri.clone() + "/" + &token_id.token_id.to_string(),
-        ),
+        token_uri: Some(infusion.infused_collection.base_uri.clone()),
         extension: Empty {},
     };
 
-    let msg = into_cosmos_msg(
-        mint_msg,
-        infusion
+    let sg721_mint = sg721_base::ExecuteMsg::Mint {
+        token_id: token_id.token_id.to_string(),
+        owner: sender.to_string(),
+        token_uri: Some(infusion.infused_collection.base_uri.clone()),
+        extension: Some(Empty {}),
+    };
+
+    let mint_msg = match infusion.infused_collection.sg {
+        true => to_json_binary(&sg721_mint)?,
+        false => to_json_binary(&cw721_mint)?,
+    };
+
+    let msg = WasmMsg::Execute {
+        contract_addr: infusion
             .infused_collection
             .addr
             .clone()
-            .expect("no infused colection"),
-        None,
-    )?;
+            .expect("no infused collection"),
+        msg: mint_msg,
+        funds: vec![],
+    }
+    .into();
     msgs.push(msg);
     Ok(msgs)
 }

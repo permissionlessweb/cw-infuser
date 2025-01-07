@@ -77,6 +77,9 @@ pub enum ContractError {
     #[error("You cannot set the infusion fee as 0. Omit this value from the create_infsuion message to disable infusion fee requirements.")]
     InfusionFeeCannotbeZero,
 
+    #[error("Cannot set infused collection as sg.")]
+    UnauthorizedSg,
+
     #[error("Unauthorized.")]
     Unauthorized,
 }
