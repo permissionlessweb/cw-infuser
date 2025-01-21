@@ -1,5 +1,5 @@
 [workspace]
-members = [ "cw-infuser", "scripts","test-suite"]
+members = [ "contracts/cw-infuser", "scripts","test-suite"]
 resolver = "2"
 exclude = ["scripts"]
 [workspace.features]

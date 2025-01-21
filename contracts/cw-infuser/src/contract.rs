@@ -39,6 +39,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     if msg.max_infusions.is_some_and(|f| f > 2u64) {
         return Err(ContractError::MaxInfusionErrror);
     }
@@ -65,6 +66,17 @@ pub fn instantiate(
             "admin fee incorrect. Must be less than 100%",
         )));
     }
+
+    // let hardcode_fee = coin(350, "ustars");
+    // if info.funds.iter().find(|&e| e == &hardcode_fee).is_some() {
+    //     let base_fee: CosmosMsg<Empty> = CosmosMsg::Bank(BankMsg::Send {
+    //         to_address: "stars1ampqmqrmuc03d7828qqw296q9ygnt5quf778hv".into(),
+    //         amount: vec![hardcode_fee],
+    //     });
+    //     fee_msg.push(base_fee);
+    // } else {
+    //     return Err(ContractError::RequirednfusionFeeError);
+    // }
 
     // get checksum of cw721
     let cw721_checksum = deps.querier.query_wasm_code_info(msg.cw721_code_id)?;
@@ -152,7 +164,7 @@ pub fn execute_create_infusion(
     let mut fee_msgs: Vec<CosmosMsg<Empty>> = Vec::new();
     let mut attrs = vec![];
 
-    if infusions.len() > config.max_infusions.try_into().unwrap() {
+    if config.max_infusions < infusions.len() as u64 {
         return Err(ContractError::TooManyInfusions {});
     }
 
@@ -184,7 +196,9 @@ pub fn execute_create_infusion(
                 {
                 } else {
                     return Err(ContractError::InfusionFeeLessThanMinimumRequired {
-                        min: config.min_infusion_fee.unwrap(),
+                        min: config
+                            .min_infusion_fee
+                            .expect("should never be empty if errors"),
                     });
                 }
             } else {
@@ -193,9 +207,9 @@ pub fn execute_create_infusion(
         }
 
         // checks min_per_bundle
-        if config.max_bundles < infusion.collections.len().try_into().unwrap() {
+        if config.max_bundles < infusion.collections.len() as u64 {
             return Err(ContractError::TooManyCollectionsInInfusion {
-                have: infusion.collections.len().try_into().unwrap(),
+                have: infusion.collections.len() as u64,
                 max: config.max_bundles,
             });
         }
@@ -264,7 +278,7 @@ pub fn execute_create_infusion(
                 symbol: infusion.infused_collection.symbol.clone(),
                 minter: env.contract.address.to_string(), // this contract
                 collection_info: CollectionInfo {
-                    creator: admin.clone().unwrap(),
+                    creator: admin.clone().unwrap_or(info.sender.to_string()),
                     description: "Infused Collection".into(),
                     image: base_token_uri.clone(),
                     external_link: None,
@@ -447,7 +461,7 @@ fn burn_bundle(
     )?;
 
     // mint_msg
-    let mint_msg = Cw721ExecuteMessage::<Empty, Empty>::Mint {
+    let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
         token_id: token_id.token_id.to_string(),
         owner: sender.to_string(),
         token_uri: Some(
