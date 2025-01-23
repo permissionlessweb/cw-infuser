@@ -516,17 +516,32 @@ fn check_bundles(
             .filter(|b| b.addr == c.addr)
             .collect::<Vec<_>>();
 
-        if c.payment_substitute.clone().is_some_and(|ps| {
-            !sent
+        if let Some(ps) = c.payment_substitute.clone() {
+            if !sent
                 .iter()
                 .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
-        }) {
-            return Err(ContractError::PaymentSubstituteNotProvided {
-                denom: c.payment_substitute.as_ref().unwrap().denom.clone(),
-                amount: c.payment_substitute.as_ref().unwrap().amount,
-            });
+            {
+                let mut havea = 0u128;
+                let mut haved = String::new();
+                for coin in sent {
+                    if coin.denom == ps.denom {
+                        havea = coin.amount.into();
+                        haved = coin.denom.clone();
+                        break;
+                    }
+                }
+                return Err(ContractError::PaymentSubstituteNotProvided {
+                    col: c.addr.to_string(),
+                    haved,
+                    havea: havea.to_string(),
+                    wantd: ps.denom,
+                    wanta: ps.amount.to_string(),
+                });
+            }
         } else if elig.is_empty() {
-            return Err(ContractError::CollectionNotEligible);
+            return Err(ContractError::CollectionNotEligible {
+                col: c.addr.to_string(),
+            });
         // ensure minimum is met
         } else if elig.len() as u64 != c.min_req {
             // if can subsitute nft with payment, assert the correct amount has been sent.

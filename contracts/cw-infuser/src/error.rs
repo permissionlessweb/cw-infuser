@@ -25,8 +25,8 @@ pub enum ContractError {
     #[error("Cannot specify the same contract address more than once")]
     DuplicateCollectionInInfusion,
 
-    #[error("CollectionNotEligible")]
-    CollectionNotEligible,
+    #[error("Bundle povided does not contain any nfts for collection: {col}")]
+    CollectionNotEligible { col: String },
 
     #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
     BundleNotAccepted { have: u64, want: u64 },
@@ -46,8 +46,14 @@ pub enum ContractError {
     #[error("BundleCollectionContractEmpty")]
     BundleCollectionContractEmpty {},
 
-    #[error("Too many NFT collections being set for infusion. Have: {denom}.  Max: {amount}")]
-    PaymentSubstituteNotProvided { denom: String, amount: Uint128 },
+    #[error("payment substitute is enabled for collection {col}, but did not recieve tokens or payment. Have: {havea}{haved}. Want: {wanta}{wantd}")]
+    PaymentSubstituteNotProvided {
+        col: String,
+        haved: String,
+        havea: String,
+        wantd: String,
+        wanta: String,
+    },
 
     #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]
     TooManyCollectionsInInfusion { have: u64, max: u64 },
