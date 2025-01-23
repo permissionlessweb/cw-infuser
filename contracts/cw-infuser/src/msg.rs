@@ -10,7 +10,7 @@ pub struct InstantiateMsg {
     pub admin_fee: u64,
     /// Minimum fee that is required for creating an infusion
     pub min_creation_fee: Option<Coin>,
-    /// Minimum fee that is required to be set when new infusions are being created
+    /// Minimum fee that is required to be set when infusions occur
     pub min_infusion_fee: Option<Coin>,
     /// Minimum tokens required for any infusions eligible collections
     pub min_per_bundle: Option<u64>,

@@ -109,6 +109,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                             addr: i.clone(),
                             min_req: 2,
                             max_req: None,
+                            payment_substitute: None,
                         }],
                         infused_collection: InfusedCollection {
                             addr: None,
@@ -121,6 +122,9 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                             num_tokens: 100,
                             sg: false,
                             royalty_info: None,
+                            start_trading_time: None,
+                            explicit_content: None,
+                            external_link: None,
                         },
                         infusion_params: InfusionParams {
                             params: None,
@@ -253,11 +257,13 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
             addr: env.nfts[0].clone(),
             min_req: 2,
             max_req: None,
+            payment_substitute: None,
         },
         NFTCollection {
             addr: env.nfts[0].clone(),
             min_req: 4,
             max_req: None,
+            payment_substitute: None,
         },
     ];
     let good_nfts = vec![
@@ -265,11 +271,13 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
             addr: env.nfts[0].clone(),
             min_req: 2,
             max_req: None,
+            payment_substitute: None,
         },
         NFTCollection {
             addr: env.nfts[1].clone(),
             min_req: 4,
             max_req: None,
+            payment_substitute: None,
         },
     ];
     let good_infused = InfusedCollection {
@@ -281,6 +289,9 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
         num_tokens: 100,
         sg: false,
         royalty_info: None,
+        start_trading_time: None,
+        explicit_content: None,
+        external_link: None,
     };
     let good_infusion_params = InfusionParams {
         params: None,
@@ -488,6 +499,7 @@ fn correct_fees() -> anyhow::Result<()> {
         addr: nft1.clone(),
         min_req: 1,
         max_req: None,
+        payment_substitute: None,
     }];
 
     let mut infusion_params = InfusionParams {
@@ -504,6 +516,9 @@ fn correct_fees() -> anyhow::Result<()> {
         num_tokens: 100,
         sg: false,
         royalty_info: None,
+        start_trading_time: None,
+        explicit_content: None,
+        external_link: None,
     };
     // ensure fee set is within contract level bounds
     infusion_params.mint_fee = Some(coin(100, "ustars"));

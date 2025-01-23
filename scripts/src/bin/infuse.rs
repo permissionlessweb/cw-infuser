@@ -60,14 +60,14 @@ pub fn main() -> anyhow::Result<()> {
                     include_expired: None,
                 },
             );
-            if res.is_err(){
+            if res.is_err() {
                 println!("Approval query failed, doesnt exists, creating approval for infuser");
-                let am = sg721::ExecuteMsg::<Empty, Empty>::Approve {
+                let am: sg721::ExecuteMsg<Empty, Empty> = sg721::ExecuteMsg::Approve {
                     spender: infuser.addr_str()?,
                     token_id: token.to_string(),
                     expires: None,
                 };
-    
+
                 let approve = chain.execute(&am, &[], &Addr::unchecked(contract_address));
                 msgs.push(approve);
             }

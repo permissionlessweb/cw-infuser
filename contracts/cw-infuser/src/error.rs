@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Instantiate2AddressError, StdError};
+use cosmwasm_std::{Coin, Instantiate2AddressError, StdError, Uint128};
 use cw_controllers::AdminError;
 use thiserror::Error;
 
@@ -45,6 +45,9 @@ pub enum ContractError {
 
     #[error("BundleCollectionContractEmpty")]
     BundleCollectionContractEmpty {},
+
+    #[error("Too many NFT collections being set for infusion. Have: {denom}.  Max: {amount}")]
+    PaymentSubstituteNotProvided { denom: String, amount: Uint128 },
 
     #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]
     TooManyCollectionsInInfusion { have: u64, max: u64 },

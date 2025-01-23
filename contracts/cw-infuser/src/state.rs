@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, HexBinary};
+use cosmwasm_std::{Addr, Coin, HexBinary, Timestamp};
 use cw_storage_plus::{Item, Map};
 use sg721::RoyaltyInfoResponse;
 
@@ -99,6 +99,8 @@ pub struct NFTCollection {
     /// Optional, maximum tokens able to be infused.
     ///  If not set, contract expects exact # of min_req per collection in bundle.
     pub max_req: Option<u64>,
+    /// If set, infuser can send exact amount of tokens to consider eligibility.
+    pub  payment_substitute: Option<Coin>
 }
 
 impl PartialEq<String> for NFTCollection {
@@ -117,6 +119,9 @@ pub struct InfusedCollection {
     pub base_uri: String,
     pub num_tokens: u32,
     pub royalty_info: Option<RoyaltyInfoResponse>,
+    pub start_trading_time: Option<Timestamp>,
+    pub explicit_content: Option<bool>,
+    pub external_link: Option<String>,
 }
 
 #[cosmwasm_schema::cw_serde]

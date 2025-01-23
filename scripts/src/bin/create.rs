@@ -68,6 +68,7 @@ pub fn main() -> anyhow::Result<()> {
             addr,
             min_req,
             max_req: None,
+            payment_substitute: None,
         };
         infusions.push(infusion);
     }
@@ -86,6 +87,9 @@ pub fn main() -> anyhow::Result<()> {
         num_tokens: args.infuse_col_num_tokens.parse().unwrap(),
         sg: true,
         royalty_info: None,
+        start_trading_time: None,
+        explicit_content: None,
+        external_link: None,
     };
 
     // pass infusions to orchestrator

@@ -284,10 +284,10 @@ pub fn execute_create_infusion(
                     creator: admin.clone().unwrap_or(info.sender.to_string()),
                     description: "Infused Collection".into(),
                     image: base_token_uri.clone(),
-                    external_link: None,
-                    explicit_content: None,
-                    start_trading_time: None,
-                    royalty_info: None, // todo: implement royalty info
+                    external_link: infusion.infused_collection.external_link.clone(),
+                    explicit_content: infusion.infused_collection.explicit_content.clone(),
+                    start_trading_time: infusion.infused_collection.start_trading_time.clone(),
+                    royalty_info: infusion.infused_collection.royalty_info.clone(),
                 },
             })?,
         };
@@ -335,6 +335,9 @@ pub fn execute_create_infusion(
                 num_tokens: infusion.infused_collection.num_tokens,
                 sg: infusion.infused_collection.sg,
                 royalty_info: infusion.infused_collection.royalty_info,
+                start_trading_time: infusion.infused_collection.start_trading_time,
+                explicit_content: infusion.infused_collection.explicit_content,
+                external_link: infusion.infused_collection.external_link,
             },
             infusion_params: InfusionParamState {
                 mint_fee: infusion.infusion_params.mint_fee,
@@ -377,10 +380,23 @@ fn execute_infuse_bundle(
     let key = INFUSION_ID.load(deps.storage, infusion_id)?;
     let infusion = INFUSION.load(deps.storage, key)?;
 
+    let mut funds = info.funds.clone();
+
     // first, any fee parameters are validated
     if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
-        if info.funds.iter().find(|&e| e == &fee).is_none() {
-            return Err(ContractError::FeeNotAccepted {});
+        let mut fee_error = None;
+        funds
+            .iter_mut()
+            .filter(|a| a.denom == fee.denom)
+            .for_each(|a| {
+                if a.amount < fee.amount {
+                    fee_error = Some(ContractError::FeeNotAccepted {});
+                } else {
+                    a.amount -= fee.amount;
+                }
+            });
+        if let Some(e) = fee_error {
+            return Err(e);
         } else {
             // split fees between admin and infusion owner
             let contract_fee = fee.amount.u128() as u64 * config.admin_fee / 100;
@@ -409,9 +425,9 @@ fn execute_infuse_bundle(
         return Err(ContractError::EmptyBundle);
     }
 
+    let sender = info.sender.clone();
     // for each nft collection bundle sent to infuse
     for bundle in bundle {
-        let sender = info.sender.clone();
         // assert ownership
         is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
         // add each burn nft & mint infused token to response
@@ -419,8 +435,9 @@ fn execute_infuse_bundle(
             &deps,
             env.clone(),
             bundle.nfts,
-            sender,
+            &sender,
             &infusion,
+            &funds,
         )?)
     }
 
@@ -432,12 +449,13 @@ fn burn_bundle(
     deps: &DepsMut,
     env: Env,
     nfts: Vec<NFT>,
-    sender: Addr,
+    sender: &Addr,
     infusion: &InfusionState,
+    funds: &Vec<Coin>,
 ) -> Result<Vec<CosmosMsg>, ContractError> {
     let mut msgs: Vec<CosmosMsg> = Vec::new();
     // confirm bundle is in current infusion, and expected amount sent
-    check_bundles(nfts.clone(), infusion.collections.clone())?;
+    check_bundles(nfts.clone(), infusion.collections.clone(), &funds)?;
     for nft in nfts {
         msgs.push(into_cosmos_msg(
             Cw721ExecuteMsg::Burn {
@@ -485,8 +503,12 @@ fn burn_bundle(
     Ok(msgs)
 }
 
-fn check_bundles(bundle: Vec<NFT>, elig_col: Vec<NFTCollection>) -> Result<(), ContractError> {
-    // verify correct # of nft's provided, filter collection from collections map
+fn check_bundles(
+    bundle: Vec<NFT>,
+    elig_col: Vec<NFTCollection>,
+    sent: &Vec<Coin>,
+) -> Result<(), ContractError> {
+    // verify correct # of nft's provided & are accepted nfts
     // verify that the bundle is include in infusion
     for c in &elig_col {
         let elig = bundle
@@ -494,10 +516,20 @@ fn check_bundles(bundle: Vec<NFT>, elig_col: Vec<NFTCollection>) -> Result<(), C
             .filter(|b| b.addr == c.addr)
             .collect::<Vec<_>>();
 
-        // if not exact correct # of nfts sent, error
-        if elig.is_empty() {
+        if c.payment_substitute.clone().is_some_and(|ps| {
+            !sent
+                .iter()
+                .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
+        }) {
+            return Err(ContractError::PaymentSubstituteNotProvided {
+                denom: c.payment_substitute.as_ref().unwrap().denom.clone(),
+                amount: c.payment_substitute.as_ref().unwrap().amount,
+            });
+        } else if elig.is_empty() {
             return Err(ContractError::CollectionNotEligible);
+        // ensure minimum is met
         } else if elig.len() as u64 != c.min_req {
+            // if can subsitute nft with payment, assert the correct amount has been sent.
             return Err(ContractError::BundleNotAccepted {
                 have: elig.len() as u64,
                 want: c.min_req,
