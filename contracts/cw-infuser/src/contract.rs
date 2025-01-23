@@ -20,7 +20,7 @@ use cw_controllers::AdminError;
 
 use rand_core::{RngCore, SeedableRng};
 use rand_xoshiro::Xoshiro128PlusPlus;
-use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg};
+use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
 use sha2::{Digest, Sha256};
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
 use url::Url;
@@ -165,7 +165,7 @@ pub fn execute_create_infusion(
     let mut attrs = vec![];
 
     if config.max_infusions < infusions.len() as u64 {
-        return Err(ContractError::TooManyInfusions {});
+        return Err(ContractError::MaxInfusionsError {});
     }
 
     let collection_checksum = config.code_hash.clone();
@@ -214,26 +214,29 @@ pub fn execute_create_infusion(
             });
         }
 
+        // checks for any unique collections
         let mut unique_collections = Vec::new();
         for col in infusion.collections.iter() {
             if unique_collections.contains(&col.addr) {
                 return Err(ContractError::DuplicateCollectionInInfusion);
             } else {
+                // checks # of nft required per bundle
+                if col.addr.to_string().is_empty() {
+                    return Err(ContractError::BundleCollectionContractEmpty {});
+                }
+                if col.min_req < config.min_per_bundle
+                    || col.min_req > config.max_per_bundle
+                    || col.max_req.is_some_and(|a| config.max_per_bundle < a)
+                    || col.max_req.is_some_and(|a| config.min_per_bundle > a)
+                {
+                    return Err(ContractError::BadBundle {
+                        have: col.min_req,
+                        min: config.min_per_bundle,
+                        max: config.max_per_bundle,
+                    });
+                }
                 unique_collections.push(col.addr.clone());
             }
-        }
-
-        // checks # of nft required per bundle
-        let required = infusion
-            .infusion_params
-            .min_per_bundle
-            .unwrap_or(config.min_per_bundle);
-        if config.min_per_bundle > required || config.max_per_bundle < required {
-            return Err(ContractError::BadBundle {
-                have: required,
-                min: config.min_per_bundle,
-                max: config.max_per_bundle,
-            });
         }
 
         // sanitize base token uri
@@ -277,7 +280,7 @@ pub fn execute_create_infusion(
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
                 minter: env.contract.address.to_string(), // this contract
-                collection_info: CollectionInfo {
+                collection_info: CollectionInfo::<RoyaltyInfoResponse> {
                     creator: admin.clone().unwrap_or(info.sender.to_string()),
                     description: "Infused Collection".into(),
                     image: base_token_uri.clone(),
@@ -331,9 +334,9 @@ pub fn execute_create_infusion(
                 base_uri: infusion.infused_collection.base_uri,
                 num_tokens: infusion.infused_collection.num_tokens,
                 sg: infusion.infused_collection.sg,
+                royalty_info: infusion.infused_collection.royalty_info,
             },
             infusion_params: InfusionParamState {
-                min_per_bundle: infusion.infusion_params.min_per_bundle.unwrap_or(0),
                 mint_fee: infusion.infusion_params.mint_fee,
                 params: infusion.infusion_params.params,
             },
@@ -376,7 +379,6 @@ fn execute_infuse_bundle(
 
     // first, any fee parameters are validated
     if let Some(fee) = infusion.infusion_params.mint_fee.clone() {
-        // must be first token in tx & more than
         if info.funds.iter().find(|&e| e == &fee).is_none() {
             return Err(ContractError::FeeNotAccepted {});
         } else {
@@ -394,11 +396,11 @@ fn execute_infuse_bundle(
 
             // remaining fee to infusion owner
             let fee_msg = CosmosMsg::Bank(BankMsg::Send {
-                to_address: infusion.payment_recipient.clone().into(),
+                to_address: infusion.payment_recipient.to_string(),
                 amount: vec![coin(remaining_fee_amount.into(), fee.denom.clone())],
             });
 
-            msgs.extend(vec![fee_msg]);
+            msgs.push(fee_msg);
         }
     }
 
@@ -491,8 +493,8 @@ fn check_bundles(bundle: Vec<NFT>, elig_col: Vec<NFTCollection>) -> Result<(), C
             .iter()
             .filter(|b| b.addr == c.addr)
             .collect::<Vec<_>>();
-        // if there are none, or one of the matching_nfts is not an accepted collection
 
+        // if not exact correct # of nfts sent, error
         if elig.is_empty() {
             return Err(ContractError::CollectionNotEligible);
         } else if elig.len() as u64 != c.min_req {
@@ -500,8 +502,12 @@ fn check_bundles(bundle: Vec<NFT>, elig_col: Vec<NFTCollection>) -> Result<(), C
                 have: elig.len() as u64,
                 want: c.min_req,
             });
+        } else if c.max_req.is_some_and(|a| elig.len() as u64 > a) {
+            return Err(ContractError::BundleNotAccepted {
+                have: elig.len() as u64,
+                want: c.min_req,
+            });
         }
-        // if not correct number of nfts sent, error
     }
     Ok(())
 }

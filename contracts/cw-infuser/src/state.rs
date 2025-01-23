@@ -1,5 +1,6 @@
 use cosmwasm_std::{Addr, Coin, HexBinary};
 use cw_storage_plus::{Item, Map};
+use sg721::RoyaltyInfoResponse;
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COUNT: Item<i32> = Item::new("count");
@@ -63,8 +64,8 @@ pub struct InfusionState {
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionParams {
-    /// Minimum amount each collection in any infusion is required
-    pub min_per_bundle: Option<u64>,
+    // /// Minimum amount each collection in any infusion is required
+    // pub min_per_bundle: Option<u64>,
     /// Minium amount of mint fee required for any infusion if set. Rewards will go to either infusion creator, or reward granted
     pub mint_fee: Option<Coin>,
     pub params: Option<BurnParams>,
@@ -72,7 +73,7 @@ pub struct InfusionParams {
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionParamState {
     /// Minimum amount each collection in any infusion is required
-    pub min_per_bundle: u64,
+    // pub min_per_bundle: u64,
     /// Minium amount of mint fee required for any infusion if set. Rewards will go to either infusion creator, or reward granted
     pub mint_fee: Option<Coin>,
     pub params: Option<BurnParams>,
@@ -95,6 +96,9 @@ pub struct NFTCollection {
     pub addr: Addr,
     /// Minimum tokens required to infuse
     pub min_req: u64,
+    /// Optional, maximum tokens able to be infused.
+    ///  If not set, contract expects exact # of min_req per collection in bundle.
+    pub max_req: Option<u64>,
 }
 
 impl PartialEq<String> for NFTCollection {
@@ -112,6 +116,7 @@ pub struct InfusedCollection {
     pub symbol: String,
     pub base_uri: String,
     pub num_tokens: u32,
+    pub royalty_info: Option<RoyaltyInfoResponse>,
 }
 
 #[cosmwasm_schema::cw_serde]

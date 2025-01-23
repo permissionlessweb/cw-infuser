@@ -30,7 +30,7 @@ codegen({
       queryFactory: true,
     },
     recoil: {
-      enabled: false
+      enabled: true
     },
     messageComposer: {
         enabled: true

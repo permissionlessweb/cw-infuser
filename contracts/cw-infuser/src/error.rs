@@ -13,9 +13,7 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
-    #[error(
-        "Fee payment not accepted. Ensure you are sending the correct amount for the fee payment."
-    )]
+    #[error("Fee payment not accepted. Ensure you are sending the correct amount.")]
     FeeNotAccepted,
 
     #[error("{0}")]
@@ -31,7 +29,7 @@ pub enum ContractError {
     CollectionNotEligible,
 
     #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
-    BundleNotAccepted{ have: u64, want: u64},
+    BundleNotAccepted { have: u64, want: u64 },
 
     #[error("Bundle cannot be empty.")]
     EmptyBundle,
@@ -44,6 +42,9 @@ pub enum ContractError {
 
     #[error("Sold out")]
     SoldOut {},
+
+    #[error("BundleCollectionContractEmpty")]
+    BundleCollectionContractEmpty {},
 
     #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]
     TooManyCollectionsInInfusion { have: u64, max: u64 },
@@ -60,7 +61,7 @@ pub enum ContractError {
     BadBundle { have: u64, min: u64, max: u64 },
 
     #[error("Too many infusions specified.")]
-    TooManyInfusions,
+    MaxInfusionsError,
 
     #[error("The max_bundles being set is greater than possible. Current hard-coded at 5.")]
     MaxBundleError,

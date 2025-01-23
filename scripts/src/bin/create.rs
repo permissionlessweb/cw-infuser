@@ -64,12 +64,15 @@ pub fn main() -> anyhow::Result<()> {
     for (collection, min) in collections.iter().zip(min_required.iter()) {
         let addr = Addr::unchecked(collection);
         let min_req: u64 = min.parse().unwrap_or(0);
-        let infusion = NFTCollection { addr, min_req };
+        let infusion = NFTCollection {
+            addr,
+            min_req,
+            max_req: None,
+        };
         infusions.push(infusion);
     }
 
     let infusion_params = InfusionParams {
-        min_per_bundle: Some(Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64),
         mint_fee: None,
         params: None,
     };
@@ -82,6 +85,7 @@ pub fn main() -> anyhow::Result<()> {
         base_uri: args.infuse_col_base_uri,
         num_tokens: args.infuse_col_num_tokens.parse().unwrap(),
         sg: true,
+        royalty_info: None,
     };
 
     // pass infusions to orchestrator

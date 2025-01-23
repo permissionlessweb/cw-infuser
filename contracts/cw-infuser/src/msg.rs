@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Coin};
 pub struct InstantiateMsg {
     /// Admin of this contract
     pub admin: Option<String>,
-    /// Fee from each infusion payment, if required. Goes to admin during a successful infusion
+    /// Fee from each infusion payment, if required. Goes to admin during a successful infusion. Set to 0 to disable.
     pub admin_fee: u64,
     /// Minimum fee that is required for creating an infusion
     pub min_creation_fee: Option<Coin>,
