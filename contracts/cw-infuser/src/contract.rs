@@ -107,8 +107,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateInfusion { collections } => {
-            execute_create_infusion(deps, info.clone(), env, collections)
+        ExecuteMsg::CreateInfusion { infusions } => {
+            execute_create_infusion(deps, info.clone(), env, infusions)
         }
         ExecuteMsg::Infuse {
             infusion_id,

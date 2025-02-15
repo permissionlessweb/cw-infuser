@@ -29,7 +29,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     UpdateConfig {},
     CreateInfusion {
-        collections: Vec<Infusion>,
+        infusions: Vec<Infusion>,
     },
     Infuse {
         infusion_id: u64,
