@@ -10,16 +10,16 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Order, QueryRequest, Reply, Response,
+    Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QueryRequest, Reply, Response,
     StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
-
 use rand_core::{RngCore, SeedableRng};
 use rand_xoshiro::Xoshiro128PlusPlus;
+use semver::Version;
 use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
 use sha2::{Digest, Sha256};
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
@@ -484,9 +484,11 @@ fn burn_bundle(
     let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
         token_id: token_id.token_id.to_string(),
         owner: sender.to_string(),
-        token_uri: Some(
-            infusion.infused_collection.base_uri.clone() + "/" + &token_id.token_id.to_string(),
-        ),
+        token_uri: Some(format!(
+            "{}/{}",
+            infusion.infused_collection.base_uri.clone(),
+            token_id.token_id.to_string()
+        )),
         extension: Empty {},
     };
 
@@ -732,9 +734,38 @@ fn random_mintable_token_mapping(
     Ok(TokenPositionMapping { position, token_id })
 }
 
+//  source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/vending-minter/src/contract.rs#L1371
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::new())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let current_version = cw2::get_contract_version(deps.storage)?;
+    if current_version.contract != CONTRACT_NAME {
+        return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
+    }
+
+    let version: Version = current_version
+        .version
+        .parse()
+        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+    let new_version: Version = CONTRACT_VERSION
+        .parse()
+        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+
+    if version > new_version {
+        return Err(StdError::generic_err("Cannot upgrade to a previous contract version").into());
+    }
+    // if same version return
+    if version == new_version {
+        return Ok(Response::new());
+    }
+    // set new contract version
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let event = Event::new("migrate")
+        .add_attribute("from_name", current_version.contract)
+        .add_attribute("from_version", current_version.version)
+        .add_attribute("to_name", CONTRACT_NAME)
+        .add_attribute("to_version", CONTRACT_VERSION);
+    
+    Ok(Response::new().add_event(event))
 }
 
 #[cfg(test)]
