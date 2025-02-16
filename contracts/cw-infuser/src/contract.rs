@@ -9,9 +9,9 @@ use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QueryRequest, Reply, Response,
-    StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
+    coin, from_json, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin,
+    CosmosMsg, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QueryRequest,
+    Reply, Response, StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
@@ -21,6 +21,7 @@ use rand_core::{RngCore, SeedableRng};
 use rand_xoshiro::Xoshiro128PlusPlus;
 use semver::Version;
 use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
+use sg721_base::msg::CollectionInfoResponse;
 use sha2::{Digest, Sha256};
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
 use url::Url;
@@ -220,6 +221,16 @@ pub fn execute_create_infusion(
             if unique_collections.contains(&col.addr) {
                 return Err(ContractError::DuplicateCollectionInInfusion);
             } else {
+                // check if addr is cw721 collection
+                let _res: cw721::ContractInfoResponse = deps
+                    .querier
+                    .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
+                    .map_err(|_| {
+                        return ContractError::AddrIsNotNFTCol {
+                            addr: col.addr.to_string(),
+                        };
+                    })?;
+
                 // checks # of nft required per bundle
                 if col.addr.to_string().is_empty() {
                     return Err(ContractError::BundleCollectionContractEmpty {});
@@ -511,7 +522,7 @@ fn check_bundles(
     sent: &Vec<Coin>,
 ) -> Result<(), ContractError> {
     // verify correct # of nft's provided & are accepted nfts
-    // verify that the bundle is include in infusion
+    // verify that the bundle is included in infusions
     for c in &elig_col {
         let elig = bundle
             .iter()
@@ -764,7 +775,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
         .add_attribute("from_version", current_version.version)
         .add_attribute("to_name", CONTRACT_NAME)
         .add_attribute("to_version", CONTRACT_VERSION);
-    
+
     Ok(Response::new().add_event(event))
 }
 

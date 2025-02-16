@@ -30,6 +30,22 @@ pub struct InfuserSuite<Chain> {
 }
 
 impl<Chain: CwEnv> InfuserSuite<Chain> {
+    fn default_infused_collection() -> anyhow::Result<InfusedCollection> {
+        Ok(InfusedCollection {
+            addr: None,
+            admin: None,
+            name: "test-".to_string(),
+            symbol: "TEST".to_string(),
+            base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
+                .to_string(),
+            num_tokens: 100,
+            sg: false,
+            royalty_info: None,
+            start_trading_time: None,
+            explicit_content: None,
+            external_link: None,
+        })
+    }
     fn setup_fee_suite() -> anyhow::Result<InfuserSuite<MockBech32>> {
         // setup infuser with admin fees
         let env = InfuserSuite::<MockBech32>::setup()?;
@@ -384,22 +400,10 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
             payment_substitute: None,
         },
     ];
-    let good_infused = InfusedCollection {
-        addr: None,
-        admin: None,
-        name: "test-".to_string(),
-        symbol: "TEST".to_string(),
-        base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
-        num_tokens: 100,
-        sg: false,
-        royalty_info: None,
-        start_trading_time: None,
-        explicit_content: None,
-        external_link: None,
-    };
+    let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
     let good_infusion_params = InfusionParams {
-        params: None,
         mint_fee: None,
+        params: None,
     };
 
     let mut infusion = Infusion {
@@ -746,6 +750,52 @@ fn correct_fees() -> anyhow::Result<()> {
 }
 
 #[test]
+fn eligible_contract_is_nft_collection_test() -> anyhow::Result<()> {
+    // setup infuser with admin fees
+    let env = InfuserSuite::<MockBech32>::setup()?;
+    let app = env.infuser;
+
+    let not_nft = env.chain.addr_make("mock-nft");
+
+    let bad_nfts = vec![
+        NFTCollection {
+            addr: env.nfts[0].clone(),
+            min_req: 2,
+            max_req: None,
+            payment_substitute: None,
+        },
+        NFTCollection {
+            addr: not_nft.clone(),
+            min_req: 4,
+            max_req: None,
+            payment_substitute: None,
+        },
+    ];
+    let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
+    let good_infusion_params = InfusionParams {
+        mint_fee: None,
+        params: None,
+    };
+
+    let infusion = Infusion {
+        collections: bad_nfts.clone(),
+        infused_collection: good_infused.clone(),
+        infusion_params: good_infusion_params,
+        payment_recipient: Some(env.chain.sender),
+    };
+
+    let res = app.create_infusion(vec![infusion.clone()]).unwrap_err();
+    assert_eq!(
+        res.root().to_string(),
+        ContractError::AddrIsNotNFTCol {
+            addr: not_nft.to_string()
+        }
+        .to_string()
+    );
+    Ok(())
+}
+
+#[test]
 fn payment_substitute_tests() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let mut env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
@@ -858,6 +908,7 @@ fn payment_substitute_tests() -> anyhow::Result<()> {
 
     Ok(())
 }
+
 // burn during cw721 send
 // confirm random token mints
 // confirm funds go to destination

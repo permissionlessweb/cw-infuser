@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Instantiate2AddressError, StdError, Uint128};
+use cosmwasm_std::{Coin, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
 
@@ -84,6 +84,8 @@ pub enum ContractError {
     #[error("RequirednfusionFeeError: New infusion fee required not sent. Retry infusion creation with correct funds.")]
     RequirednfusionFeeError,
 
+    #[error("contract: {addr} is not an cw721 nft collection.")]
+    AddrIsNotNFTCol { addr: String },
     #[error("You cannot set the infusion fee as 0. Omit this value from the create_infsuion message to disable infusion fee requirements.")]
     InfusionFeeCannotbeZero,
 
