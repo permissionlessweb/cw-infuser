@@ -1,0 +1,16 @@
+{
+ "messages": [
+  {
+   "@type": "/cosmwasm.wasm.v1.MsgAddCodeUploadParamsAddresses",
+   "authority": "stars10d07y265gmmuvt4z0w9aw880jnsr700jw7ycaz",
+   "addresses": [
+    "stars1x7krclfpvt3d50ae4cvukckz4fe46g5gx393y2cjtdpar3aw6r3q3g8pd0"
+   ]
+  }
+ ],
+ "metadata": "https://bafybeibsjvro2ymhfh6qu5kenkj7yhwoxouefp5tsemcevcntxhrdwavhe",
+ "deposit": "5000000000ustars",
+ "title": "Authorize Wasm Upload: Discover Decentralization DAO",
+ "summary": "To upload and manage the cw-infuer deployment, grant Discover Decentralization DAO upload permissions",
+ "expedited": false
+}

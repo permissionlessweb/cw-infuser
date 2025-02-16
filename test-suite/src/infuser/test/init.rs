@@ -232,7 +232,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             // create infusion
             infuser.execute(
                 &ExecuteMsg::CreateInfusion {
-                    collections: vec![infusion.clone()],
+                    infusions: vec![infusion.clone()],
                 },
                 None,
             )?;
@@ -594,7 +594,7 @@ fn correct_fees() -> anyhow::Result<()> {
     assert_eq!(
         app.execute(
             &ExecuteMsg::CreateInfusion {
-                collections: vec![env.infusion.clone()],
+                infusions: vec![env.infusion.clone()],
             },
             Some(&[coin(499, "ustars")]),
         )
@@ -609,7 +609,7 @@ fn correct_fees() -> anyhow::Result<()> {
     assert_eq!(
         app.execute(
             &ExecuteMsg::CreateInfusion {
-                collections: vec![env.infusion.clone()],
+                infusions: vec![env.infusion.clone()],
             },
             Some(&[coin(501, "ustars")]),
         )
@@ -623,7 +623,7 @@ fn correct_fees() -> anyhow::Result<()> {
     // good infusion creation
     let res = app.execute(
         &ExecuteMsg::CreateInfusion {
-            collections: vec![env.infusion.clone()],
+            infusions: vec![env.infusion.clone()],
         },
         Some(&[coin(500, "ustars")]),
     )?;
@@ -759,7 +759,7 @@ fn payment_substitute_tests() -> anyhow::Result<()> {
     let infusion_id = app
         .execute(
             &ExecuteMsg::CreateInfusion {
-                collections: vec![env.infusion.clone()],
+                infusions: vec![env.infusion.clone()],
             },
             Some(&[coin(500, "ustars")]),
         )?
