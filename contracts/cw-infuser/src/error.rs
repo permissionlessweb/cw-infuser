@@ -91,4 +91,7 @@ pub enum ContractError {
 
     #[error("Unauthorized.")]
     Unauthorized,
+
+    #[error("InfusionIsEnded.")]
+    InfusionIsEnded,
 }

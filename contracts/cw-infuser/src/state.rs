@@ -8,6 +8,7 @@ pub const COUNT: Item<i32> = Item::new("count");
 pub const INFUSION: Map<(Addr, u64), InfusionState> = Map::new("infusion");
 /// Map of the infusion id with the infused collection addr
 pub const INFUSION_ID: Map<u64, (Addr, u64)> = Map::new("infusion_id");
+pub const INFUSION_CREATOR: Map<u64, Addr> = Map::new("ic");
 /// New infused collection info
 pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 // map of index position and token id
@@ -40,18 +41,22 @@ pub struct Config {
 
 #[cosmwasm_schema::cw_serde]
 pub struct Infusion {
+    /// Owner of the infusion. Defaults to messaage sender if omitted.
+    pub owner: Option<Addr>,
     /// NFT collections eligible for a specific infusion
     pub collections: Vec<NFTCollection>,
     /// Current data of the new infused collection
     pub infused_collection: InfusedCollection,
     /// Parameters of a specific infusion
     pub infusion_params: InfusionParams,
-    /// Recipient of payments for an infusion
+    /// Recipient of payments for an infusion. Defaults to message sender if omitted.
     pub payment_recipient: Option<Addr>,
 }
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionState {
+    pub enabled: bool,
+    pub owner: Addr,
     /// NFT collections eligible for a specific infusion
     pub collections: Vec<NFTCollection>,
     /// Current data of the new infused collection
@@ -100,7 +105,7 @@ pub struct NFTCollection {
     ///  If not set, contract expects exact # of min_req per collection in bundle.
     pub max_req: Option<u64>,
     /// If set, infuser can send exact amount of tokens to consider eligibility.
-    pub  payment_substitute: Option<Coin>
+    pub payment_substitute: Option<Coin>,
 }
 
 impl PartialEq<String> for NFTCollection {

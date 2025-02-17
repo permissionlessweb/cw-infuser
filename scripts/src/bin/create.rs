@@ -101,6 +101,7 @@ pub fn main() -> anyhow::Result<()> {
         infused_collection,
         infusion_params,
         payment_recipient: Some(chain.sender_addr()),
+        owner: None,
     }])?;
 
     Ok(())

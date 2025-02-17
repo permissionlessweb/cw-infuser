@@ -9,9 +9,9 @@ use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, from_json, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin,
-    CosmosMsg, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QueryRequest,
-    Reply, Response, StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
+    coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
+    Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QueryRequest, Reply, Response,
+    StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
@@ -21,7 +21,6 @@ use rand_core::{RngCore, SeedableRng};
 use rand_xoshiro::Xoshiro128PlusPlus;
 use semver::Version;
 use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
-use sg721_base::msg::CollectionInfoResponse;
 use sha2::{Digest, Sha256};
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
 use url::Url;
@@ -116,6 +115,7 @@ pub fn execute(
             bundle,
         } => execute_infuse_bundle(deps, env, info, infusion_id, bundle),
         ExecuteMsg::UpdateConfig {} => update_config(deps, info),
+        ExecuteMsg::EndInfusion { id } => execute_end_infusion(deps, info, id),
     }
 }
 
@@ -154,6 +154,25 @@ fn update_config(deps: DepsMut, msg: MessageInfo) -> Result<Response, ContractEr
     Ok(Response::new())
 }
 
+pub fn execute_end_infusion(
+    deps: DepsMut,
+    info: MessageInfo,
+    id: u64,
+) -> Result<Response, ContractError> {
+    let key = INFUSION_ID.load(deps.storage, id)?;
+    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
+    if infusion.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+    if !infusion.enabled {
+        return Err(ContractError::InfusionIsEnded {});
+    } else {
+        infusion.enabled = false;
+        INFUSION.save(deps.storage, key, &infusion)?;
+    }
+
+    Ok(Response::new())
+}
 pub fn execute_create_infusion(
     deps: DepsMut,
     info: MessageInfo,
@@ -355,6 +374,8 @@ pub fn execute_create_infusion(
                 params: infusion.infusion_params.params,
             },
             payment_recipient: infusion.payment_recipient.unwrap_or(info.sender.clone()),
+            owner: infusion.owner.unwrap_or(info.sender.clone()),
+            enabled: true,
         };
 
         // saves the infusion bundle to state with (infused_collection, id)
@@ -390,6 +411,10 @@ fn execute_infuse_bundle(
     let config = CONFIG.load(deps.storage)?;
     let key = INFUSION_ID.load(deps.storage, infusion_id)?;
     let infusion = INFUSION.load(deps.storage, key)?;
+
+    if !infusion.enabled {
+        return Err(ContractError::InfusionIsEnded {});
+    }
 
     let mut funds = info.funds.clone();
 
@@ -587,7 +612,7 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
 }
 
 /// Get the next token id for the infused collection addr being minted
-/// TODO: will prob need hook or query to collection to confirm accurate
+/// TODO: will prob need hook or query to collection to confirm the next token_id  is accurate
 fn get_next_id(
     deps: &DepsMut,
     env: Env,

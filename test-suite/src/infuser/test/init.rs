@@ -129,6 +129,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             infused_collection: good_infused.clone(),
             infusion_params: infusion_params,
             payment_recipient: Some(payment_recipient.clone()),
+            owner: None,
         };
         Ok(InfuserSuite {
             chain: env.chain,
@@ -233,6 +234,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 mint_fee: None,
             },
             payment_recipient: Some(treasury.clone()),
+            owner: None,
         };
 
         for i in nft_collection_addrs.clone() {
@@ -411,6 +413,7 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
         infused_collection: good_infused.clone(),
         infusion_params: good_infusion_params,
         payment_recipient: Some(env.chain.sender),
+        owner: None,
     };
 
     // cannot provide same nft collection twice
@@ -782,6 +785,7 @@ fn eligible_contract_is_nft_collection_test() -> anyhow::Result<()> {
         infused_collection: good_infused.clone(),
         infusion_params: good_infusion_params,
         payment_recipient: Some(env.chain.sender),
+        owner: None,
     };
 
     let res = app.create_infusion(vec![infusion.clone()]).unwrap_err();

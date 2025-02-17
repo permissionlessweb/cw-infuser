@@ -35,6 +35,9 @@ pub enum ExecuteMsg {
         infusion_id: u64,
         bundle: Vec<Bundle>,
     },
+    EndInfusion {
+        id: u64,
+    }
 }
 
 #[cw_serde]
