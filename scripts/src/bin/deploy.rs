@@ -50,13 +50,13 @@ pub fn main() -> anyhow::Result<()> {
 
     infuser.instantiate(
         &InstantiateMsg {
-            admin: None,
+            contract_owner: None,
             min_per_bundle: None,
             max_per_bundle: None,
             max_bundles: None,
             max_infusions: None,
             cw721_code_id: CW721_CODE_ID,
-            admin_fee: 10u64,
+            owner_fee: 10u64,
             min_creation_fee: None,
             min_infusion_fee: None,
         },

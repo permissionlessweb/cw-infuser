@@ -13,17 +13,16 @@
             |   |   |   |   |   \
             | ~   ~   ~   ~ |`   )
             |                   /
-             \                 /
+             \       595       /
               \               /
                \    _____    /
                 |--//''`\--|
                 | (( +==)) |
                 |--\_|_//--|
-
 ```
 
 ## Introduction
-Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways. Various bundle requirements, or the collection of tokens one intends to infuse in exchange for a new token.
+Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways. Bundles, or the collection of tokens one intends to infuse,are formed and burned in exchange for a new token from the infused collection.
 ## Additional Info 
 
 ###  Infused Collection
@@ -55,8 +54,9 @@ There are cw-orchestrator libraries available to deploy the infusion contracts. 
 
 ### Compile Infuser
 ```sh
-sh scripts/build.sh
+just wasm-optimize
 ```
+
 ### Deploy Infuser
 The following uploads, and instantiates a new infusion to the test network:
 ```sh 
@@ -64,7 +64,7 @@ cargo run --bin deploy -- --network testnet
 ```
 
 ### Create an Infusion 
-A minimum json message to create an infusion:\
+A minimum json message to create an infusion:
 `--col-min-require` in the same order as collections defined, set the minimum tokens required for each to need to infuse.
 ```sh
  cargo run --bin create -- --col-addrs-eligible <collection-addr1,collection-addr2> --col-min-required 4,2 --infuse-col-name infusion-test --infuse-col-symbol INFUSE --infuse-col-base-uri ipfs:// --config-min-per-bundle 1

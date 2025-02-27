@@ -1,3 +1,21 @@
+
+## Instantiate
+```json
+{
+    "admin": "stars1x7krclfpvt3d50ae4cvukckz4fe46g5gx393y2cjtdpar3aw6r3q3g8pd0",
+    "admin_fee": 2,
+    "min_creation_fee": {
+        "denom": "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
+        "amount": "50000000"
+    },
+    "max_infusions": 2,
+    "min_per_bundle": 1,
+    "max_per_bundle": 10,
+    "max_bundles": 5,
+    "cw721_code_id": 15
+}
+```
+
 ```json
 {
   "create_infusion":{
@@ -13,3 +31,4 @@
 }
 ]}}
 ```
+

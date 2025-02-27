@@ -4,10 +4,10 @@ use cosmwasm_std::{Addr, Coin};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Admin of this contract
-    pub admin: Option<String>,
-    /// Fee from each infusion payment, if required. Goes to admin during a successful infusion. Set to 0 to disable.
-    pub admin_fee: u64,
+    /// owner of this contract
+    pub contract_owner: Option<String>,
+    /// Fee from each infusion payment, if required. Goes to contract owner during any infusion. Set to 0 to disable.
+    pub owner_fee: u64,
     /// Minimum fee that is required for creating an infusion
     pub min_creation_fee: Option<Coin>,
     /// Minimum fee that is required to be set when infusions occur
@@ -49,7 +49,7 @@ pub enum QueryMsg {
     #[returns(Infusion)]
     Infusion { addr: Addr, id: u64 },
     /// returns an infusion for a given infusion id.
-    #[returns(Infusion)]
+    #[returns(InfusionState)]
     InfusionById { id: u64 },
     /// returns all infusions owned by a given address
     /// defaults to 30 entries from a given index point of the infusion map.

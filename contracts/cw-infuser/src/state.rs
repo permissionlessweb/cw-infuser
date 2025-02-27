@@ -19,28 +19,31 @@ pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
 pub struct Config {
     // Default at 0.
     pub latest_infusion_id: u64,
-    pub admin: Addr,
-    /// % fee from any infusion fee set to go to admin. 10 == 10% , 71 == 71%
-    pub admin_fee: u64,
-    /// Minimum fee that is required for creating an infusion
+    pub contract_owner: Addr,
+    /// % Fee from any infusion fee set to go to contract owner. 10 == 10% , 71 == 71%
+    pub owner_fee: u64,
+    /// Minimum fee that is required for creating an infusion.
     pub min_creation_fee: Option<Coin>,
     /// Minimum fee that is required to be set when new infusions are being created
     pub min_infusion_fee: Option<Coin>,
-    /// maximum unique infusion that can be created at once. Defaults to 2
+    /// Maximum unique infusion that can be created at once. Defaults to 2
     pub max_infusions: u64,
-    /// contract global minimum nft each collection in infusion must require to burn. hard coded to 1
+    /// Contract global param enforcing minimum nfts each collection in an infusion must require to burn. hard coded to 1.
     pub min_per_bundle: u64,
-    /// maximum nfts bundles can require
+    /// Contract global param enforcing maximum nfts bundles can require.
     pub max_per_bundle: u64,
     /// maximum bundles allowed per infusion
     pub max_bundles: u64,
     /// cw721-base code_id
     pub code_id: u64,
+    /// code hash of cw721. used for instantitate2 during infusion creation.
     pub code_hash: HexBinary,
 }
 
 #[cosmwasm_schema::cw_serde]
 pub struct Infusion {
+    /// Optional description of this infusion
+    pub description: Option<String>,
     /// Owner of the infusion. Defaults to messaage sender if omitted.
     pub owner: Option<Addr>,
     /// NFT collections eligible for a specific infusion
@@ -69,8 +72,6 @@ pub struct InfusionState {
 
 #[cosmwasm_schema::cw_serde]
 pub struct InfusionParams {
-    // /// Minimum amount each collection in any infusion is required
-    // pub min_per_bundle: Option<u64>,
     /// Minium amount of mint fee required for any infusion if set. Rewards will go to either infusion creator, or reward granted
     pub mint_fee: Option<Coin>,
     pub params: Option<BurnParams>,
@@ -117,16 +118,29 @@ impl PartialEq<String> for NFTCollection {
 #[cosmwasm_schema::cw_serde]
 pub struct InfusedCollection {
     pub sg: bool,
-    pub addr: Option<String>,
     pub admin: Option<String>,
     pub name: String,
+    /// infused collection description
+    pub description: String,
+    /// symbol of infused collection
     pub symbol: String,
+    /// ipfs base uri containing metadata and nft images. ensure ipfs:// prefix is included.
     pub base_uri: String,
+    /// cover image of infused collection.
+    pub image: String,
+    /// total supply.
     pub num_tokens: u32,
+    /// royality params for secondary market sales.
     pub royalty_info: Option<RoyaltyInfoResponse>,
+    /// time in which trading can begin of infused collection.
     pub start_trading_time: Option<Timestamp>,
+    /// whether explicit content is present.
     pub explicit_content: Option<bool>,
+    /// optional external link.
     pub external_link: Option<String>,
+    /// exists to reuse InfusedCollection struct in contract.
+    /// value is disregarded if present in new infusion creation msg.
+    pub addr: Option<String>,
 }
 
 #[cosmwasm_schema::cw_serde]

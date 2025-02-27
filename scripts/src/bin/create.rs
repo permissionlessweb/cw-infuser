@@ -1,10 +1,6 @@
-use std::str::FromStr;
-
 use clap::{arg, command, Parser};
-use cosmwasm_std::Uint128;
 use cw_infuser::msg::ExecuteMsgFns;
 use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
-use cw_orch::daemon::TxSender;
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
 use scripts::ELGAFAR_1;
@@ -28,6 +24,12 @@ struct Args {
     /// infused collection symbol
     #[arg(long)]
     infuse_col_symbol: String,
+    /// infused collection title image
+    #[arg(long)]
+    infuse_col_image: String,
+    /// infused collection description
+    #[arg(long)]
+    infuse_col_description: String,
     /// infused collection base uri
     #[arg(long)]
     infuse_col_base_uri: String,
@@ -90,6 +92,8 @@ pub fn main() -> anyhow::Result<()> {
         start_trading_time: None,
         explicit_content: None,
         external_link: None,
+        image: args.infuse_col_image,
+        description: todo!(),
     };
 
     // pass infusions to orchestrator
@@ -102,6 +106,7 @@ pub fn main() -> anyhow::Result<()> {
         infusion_params,
         payment_recipient: Some(chain.sender_addr()),
         owner: None,
+        description: Some("todo!()".to_string()),
     }])?;
 
     Ok(())

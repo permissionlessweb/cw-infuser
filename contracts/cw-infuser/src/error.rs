@@ -81,8 +81,8 @@ pub enum ContractError {
     #[error("New infusion require a minimum fee of {min} to be created.")]
     InfusionFeeLessThanMinimumRequired { min: Coin },
 
-    #[error("RequirednfusionFeeError: New infusion fee required not sent. Retry infusion creation with correct funds.")]
-    RequirednfusionFeeError,
+    #[error("RequirednfusionFeeError: New infusion fee of {fee} required not sent. Retry infusion creation with correct funds.")]
+    RequirednfusionFeeError { fee: Coin },
 
     #[error("contract: {addr} is not an cw721 nft collection.")]
     AddrIsNotNFTCol { addr: String },
@@ -94,4 +94,7 @@ pub enum ContractError {
 
     #[error("InfusionIsEnded.")]
     InfusionIsEnded,
+
+    #[error("InfusionDescriptionLengthError")]
+    InfusionDescriptionLengthError,
 }

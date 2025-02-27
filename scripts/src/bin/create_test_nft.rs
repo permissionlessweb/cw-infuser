@@ -3,8 +3,8 @@ use cw_infuser::msg::ExecuteMsgFns;
 use cw_infuser::state::Infusion;
 use cw_orch::core::serde_json;
 use cw_orch::daemon::TxSender;
-use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
+use cw_orch::prelude::*;
 use scripts::{ELGAFAR_1, STARGAZE_1};
 
 /// Simple program to greet a person
