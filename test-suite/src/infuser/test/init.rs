@@ -364,10 +364,10 @@ fn successful_infusion() -> anyhow::Result<()> {
         res.infused_collection.addr.is_some(),
         "infusion collection not set!"
     );
+    env.chain.wait_blocks(1)?;
 
     // error if too few nfts provided in bundle
     let err = app.infuse(vec![], 1).unwrap_err();
-
     assert_eq!(err.source().unwrap().to_string(), "Bundle cannot be empty.");
 
     // error if too many nfts provided in bundle
@@ -392,6 +392,7 @@ fn successful_infusion() -> anyhow::Result<()> {
             1,
         )
         .unwrap_err();
+    println!("{:#?}", err);
     assert_eq!(
         err.source().unwrap().to_string(),
         ContractError::BundleNotAccepted { have: 3, want: 2 }.to_string()
@@ -886,14 +887,79 @@ fn payment_substitute_tests() -> anyhow::Result<()> {
 
     let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
 
-    // ensure no token and no replacement errors
-    let mut bundle = Bundle {
-        nfts: vec![NFT {
-            addr: nft1.clone(),
-            token_id: 11,
-        }],
-    };
+    let mut bundle = Bundle { nfts: vec![] };
 
+    // 0 bundles
+    let err = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![],
+            },
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::EmptyBundle {}.to_string()
+    );
+
+    // empty, single bundle with no fee payment, and no eligible collection
+    let err = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            None,
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::CollectionNotEligible {
+            col: nft1.to_string()
+        }
+        .to_string()
+    );
+
+    //  empty bundle with correct # of non-subpayment col, incorrect fees for subpayment col
+    bundle.nfts = vec![NFT {
+        addr: nft1.clone(),
+        token_id: 11,
+    }];
+
+    let err = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(200, "ustars")]),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::PaymentSubstituteNotProvided {
+            col: nft2.to_string(),
+            haved: "ustars".into(),
+            havea: 100u64.to_string(),
+            wantd: "ustars".into(),
+            wanta: 200u64.to_string(),
+        }
+        .to_string()
+    );
+
+    bundle.nfts = vec![NFT {
+        addr: nft1.clone(),
+        token_id: 11,
+    }];
+
+    // ensure no token and no replacement errors
     let infuse = app
         .call_as(&env.admin)
         .execute(
@@ -915,6 +981,26 @@ fn payment_substitute_tests() -> anyhow::Result<()> {
             wanta: "200".into()
         }
         .to_string()
+    );
+    bundle.nfts.extend([NFT {
+        addr: nft1.clone(),
+        token_id: 12,
+    }]);
+    // too many non paymentsub collection
+    let err = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(200, "ustars")]),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::BundleNotAccepted { have: 2, want: 1 }.to_string()
     );
 
     // ensure correct payment substitute but incorrect bundle

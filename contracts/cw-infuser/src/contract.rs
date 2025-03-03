@@ -2,8 +2,8 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
     Bundle, Config, InfusedCollection, Infusion, InfusionParamState, InfusionState, NFTCollection,
-    TokenPositionMapping, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS,
-    MINTABLE_TOKEN_POSITIONS, NFT,
+    TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO,
+    MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_POSITIONS, NFT,
 };
 use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
@@ -120,8 +120,12 @@ pub fn execute(
             infusion_id,
             bundle,
         } => execute_infuse_bundle(deps, env, info, infusion_id, bundle),
-        ExecuteMsg::UpdateConfig {} => update_config(deps, info),
+        ExecuteMsg::UpdateConfig { config } => update_config(deps, info, config),
         ExecuteMsg::EndInfusion { id } => execute_end_infusion(deps, info, id),
+        ExecuteMsg::UpdateInfusionBaseUri {
+            infusion_id,
+            base_uri,
+        } => update_infused_base_uri(deps, info, infusion_id, base_uri),
     }
 }
 
@@ -147,15 +151,20 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
     }
 }
 
-/// Update the configuration of the app
-fn update_config(deps: DepsMut, msg: MessageInfo) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    // Only the admin should be able to call this
-    if config.contract_owner != msg.sender {
+/// Update the baseuri used for infused collection metadata
+fn update_infused_base_uri(
+    deps: DepsMut,
+    msg: MessageInfo,
+    id: u64,
+    base_uri: String,
+) -> Result<Response, ContractError> {
+    let key = INFUSION_ID.load(deps.storage, id)?;
+    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
+    if infusion.owner != msg.sender {
         return Err(ContractError::Admin(AdminError::NotAdmin {}));
     }
-
-    // todo: update configs
+    infusion.infused_collection.base_uri = base_uri;
+    INFUSION.save(deps.storage, key, &infusion)?;
 
     Ok(Response::new())
 }
@@ -279,6 +288,7 @@ pub fn execute_create_infusion(
                         max: cfg.max_per_bundle,
                     });
                 }
+
                 unique.push(col.addr.clone());
             }
         }
@@ -475,7 +485,7 @@ fn execute_infuse_bundle(
         }
     }
 
-    // check lens
+    // // check lens
     if bundle.is_empty() {
         return Err(ContractError::EmptyBundle);
     }
@@ -565,49 +575,51 @@ fn check_bundles(
     elig_col: Vec<NFTCollection>,
     sent: &Vec<Coin>,
 ) -> Result<(), ContractError> {
-    // verify correct # of nft's provided & are accepted nfts
-    // verify that the bundle is included in infusions
     for c in &elig_col {
         let elig = bundle
             .iter()
             .filter(|b| b.addr == c.addr)
             .collect::<Vec<_>>();
 
+        let elig_len: u64 = elig.len() as u64;
         if let Some(ps) = c.payment_substitute.clone() {
-            if !sent
-                .iter()
-                .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
-            {
-                let mut havea = 0u128;
-                let mut haved = String::new();
-                for coin in sent {
-                    if coin.denom == ps.denom {
-                        havea = coin.amount.into();
-                        haved = coin.denom.clone();
-                        break;
+            if elig_len == 0u64 {
+                if !sent
+                    .iter()
+                    .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
+                {
+                    let mut havea = 0u128;
+                    let mut haved = String::new();
+                    for coin in sent {
+                        if coin.denom == ps.denom {
+                            havea = coin.amount.into();
+                            haved = coin.denom.clone();
+                            break;
+                        }
                     }
+                    return Err(ContractError::PaymentSubstituteNotProvided {
+                        col: c.addr.to_string(),
+                        haved,
+                        havea: havea.to_string(),
+                        wantd: ps.denom,
+                        wanta: ps.amount.to_string(),
+                    });
                 }
-                return Err(ContractError::PaymentSubstituteNotProvided {
-                    col: c.addr.to_string(),
-                    haved,
-                    havea: havea.to_string(),
-                    wantd: ps.denom,
-                    wanta: ps.amount.to_string(),
-                });
             }
         } else if elig.is_empty() {
             return Err(ContractError::CollectionNotEligible {
                 col: c.addr.to_string(),
             });
-        // ensure minimum is met
-        } else if elig.len() as u64 != c.min_req {
+        } else if let Some(max) = c.max_req {
+            if elig_len > max {
+                return Err(ContractError::BundleNotAccepted {
+                    have: elig_len,
+                    want: c.min_req,
+                });
+            }
+        } else if elig_len != c.min_req {
             return Err(ContractError::BundleNotAccepted {
-                have: elig.len() as u64,
-                want: c.min_req,
-            });
-        } else if c.max_req.is_some_and(|a| elig.len() as u64 > a) {
-            return Err(ContractError::BundleNotAccepted {
-                have: elig.len() as u64,
+                have: elig_len,
                 want: c.min_req,
             });
         }
@@ -788,6 +800,54 @@ fn random_mintable_token_mapping(
     Ok(TokenPositionMapping { position, token_id })
 }
 
+/// Update the configuration of the app
+fn update_config(
+    deps: DepsMut,
+    msg: MessageInfo,
+    uc: UpdatingConfig,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    // Only the admin should be able to call this
+    if config.contract_owner != msg.sender {
+        return Err(ContractError::Admin(AdminError::NotAdmin {}));
+    }
+
+    if let Some(owner) = uc.contract_owner {
+        config.contract_owner = deps.api.addr_validate(&owner)?;
+    }
+
+    if let Some(of) = uc.owner_fee {
+        config.owner_fee = of;
+    }
+
+    if let Some(cf) = uc.min_creation_fee {
+        config.min_creation_fee = Some(cf);
+    }
+
+    if let Some(mif) = uc.min_infusion_fee {
+        config.min_infusion_fee = Some(mif);
+    }
+
+    if let Some(mi) = uc.max_infusions {
+        config.max_infusions = mi;
+    }
+
+    if let Some(mpb) = uc.min_per_bundle {
+        config.min_per_bundle = mpb;
+    }
+
+    if let Some(mb) = uc.max_bundles {
+        config.max_bundles = mb;
+    }
+
+    if let Some(ci) = uc.code_id {
+        config.code_id = ci;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new())
+}
+
 //  source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/vending-minter/src/contract.rs#L1371
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
@@ -799,10 +859,10 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
     let version: Version = current_version
         .version
         .parse()
-        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+        .map_err(|_| StdError::generic_err("Invalid current contract version"))?;
     let new_version: Version = CONTRACT_VERSION
         .parse()
-        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+        .map_err(|_| StdError::generic_err("Invalid new contract version"))?;
 
     if version > new_version {
         return Err(StdError::generic_err("Cannot upgrade to a previous contract version").into());

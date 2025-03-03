@@ -27,7 +27,13 @@ pub struct InstantiateMsg {
 #[cw_serde]
 #[derive(cw_orch::ExecuteFns)]
 pub enum ExecuteMsg {
-    UpdateConfig {},
+    UpdateConfig {
+        config: UpdatingConfig,
+    },
+    UpdateInfusionBaseUri {
+        infusion_id: u64,
+        base_uri: String,
+    },
     CreateInfusion {
         infusions: Vec<Infusion>,
     },
@@ -37,7 +43,7 @@ pub enum ExecuteMsg {
     },
     EndInfusion {
         id: u64,
-    }
+    },
 }
 
 #[cw_serde]

@@ -38,7 +38,7 @@ cw20-base = "=1.1.2"
 cw-utils = "2.0.0"
 hex = "0.4.3"
 cw-orch = { workspace = true, features = ["daemon"] }
-cw-infuser = { version = "0.1.0", path = "../contracts/cw-infuser" }
+cw-infuser = { version = "0.2.1", path = "../contracts/cw-infuser" }
 cw-orch-clone-testing = "0.6.4"
 cw721-base = { git = "https://github.com/AbstractSDK/cw-nfts", version = "0.18.0" }
 scripts = { path = "../scripts" }

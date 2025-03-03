@@ -16,6 +16,18 @@ pub const MINTABLE_TOKEN_POSITIONS: Map<u32, u32> = Map::new("mt");
 pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
 
 #[cosmwasm_schema::cw_serde]
+pub struct UpdatingConfig {
+    pub contract_owner:  Option<String>,
+    pub owner_fee: Option<u64>,
+    pub min_creation_fee: Option<Coin>,
+    pub min_infusion_fee: Option<Coin>,
+    pub max_infusions: Option<u64>,
+    pub min_per_bundle: Option<u64>,
+    pub max_bundles: Option<u64>,
+    pub code_id: Option<u64>,
+}
+
+#[cosmwasm_schema::cw_serde]
 pub struct Config {
     // Default at 0.
     pub latest_infusion_id: u64,
@@ -39,7 +51,7 @@ pub struct Config {
     /// code hash of cw721. used for instantitate2 during infusion creation.
     pub code_hash: HexBinary,
 }
-
+ 
 #[cosmwasm_schema::cw_serde]
 pub struct Infusion {
     /// Optional description of this infusion
