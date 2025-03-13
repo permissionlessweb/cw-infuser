@@ -158,6 +158,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             payment_recipient,
         })
     }
+
     // setsup the infuser suite by storing, instantiating, and configuring nft collections & the cw-infuser
     fn setup() -> anyhow::Result<InfuserSuite<MockBech32>> {
         let mock = MockBech32::new("mock");
@@ -309,7 +310,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
 }
 
 #[test]
-fn successful_install() -> anyhow::Result<()> {
+fn test_successful_install() -> anyhow::Result<()> {
     let env = InfuserSuite::<MockBech32>::setup()?;
     let app = env.infuser;
 
@@ -336,7 +337,7 @@ fn successful_install() -> anyhow::Result<()> {
 }
 
 #[test]
-fn successful_infusion() -> anyhow::Result<()> {
+fn test_successful_infusion() -> anyhow::Result<()> {
     let env = InfuserSuite::<MockBech32>::setup()?;
     let app = env.infuser;
 
@@ -412,7 +413,7 @@ fn successful_infusion() -> anyhow::Result<()> {
 
 // Multiple Collections In Bundle
 #[test]
-fn multiple_collections_in_bundle() -> anyhow::Result<()> {
+fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
     let env = InfuserSuite::<MockBech32>::setup()?;
     let app = env.infuser;
 
@@ -633,7 +634,7 @@ fn multiple_collections_in_bundle() -> anyhow::Result<()> {
 
 // Correct Fees & Destination
 #[test]
-fn correct_fees() -> anyhow::Result<()> {
+fn test_correct_fees() -> anyhow::Result<()> {
     let env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
     let app = env.infuser;
 
@@ -815,7 +816,7 @@ fn correct_fees() -> anyhow::Result<()> {
 }
 
 #[test]
-fn eligible_contract_is_nft_collection_test() -> anyhow::Result<()> {
+fn test_eligible_nft_collections() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let env = InfuserSuite::<MockBech32>::setup()?;
     let app = env.infuser;
@@ -862,7 +863,7 @@ fn eligible_contract_is_nft_collection_test() -> anyhow::Result<()> {
 }
 
 #[test]
-fn payment_substitute_tests() -> anyhow::Result<()> {
+fn test_payment_substitute() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let mut env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
     let app = env.infuser;
@@ -1062,6 +1063,49 @@ fn payment_substitute_tests() -> anyhow::Result<()> {
         .unwrap();
 
     // check with limits
+
+    Ok(())
+}
+
+#[test]
+fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
+    // setup infuser with admin fees
+    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
+    let app = env.infuser;
+    let nft1 = env.nfts[0].clone();
+    let nft2 = env.nfts[1].clone();
+
+    // update infusion collect params to undesired state
+    env.infusion.collections[1].payment_substitute = Some(coin(1u128, "ustars"));
+
+    // good infusion creation
+    let infusion_id = app
+        .execute(
+            &ExecuteMsg::CreateInfusion {
+                infusions: vec![env.infusion.clone()],
+            },
+            Some(&[coin(500, "ustars")]),
+        )?
+        .event_attr_value("wasm", "infusion-id")?;
+    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+    // update infusion accepted params
+    env.infusion.collections[1].max_req = Some(3);
+    env.infusion.collections[1].min_req = 2;
+    env.infusion.collections[1].payment_substitute = Some(coin(100, "ubtsg"));
+    app.update_infusions_eligible_collections(
+        infusion_id,
+        vec![env.infusion.collections[1].clone()],
+        vec![env.infusion.collections[0].clone()],
+    )?;
+
+    let infusion = app.infusion_by_id(infusion_id)?;
+    assert_eq!(infusion.collections.len(), 1);
+    assert_eq!(infusion.collections[0].max_req, Some(3));
+    assert_eq!(infusion.collections[0].min_req, 2);
+    assert_eq!(
+        infusion.collections[0].payment_substitute,
+        Some(coin(100, "ubtsg"))
+    );
 
     Ok(())
 }

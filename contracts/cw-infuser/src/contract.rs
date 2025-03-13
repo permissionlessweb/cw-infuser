@@ -10,8 +10,8 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QueryRequest, Reply, Response,
-    StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
+    Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QuerierWrapper, QueryRequest,
+    Reply, Response, StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
@@ -126,6 +126,11 @@ pub fn execute(
             infusion_id,
             base_uri,
         } => update_infused_base_uri(deps, info, infusion_id, base_uri),
+        ExecuteMsg::UpdateInfusionsEligibleCollections {
+            id,
+            to_add,
+            to_remove,
+        } => update_infusion_eligible_collections(deps, info, id, to_add, to_remove),
     }
 }
 
@@ -151,6 +156,39 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
     }
 }
 
+/// Update the infused collec
+fn update_infusion_eligible_collections(
+    deps: DepsMut,
+    msg: MessageInfo,
+    id: u64,
+    to_add: Vec<NFTCollection>,
+    to_remove: Vec<NFTCollection>,
+) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let key = INFUSION_ID.load(deps.storage, id)?;
+    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
+
+    if infusion.owner != msg.sender {
+        return Err(ContractError::Admin(AdminError::NotAdmin {}));
+    }
+
+    for nft in to_remove {
+        // Iterate through the collections to find and remove the NFT
+        for i in 0..infusion.collections.len() {
+            if infusion.collections[i] == nft {
+                infusion.collections.remove(i);
+                break;
+            }
+        }
+    }
+    // ensure new eligible collection params
+    let collections =
+        eligible_collection_helper(deps.querier, &cfg, &infusion.collections, &to_add, true)?;
+    infusion.collections = collections;
+
+    INFUSION.save(deps.storage, key, &infusion)?;
+    Ok(Response::new())
+}
 /// Update the baseuri used for infused collection metadata
 fn update_infused_base_uri(
     deps: DepsMut,
@@ -249,50 +287,7 @@ pub fn execute_create_infusion(
             }
         }
 
-        // checks min_per_bundle
-        if cfg.max_bundles < infusion.collections.len() as u64 {
-            return Err(ContractError::TooManyCollectionsInInfusion {
-                have: infusion.collections.len() as u64,
-                max: cfg.max_bundles,
-            });
-        }
-
-        // checks for any unique collections
-        let mut unique = Vec::new();
-        for col in infusion.collections.iter() {
-            if unique.contains(&col.addr) {
-                return Err(ContractError::DuplicateCollectionInInfusion);
-            } else {
-                // check if addr is cw721 collection
-                let _res: cw721::ContractInfoResponse = deps
-                    .querier
-                    .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
-                    .map_err(|_| {
-                        return ContractError::AddrIsNotNFTCol {
-                            addr: col.addr.to_string(),
-                        };
-                    })?;
-
-                // checks # of nft required per bundle
-                if col.addr.to_string().is_empty() {
-                    return Err(ContractError::BundleCollectionContractEmpty {});
-                }
-                if col.min_req < cfg.min_per_bundle
-                    || col.min_req > cfg.max_per_bundle
-                    || col.max_req.is_some_and(|a| cfg.max_per_bundle < a)
-                    || col.max_req.is_some_and(|a| cfg.min_per_bundle > a)
-                {
-                    return Err(ContractError::BadBundle {
-                        have: col.min_req,
-                        min: cfg.min_per_bundle,
-                        max: cfg.max_per_bundle,
-                    });
-                }
-
-                unique.push(col.addr.clone());
-            }
-        }
-
+        eligible_collection_helper(deps.querier, &cfg, &vec![], &infusion.collections, false)?;
         // sanitize base token uri
         let mut base_token_uri = infusion.infused_collection.base_uri.trim().to_string();
         // Token URI must be a valid URL (ipfs, https, etc.)
@@ -424,6 +419,80 @@ pub fn execute_create_infusion(
         .add_attributes(attrs))
 }
 
+fn eligible_collection_helper(
+    query: QuerierWrapper,
+    cfg: &Config,
+    existing: &Vec<NFTCollection>,
+    to_add: &Vec<NFTCollection>,
+    updating_config: bool,
+) -> Result<Vec<NFTCollection>, ContractError> {
+    // checks min_per_bundle
+    if cfg.max_bundles < to_add.len() as u64 {
+        return Err(ContractError::TooManyCollectionsInInfusion {
+            have: to_add.len() as u64,
+            max: cfg.max_bundles,
+        });
+    }
+
+    let mut validate_nfts = to_add.clone();
+    if updating_config {
+        // prevent duplicates,
+        if !to_add.is_empty() {
+            let elig = existing;
+            let mut elig_to_save = elig.clone();
+
+            for elig in elig_to_save.iter_mut() {
+                if let Some(new_elig) = to_add.iter().find(|n| n.addr == elig.addr) {
+                    *elig = new_elig.clone();
+                }
+            }
+
+            for new_elig in to_add {
+                if !elig_to_save.iter().any(|e| e.addr == new_elig.addr) {
+                    elig_to_save.push(new_elig.clone());
+                }
+            }
+
+            validate_nfts = elig_to_save;
+        }
+    }
+
+    // checks for any unique collections
+    let mut unique = Vec::new();
+    for col in validate_nfts.iter() {
+        if unique.contains(&col.addr) {
+            return Err(ContractError::DuplicateCollectionInInfusion);
+        } else {
+            // check if addr is cw721 collection
+            let _res: cw721::ContractInfoResponse = query
+                .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
+                .map_err(|_| {
+                    return ContractError::AddrIsNotNFTCol {
+                        addr: col.addr.to_string(),
+                    };
+                })?;
+
+            // checks # of nft required per bundle
+            if col.addr.to_string().is_empty() {
+                return Err(ContractError::BundleCollectionContractEmpty {});
+            }
+            if col.min_req < cfg.min_per_bundle
+                || col.min_req > cfg.max_per_bundle
+                || col.max_req.is_some_and(|a| cfg.max_per_bundle < a)
+                || col.max_req.is_some_and(|a| cfg.min_per_bundle > a)
+            {
+                return Err(ContractError::BadBundle {
+                    have: col.min_req,
+                    min: cfg.min_per_bundle,
+                    max: cfg.max_per_bundle,
+                });
+            }
+
+            unique.push(col.addr.clone());
+        }
+    }
+    return Ok(validate_nfts.to_vec());
+}
 fn execute_infuse_bundle(
     deps: DepsMut,
     env: Env,
@@ -581,7 +650,7 @@ fn check_bundles(
             .filter(|b| b.addr == c.addr)
             .collect::<Vec<_>>();
 
-        let elig_len: u64 = elig.len() as u64;
+        let elig_len = elig.len() as u64;
         if let Some(ps) = c.payment_substitute.clone() {
             if elig_len == 0u64 {
                 if !sent

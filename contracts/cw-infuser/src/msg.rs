@@ -34,6 +34,11 @@ pub enum ExecuteMsg {
         infusion_id: u64,
         base_uri: String,
     },
+    UpdateInfusionsEligibleCollections {
+        id: u64,
+        to_add: Vec<NFTCollection>,
+        to_remove: Vec<NFTCollection>,
+    },
     CreateInfusion {
         infusions: Vec<Infusion>,
     },

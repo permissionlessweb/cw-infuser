@@ -3,9 +3,13 @@
  `stargaze-1`:
 - stars1333zgwvcxe04apsg98mccpc2fg7ft5xwl9ewkey2fwgf70zghsrse5nglu
 - stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l
+
+
+## TODO: 
+- support for depositing nfts (used to ommit nfts approval tx requirement)
+- immuatbility support (cannot update baseuri, ...)
+
 ## Instantiate
-
-
 ```json
 {
     "admin": "stars1x7krclfpvt3d50ae4cvukckz4fe46g5gx393y2cjtdpar3aw6r3q3g8pd0",
@@ -21,6 +25,12 @@
     "cw721_code_id": 15
 }
 ```
+
+###  Update An Infusion BaseURI
+```json
+{"update_infusion_base_uri": {"infusion_id": 1, "base_uri":"ipfs://QmXWasD3MnpSUNxva3aARnTxVb3hHcb59yMBQ4VRWKw1oB"}}
+```
+
 
 ```json
 {
