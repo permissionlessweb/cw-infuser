@@ -7,8 +7,8 @@ default = []
 
 [workspace.dependencies]
 anyhow = "1.0.79"
-cosmwasm-schema = "1.5.3"
-cosmwasm-std = { version = "1.5.3", features = [
+cosmwasm-schema = "1.5.11"
+cosmwasm-std = { version = "1.5.11", features = [
   "cosmwasm_1_4",
   # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
   # "cosmwasm_2_0",

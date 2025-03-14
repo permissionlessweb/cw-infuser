@@ -1,6 +1,8 @@
 use clap::{arg, command, Parser};
 use cw_infuser::msg::ExecuteMsgFns;
-use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
+use cw_infuser::state::{
+    BundleType, InfusedCollection, Infusion, InfusionParamState, NFTCollection,
+};
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
 use scripts::ELGAFAR_1;
@@ -75,9 +77,10 @@ pub fn main() -> anyhow::Result<()> {
         infusions.push(infusion);
     }
 
-    let infusion_params = InfusionParams {
+    let infusion_params = InfusionParamState {
         mint_fee: None,
         params: None,
+        bundle_type: BundleType::AllOf {},
     };
 
     let infused_collection = InfusedCollection {

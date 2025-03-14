@@ -1,6 +1,6 @@
 [package]
 name = "cw-infuser"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
 
@@ -41,8 +41,8 @@ optimize-arm = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-cosmwasm-schema = "1.5.3"
-cosmwasm-std = { version = "1.5.3", features = [
+cosmwasm-schema = "1.5.11"
+cosmwasm-std = { version = "1.5.11", features = [
   "cosmwasm_1_4",
   # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
   # "cosmwasm_2_0",

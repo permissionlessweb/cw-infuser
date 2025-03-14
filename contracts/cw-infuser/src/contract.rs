@@ -1,9 +1,9 @@
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    Bundle, Config, InfusedCollection, Infusion, InfusionParamState, InfusionState, NFTCollection,
-    TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO,
-    MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_POSITIONS, NFT,
+    Bundle, BundleBlend, BundleType, Config, InfusedCollection, Infusion, InfusionParamState,
+    InfusionState, NFTCollection, TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION,
+    INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_POSITIONS, NFT,
 };
 use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
@@ -122,15 +122,17 @@ pub fn execute(
         } => execute_infuse_bundle(deps, env, info, infusion_id, bundle),
         ExecuteMsg::UpdateConfig { config } => update_config(deps, info, config),
         ExecuteMsg::EndInfusion { id } => execute_end_infusion(deps, info, id),
-        ExecuteMsg::UpdateInfusionBaseUri {
-            infusion_id,
-            base_uri,
-        } => update_infused_base_uri(deps, info, infusion_id, base_uri),
+        ExecuteMsg::UpdateInfusionBaseUri { id, base_uri } => {
+            update_infused_base_uri(deps, info, id, base_uri)
+        }
         ExecuteMsg::UpdateInfusionsEligibleCollections {
             id,
             to_add,
             to_remove,
         } => update_infusion_eligible_collections(deps, info, id, to_add, to_remove),
+        ExecuteMsg::UpdateInfusionMintFee { id, mint_fee } => {
+            update_infusion_mint_fee(deps, info, id, mint_fee)
+        }
     }
 }
 
@@ -182,13 +184,20 @@ fn update_infusion_eligible_collections(
         }
     }
     // ensure new eligible collection params
-    let collections =
-        eligible_collection_helper(deps.querier, &cfg, &infusion.collections, &to_add, true)?;
+    let collections = validate_eligible_collection_list(
+        deps.querier,
+        &cfg,
+        &infusion.infusion_params.bundle_type,
+        &infusion.collections,
+        &to_add,
+        true,
+    )?;
     infusion.collections = collections;
 
     INFUSION.save(deps.storage, key, &infusion)?;
     Ok(Response::new())
 }
+
 /// Update the baseuri used for infused collection metadata
 fn update_infused_base_uri(
     deps: DepsMut,
@@ -202,6 +211,24 @@ fn update_infused_base_uri(
         return Err(ContractError::Admin(AdminError::NotAdmin {}));
     }
     infusion.infused_collection.base_uri = base_uri;
+    INFUSION.save(deps.storage, key, &infusion)?;
+
+    Ok(Response::new())
+}
+
+/// Update the mint fee for an infusion
+fn update_infusion_mint_fee(
+    deps: DepsMut,
+    msg: MessageInfo,
+    id: u64,
+    mint_fee: Option<Coin>,
+) -> Result<Response, ContractError> {
+    let key = INFUSION_ID.load(deps.storage, id)?;
+    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
+    if infusion.owner != msg.sender {
+        return Err(ContractError::Admin(AdminError::NotAdmin {}));
+    }
+    infusion.infusion_params.mint_fee = mint_fee;
     INFUSION.save(deps.storage, key, &infusion)?;
 
     Ok(Response::new())
@@ -287,7 +314,14 @@ pub fn execute_create_infusion(
             }
         }
 
-        eligible_collection_helper(deps.querier, &cfg, &vec![], &infusion.collections, false)?;
+        validate_eligible_collection_list(
+            deps.querier,
+            &cfg,
+            &infusion.infusion_params.bundle_type,
+            &vec![],
+            &infusion.collections,
+            false,
+        )?;
         // sanitize base token uri
         let mut base_token_uri = infusion.infused_collection.base_uri.trim().to_string();
         // Token URI must be a valid URL (ipfs, https, etc.)
@@ -392,6 +426,7 @@ pub fn execute_create_infusion(
             infusion_params: InfusionParamState {
                 mint_fee: infusion.infusion_params.mint_fee,
                 params: infusion.infusion_params.params,
+                bundle_type: infusion.infusion_params.bundle_type,
             },
             payment_recipient: infusion.payment_recipient.unwrap_or(info.sender.clone()),
             owner: infusion.owner.unwrap_or(info.sender.clone()),
@@ -419,9 +454,12 @@ pub fn execute_create_infusion(
         .add_attributes(attrs))
 }
 
-fn eligible_collection_helper(
+/// Performs various validations on an infusions eligilbe collections being set. If triggered via config update,
+/// we validate any possible conficts from existing store values with ones to_add.
+fn validate_eligible_collection_list(
     query: QuerierWrapper,
     cfg: &Config,
+    bundle_type: &BundleType,
     existing: &Vec<NFTCollection>,
     to_add: &Vec<NFTCollection>,
     updating_config: bool,
@@ -462,34 +500,61 @@ fn eligible_collection_helper(
     for col in validate_nfts.iter() {
         if unique.contains(&col.addr) {
             return Err(ContractError::DuplicateCollectionInInfusion);
-        } else {
-            // check if addr is cw721 collection
-            let _res: cw721::ContractInfoResponse = query
-                .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
-                .map_err(|_| {
-                    return ContractError::AddrIsNotNFTCol {
-                        addr: col.addr.to_string(),
-                    };
-                })?;
-
-            // checks # of nft required per bundle
-            if col.addr.to_string().is_empty() {
-                return Err(ContractError::BundleCollectionContractEmpty {});
-            }
-            if col.min_req < cfg.min_per_bundle
-                || col.min_req > cfg.max_per_bundle
-                || col.max_req.is_some_and(|a| cfg.max_per_bundle < a)
-                || col.max_req.is_some_and(|a| cfg.min_per_bundle > a)
-            {
-                return Err(ContractError::BadBundle {
-                    have: col.min_req,
-                    min: cfg.min_per_bundle,
-                    max: cfg.max_per_bundle,
-                });
-            }
-
-            unique.push(col.addr.clone());
         }
+        // check if addr is cw721 collection
+        let _res: cw721::ContractInfoResponse = query
+            .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
+            .map_err(|_| {
+                return ContractError::AddrIsNotNFTCol {
+                    addr: col.addr.to_string(),
+                };
+            })?;
+
+        // checks # of nft required per bundle
+        if col.addr.to_string().is_empty() {
+            return Err(ContractError::BundleCollectionContractEmpty {});
+        }
+        if col.min_req < cfg.min_per_bundle
+            || col.min_req > cfg.max_per_bundle
+            || col.max_req.is_some_and(|a| cfg.max_per_bundle < a)
+            || col.max_req.is_some_and(|a| cfg.min_per_bundle > a)
+        {
+            return Err(ContractError::BadBundle {
+                have: col.min_req,
+                min: cfg.min_per_bundle,
+                max: cfg.max_per_bundle,
+            });
+        }
+
+        unique.push(col.addr.clone());
+    }
+
+    match bundle_type {
+        BundleType::AnyOf { addrs } => {
+            for bc_addr in addrs.iter() {
+                if !unique.contains(&bc_addr) {
+                    return Err(ContractError::DuplicateCollectionInInfusion);
+                }
+            }
+        }
+        BundleType::AnyOfBlend { blends } => {
+            for blend in blends.iter() {
+                // re assert we are using unique and eligible addrs within the bundle blend.
+                let mut unique_blend = Vec::new();
+                for nfts in blend.blend_nfts.iter() {
+                    if !unique.contains(&nfts.addr) {
+                        return Err(ContractError::DuplicateCollectionInInfusion);
+                    }
+
+                    if unique_blend.contains(&nfts.addr) {
+                        return Err(ContractError::DuplicateCollectionInInfusion);
+                    } else {
+                        unique_blend.push(nfts.addr.clone());
+                    }
+                }
+            }
+        }
+        BundleType::AllOf {} => {}
     }
     return Ok(validate_nfts.to_vec());
 }
@@ -589,7 +654,12 @@ fn burn_bundle(
 ) -> Result<Vec<CosmosMsg>, ContractError> {
     let mut msgs: Vec<CosmosMsg> = Vec::new();
     // confirm bundle is in current infusion, and expected amount sent
-    check_bundles(nfts.clone(), infusion.collections.clone(), &funds)?;
+    let mint_num = check_bundles(
+        infusion.infusion_params.bundle_type.clone(),
+        nfts.clone(),
+        infusion.collections.clone(),
+        &funds,
+    )?;
     for nft in nfts {
         msgs.push(into_cosmos_msg(
             Cw721ExecuteMsg::Burn {
@@ -600,102 +670,179 @@ fn burn_bundle(
         )?);
     }
 
-    // increment tokens
-    let token_id = get_next_id(
-        deps,
-        env.clone(),
-        Addr::unchecked(
+    for _ in 0..mint_num {
+        // increment tokens
+        let token_id = get_next_id(
+            deps,
+            env.clone(),
+            Addr::unchecked(
+                infusion
+                    .infused_collection
+                    .addr
+                    .clone()
+                    .expect("no infused collection"),
+            ),
+            sender.clone(),
+        )?;
+
+        // mint_msg
+        let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
+            token_id: token_id.token_id.to_string(),
+            owner: sender.to_string(),
+            token_uri: Some(format!(
+                "{}/{}",
+                infusion.infused_collection.base_uri.clone(),
+                token_id.token_id.to_string()
+            )),
+            extension: Empty {},
+        };
+
+        let msg = into_cosmos_msg(
+            mint_msg,
             infusion
                 .infused_collection
                 .addr
                 .clone()
                 .expect("no infused colection"),
-        ),
-        sender.clone(),
-    )?;
-
-    // mint_msg
-    let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
-        token_id: token_id.token_id.to_string(),
-        owner: sender.to_string(),
-        token_uri: Some(format!(
-            "{}/{}",
-            infusion.infused_collection.base_uri.clone(),
-            token_id.token_id.to_string()
-        )),
-        extension: Empty {},
-    };
-
-    let msg = into_cosmos_msg(
-        mint_msg,
-        infusion
-            .infused_collection
-            .addr
-            .clone()
-            .expect("no infused colection"),
-        None,
-    )?;
-    msgs.push(msg);
+            None,
+        )?;
+        msgs.push(msg);
+    }
     Ok(msgs)
 }
 
 fn check_bundles(
+    bundle_type: BundleType,
     bundle: Vec<NFT>,
-    elig_col: Vec<NFTCollection>,
+    eligible: Vec<NFTCollection>,
     sent: &Vec<Coin>,
-) -> Result<(), ContractError> {
-    for c in &elig_col {
+) -> Result<u64, ContractError> {
+    let btype = bundle_type.strain();
+    let mint_count = 0u64;
+
+    let mut elig_count = Vec::new();
+    for eli in &eligible {
         let elig = bundle
             .iter()
-            .filter(|b| b.addr == c.addr)
+            .filter(|b| b.addr == eli.addr)
             .collect::<Vec<_>>();
-
         let elig_len = elig.len() as u64;
-        if let Some(ps) = c.payment_substitute.clone() {
+
+        if let Some(ps) = eli.payment_substitute.clone() {
+            // TODO: ÷ by required feepayment substitute by count
             if elig_len == 0u64 {
-                if !sent
-                    .iter()
-                    .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
-                {
-                    let mut havea = 0u128;
-                    let mut haved = String::new();
-                    for coin in sent {
-                        if coin.denom == ps.denom {
-                            havea = coin.amount.into();
-                            haved = coin.denom.clone();
-                            break;
-                        }
-                    }
-                    return Err(ContractError::PaymentSubstituteNotProvided {
-                        col: c.addr.to_string(),
-                        haved,
-                        havea: havea.to_string(),
-                        wantd: ps.denom,
-                        wanta: ps.amount.to_string(),
-                    });
-                }
+                check_fee_substitute(&eli.addr, &ps, sent).map_err(|e| e)?;
             }
         } else if elig.is_empty() {
-            return Err(ContractError::CollectionNotEligible {
-                col: c.addr.to_string(),
-            });
-        } else if let Some(max) = c.max_req {
+            if btype == 1 {
+                return Err(ContractError::BundleCollectionNotEligilbe {
+                    bun_type: btype,
+                    col: eli.addr.to_string(),
+                });
+            }
+        } else if let Some(max) = eli.max_req {
             if elig_len > max {
                 return Err(ContractError::BundleNotAccepted {
                     have: elig_len,
-                    want: c.min_req,
+                    want: eli.min_req,
                 });
             }
-        } else if elig_len != c.min_req {
-            return Err(ContractError::BundleNotAccepted {
-                have: elig_len,
-                want: c.min_req,
-            });
+        } else if elig_len != eli.min_req {
+            match bundle_type {
+                BundleType::AllOf {} => {
+                    return Err(ContractError::BundleNotAccepted {
+                        have: elig_len,
+                        want: eli.min_req,
+                    });
+                }
+                BundleType::AnyOf { addrs: _ } => {
+                    elig_count.push((eli.clone(), 0u64));
+                    continue;
+                }
+                BundleType::AnyOfBlend { blends: _ } => {
+                    elig_count.push((eli.clone(), 0u64));
+                    continue;
+                }
+            }
         }
     }
-    Ok(())
+
+    // checkup
+    let return_mint = mint_count
+        + match bundle_type {
+            BundleType::AnyOf { addrs: anyof } => {
+                check_anyof_bundle_helper(elig_count, anyof, vec![])?
+            }
+            BundleType::AnyOfBlend {
+                blends: anyofblends,
+            } => check_anyof_bundle_helper(elig_count, vec![], anyofblends)?,
+            BundleType::AllOf {} => mint_count + 1,
+        };
+
+    Ok(return_mint)
 }
 
+fn check_anyof_bundle_helper(
+    elig_count: Vec<(NFTCollection, u64)>,
+    anyof: Vec<Addr>,
+    anyofblend: Vec<BundleBlend>,
+) -> Result<u64, ContractError> {
+    let mut error = ContractError::UnTriggered;
+    let mut mc = 0u64;
+
+    if anyof.len() != 0 {
+        for this in elig_count.iter() {
+            for any in anyof.clone() {
+                if any == this.0.addr {
+                    if this.0.min_req < this.1 {
+                        error = ContractError::Std(StdError::generic_err("anyOf"));
+                    } else {
+                        mc = mc + 1;
+                    }
+                }
+            }
+        }
+    }
+    if anyofblend != vec![] {
+        //  todo:anyofBlendLogic
+        return Err(ContractError::UnImplemented);
+        // for this in elig_count.iter() {
+        //     for any in anyofblend.clone() {}
+        // }
+    }
+    if error.to_string() != ContractError::UnTriggered.to_string() {
+        return Err(error);
+    };
+    Ok(mc)
+}
+fn check_fee_substitute(
+    elig_adddr: &Addr,
+    ps: &Coin,
+    sent: &Vec<Coin>,
+) -> Result<(), ContractError> {
+    if !sent
+        .iter()
+        .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
+    {
+        let mut havea = 0u128;
+        let mut haved = String::new();
+        for coin in sent {
+            if coin.denom == ps.denom {
+                havea = coin.amount.into();
+                haved = coin.denom.clone();
+                break;
+            }
+        }
+        return Err(ContractError::PaymentSubstituteNotProvided {
+            col: elig_adddr.to_string(),
+            haved,
+            havea: havea.to_string(),
+            wantd: ps.denom.to_string(),
+            wanta: ps.amount.to_string(),
+        });
+    }
+    return Ok(());
+}
 pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     message: M,
     contract_addr: T,

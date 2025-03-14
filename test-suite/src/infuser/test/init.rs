@@ -4,7 +4,10 @@ use abstract_cw_multi_test::{Contract, IntoAddr};
 use cosmwasm_std::{coin, coins, Event, HexBinary, Uint128};
 use cw_infuser::{
     msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
-    state::{Bundle, Config, InfusedCollection, Infusion, InfusionParams, NFTCollection, NFT},
+    state::{
+        Bundle, BundleType, Config, InfusedCollection, Infusion, InfusionParamState, NFTCollection,
+        NFT,
+    },
     ContractError,
 };
 // Use prelude to get all the necessary imports
@@ -89,9 +92,10 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             },
         ];
 
-        let mut infusion_params = InfusionParams {
+        let mut infusion_params = InfusionParamState {
             params: None,
             mint_fee: None,
+            bundle_type: BundleType::AllOf {},
         };
 
         let good_infused = InfusedCollection {
@@ -270,9 +274,10 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                     .to_string(),
                 description: "eret  jerret skeret".to_string(),
             },
-            infusion_params: InfusionParams {
+            infusion_params: InfusionParamState {
                 params: None,
                 mint_fee: None,
+                bundle_type: BundleType::AllOf {},
             },
             payment_recipient: Some(treasury.clone()),
             owner: Some(admin.clone()),
@@ -446,9 +451,10 @@ fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
         },
     ];
     let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
-    let good_infusion_params = InfusionParams {
+    let good_infusion_params = InfusionParamState {
         mint_fee: None,
         params: None,
+        bundle_type: BundleType::AllOf {},
     };
 
     let mut infusion = Infusion {
@@ -510,8 +516,9 @@ fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
         .unwrap_err()
         .downcast::<ContractError>()?
         .to_string(),
-        ContractError::CollectionNotEligible {
-            col: env.nfts[1].to_string()
+        ContractError::BundleCollectionNotEligilbe {
+            col: env.nfts[1].to_string(),
+            bun_type: 1,
         }
         .to_string()
     );
@@ -547,8 +554,9 @@ fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>()?.to_string(),
-        ContractError::CollectionNotEligible {
-            col: env.nfts[0].to_string()
+        ContractError::BundleCollectionNotEligilbe {
+            col: env.nfts[0].to_string(),
+            bun_type: 1,
         }
         .to_string()
     );
@@ -590,8 +598,9 @@ fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>()?.to_string(),
-        ContractError::CollectionNotEligible {
-            col: env.nfts[0].to_string()
+        ContractError::BundleCollectionNotEligilbe {
+            col: env.nfts[0].to_string(),
+            bun_type: 1,
         }
         .to_string()
     );
@@ -837,9 +846,10 @@ fn test_eligible_nft_collections() -> anyhow::Result<()> {
         },
     ];
     let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
-    let good_infusion_params = InfusionParams {
+    let good_infusion_params = InfusionParamState {
         mint_fee: None,
         params: None,
+        bundle_type: BundleType::AllOf {},
     };
 
     let infusion = Infusion {
@@ -920,8 +930,9 @@ fn test_payment_substitute() -> anyhow::Result<()> {
 
     assert_eq!(
         err.downcast::<ContractError>()?.to_string(),
-        ContractError::CollectionNotEligible {
-            col: nft1.to_string()
+        ContractError::BundleCollectionNotEligilbe {
+            col: nft1.to_string(),
+            bun_type: 1,
         }
         .to_string()
     );
@@ -1017,8 +1028,9 @@ fn test_payment_substitute() -> anyhow::Result<()> {
         .unwrap_err();
     assert_eq!(
         infuse.downcast::<ContractError>()?.to_string(),
-        ContractError::CollectionNotEligible {
+        ContractError::BundleCollectionNotEligilbe {
             col: nft1.to_string(),
+            bun_type: 1,
         }
         .to_string()
     );

@@ -17,7 +17,7 @@ pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
 
 #[cosmwasm_schema::cw_serde]
 pub struct UpdatingConfig {
-    pub contract_owner:  Option<String>,
+    pub contract_owner: Option<String>,
     pub owner_fee: Option<u64>,
     pub min_creation_fee: Option<Coin>,
     pub min_infusion_fee: Option<Coin>,
@@ -51,7 +51,7 @@ pub struct Config {
     /// code hash of cw721. used for instantitate2 during infusion creation.
     pub code_hash: HexBinary,
 }
- 
+
 #[cosmwasm_schema::cw_serde]
 pub struct Infusion {
     /// Optional description of this infusion
@@ -63,7 +63,7 @@ pub struct Infusion {
     /// Current data of the new infused collection
     pub infused_collection: InfusedCollection,
     /// Parameters of a specific infusion
-    pub infusion_params: InfusionParams,
+    pub infusion_params: InfusionParamState,
     /// Recipient of payments for an infusion. Defaults to message sender if omitted.
     pub payment_recipient: Option<Addr>,
 }
@@ -83,23 +83,30 @@ pub struct InfusionState {
 }
 
 #[cosmwasm_schema::cw_serde]
-pub struct InfusionParams {
-    /// Minium amount of mint fee required for any infusion if set. Rewards will go to either infusion creator, or reward granted
-    pub mint_fee: Option<Coin>,
-    pub params: Option<BurnParams>,
-}
-#[cosmwasm_schema::cw_serde]
 pub struct InfusionParamState {
-    /// Minimum amount each collection in any infusion is required
-    // pub min_per_bundle: u64,
-    /// Minium amount of mint fee required for any infusion if set. Rewards will go to either infusion creator, or reward granted
+    pub bundle_type: BundleType,
     pub mint_fee: Option<Coin>,
     pub params: Option<BurnParams>,
 }
 
 #[cosmwasm_schema::cw_serde]
-pub struct Bundle {
-    pub nfts: Vec<NFT>,
+pub enum BundleType {
+    // Requires the minimum for all eligible collections to be included for a bundle to be accepted.
+    AllOf {},
+    // Any of is a list of bundles that if have their minimum provided, will be accepted.
+    AnyOf { addrs: Vec<Addr> },
+    // A mapping of possible combinations of eligible collections and required nfts that will be accepted.
+    AnyOfBlend { blends: Vec<BundleBlend> },
+}
+
+impl BundleType {
+    pub fn strain(&self) -> i32 {
+        match self {
+            BundleType::AllOf { .. } => 1,
+            BundleType::AnyOf { .. } => 2,
+            BundleType::AnyOfBlend { .. } => 3,
+        }
+    }
 }
 
 #[cosmwasm_schema::cw_serde]
@@ -110,14 +117,14 @@ pub struct NFT {
 
 #[cosmwasm_schema::cw_serde]
 pub struct NFTCollection {
-    /// Contract address of collection
+    /// collection address
     pub addr: Addr,
     /// Minimum tokens required to infuse
     pub min_req: u64,
     /// Optional, maximum tokens able to be infused.
     ///  If not set, contract expects exact # of min_req per collection in bundle.
     pub max_req: Option<u64>,
-    /// If set, infuser can send exact amount of tokens to consider eligibility.
+    /// If set, infuser can send exact amount of tokens to replace eligil
     pub payment_substitute: Option<Coin>,
 }
 
@@ -125,6 +132,23 @@ impl PartialEq<String> for NFTCollection {
     fn eq(&self, other: &String) -> bool {
         self.addr.to_string().eq(other)
     }
+}
+
+#[cosmwasm_schema::cw_serde]
+pub struct Bundle {
+    pub nfts: Vec<NFT>,
+}
+
+#[cosmwasm_schema::cw_serde]
+pub struct BundleBlend {
+    pub blend_nfts: Vec<BlendNFTs>,
+}
+
+#[cosmwasm_schema::cw_serde]
+pub struct BlendNFTs {
+    pub addr: Addr,
+    pub min_req: u64,
+    pub payment_substitute: bool,
 }
 
 #[cosmwasm_schema::cw_serde]

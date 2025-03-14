@@ -25,8 +25,8 @@ pub enum ContractError {
     #[error("Cannot specify the same contract address more than once")]
     DuplicateCollectionInInfusion,
 
-    #[error("Bundle povided does not contain any nfts for collection: {col}")]
-    CollectionNotEligible { col: String },
+    #[error("Bundle of type {bun_type} povided does not contain any nfts for collection: {col}")]
+    BundleCollectionNotEligilbe { bun_type: i32, col: String },
 
     #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
     BundleNotAccepted { have: u64, want: u64 },
@@ -97,4 +97,10 @@ pub enum ContractError {
 
     #[error("InfusionDescriptionLengthError")]
     InfusionDescriptionLengthError,
+
+    #[error("untriggered")]
+    UnTriggered,
+
+    #[error("you have found a contract feature currently unimplemented! dm me with the words `eretskableret - jroc`.")]
+    UnImplemented,
 }
