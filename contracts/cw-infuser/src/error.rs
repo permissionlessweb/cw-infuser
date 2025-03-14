@@ -1,3 +1,5 @@
+use std::fmt;
+
 use cosmwasm_std::{Coin, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
@@ -33,6 +35,12 @@ pub enum ContractError {
 
     #[error("Bundle cannot be empty.")]
     EmptyBundle,
+
+    #[error("Bundle type AnyOf must only contain atleast 1 instance of any eligible collection")]
+    AnyOfConfigError { err: AnyOfErr },
+
+    #[error("Bundle type AnyOfBlend has an incorrect setup.")]
+    AnyOfBlendConfigError,
 
     #[error("Invalid base token URI (must be an IPFS URI)")]
     InvalidBaseTokenURI {},
@@ -86,6 +94,7 @@ pub enum ContractError {
 
     #[error("contract: {addr} is not an cw721 nft collection.")]
     AddrIsNotNFTCol { addr: String },
+
     #[error("You cannot set the infusion fee as 0. Omit this value from the create_infsuion message to disable infusion fee requirements.")]
     InfusionFeeCannotbeZero,
 
@@ -103,4 +112,21 @@ pub enum ContractError {
 
     #[error("you have found a contract feature currently unimplemented! dm me with the words `eretskableret - jroc`.")]
     UnImplemented,
+}
+
+#[cosmwasm_schema::cw_serde]
+#[derive(Error)]
+pub enum AnyOfErr {
+    Uneligible,
+    Empty,
+}
+
+impl fmt::Display for AnyOfErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AnyOfErr::Uneligible => write!(f, "Uneligible error"),
+            AnyOfErr::Empty => write!(f, "Empty error"),
+            // Add cases for other variants as needed
+        }
+    }
 }

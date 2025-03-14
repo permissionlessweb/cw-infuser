@@ -1,9 +1,9 @@
-use crate::error::ContractError;
+use crate::error::{AnyOfErr, ContractError};
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
     Bundle, BundleBlend, BundleType, Config, InfusedCollection, Infusion, InfusionParamState,
     InfusionState, NFTCollection, TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION,
-    INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_POSITIONS, NFT,
+    INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_POSITIONS, MINT_COUNT, NFT,
 };
 use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
@@ -437,6 +437,7 @@ pub fn execute_create_infusion(
         let key = (infusion_collection_addr_human.clone(), infusion_id);
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
+        MINT_COUNT.save(deps.storage, &0)?;
         MINTABLE_NUM_TOKENS.save(
             deps.storage,
             infusion_collection_addr_human.to_string(),
@@ -529,23 +530,39 @@ fn validate_eligible_collection_list(
         unique.push(col.addr.clone());
     }
 
+    let unique_len = unique.len();
     match bundle_type {
         BundleType::AnyOf { addrs } => {
+            if addrs.len() == 0 {
+                return Err(ContractError::AnyOfConfigError {
+                    err: AnyOfErr::Empty,
+                });
+            }
             for bc_addr in addrs.iter() {
                 if !unique.contains(&bc_addr) {
-                    return Err(ContractError::DuplicateCollectionInInfusion);
+                    return Err(ContractError::AnyOfConfigError {
+                        err: AnyOfErr::Uneligible,
+                    });
                 }
             }
         }
         BundleType::AnyOfBlend { blends } => {
             for blend in blends.iter() {
-                // re assert we are using unique and eligible addrs within the bundle blend.
+                let b_len = blend.blend_nfts.len();
+
+                if b_len == 0 || b_len > unique_len {
+                    return Err(ContractError::AnyOfConfigError {
+                        err: AnyOfErr::Empty,
+                    });
+                }
                 let mut unique_blend = Vec::new();
                 for nfts in blend.blend_nfts.iter() {
+                    if nfts.min_req == 0 && !nfts.payment_substitute {
+                        return Err(ContractError::AnyOfBlendConfigError);
+                    }
                     if !unique.contains(&nfts.addr) {
                         return Err(ContractError::DuplicateCollectionInInfusion);
                     }
-
                     if unique_blend.contains(&nfts.addr) {
                         return Err(ContractError::DuplicateCollectionInInfusion);
                     } else {
@@ -630,14 +647,9 @@ fn execute_infuse_bundle(
         // assert ownership
         is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
         // add each burn nft & mint infused token to response
-        msgs.extend(burn_bundle(
-            &deps,
-            env.clone(),
-            bundle.nfts,
-            &sender,
-            &infusion,
-            &funds,
-        )?)
+        let burn = burn_bundle(&deps, env.clone(), bundle.nfts, &sender, &infusion, &funds)?;
+        MINT_COUNT.save(deps.storage, &burn.1)?;
+        msgs.extend(burn.0);
     }
 
     Ok(res.add_messages(msgs))
@@ -651,7 +663,7 @@ fn burn_bundle(
     sender: &Addr,
     infusion: &InfusionState,
     funds: &Vec<Coin>,
-) -> Result<Vec<CosmosMsg>, ContractError> {
+) -> Result<(Vec<CosmosMsg>, u64), ContractError> {
     let mut msgs: Vec<CosmosMsg> = Vec::new();
     // confirm bundle is in current infusion, and expected amount sent
     let mint_num = check_bundles(
@@ -660,6 +672,8 @@ fn burn_bundle(
         infusion.collections.clone(),
         &funds,
     )?;
+
+    println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
             Cw721ExecuteMsg::Burn {
@@ -670,10 +684,13 @@ fn burn_bundle(
         )?);
     }
 
-    for _ in 0..mint_num {
+    let mut mc = MINT_COUNT.load(deps.storage)?;
+
+    for i in 0..mint_num {
+        mc = mc + i + 1;
         // increment tokens
         let token_id = get_next_id(
-            deps,
+            &deps,
             env.clone(),
             Addr::unchecked(
                 infusion
@@ -683,6 +700,7 @@ fn burn_bundle(
                     .expect("no infused collection"),
             ),
             sender.clone(),
+            mc,
         )?;
 
         // mint_msg
@@ -708,7 +726,8 @@ fn burn_bundle(
         )?;
         msgs.push(msg);
     }
-    Ok(msgs)
+
+    Ok((msgs, mc))
 }
 
 fn check_bundles(
@@ -718,7 +737,7 @@ fn check_bundles(
     sent: &Vec<Coin>,
 ) -> Result<u64, ContractError> {
     let btype = bundle_type.strain();
-    let mint_count = 0u64;
+    let mut mint_count = 0u64;
 
     let mut elig_count = Vec::new();
     for eli in &eligible {
@@ -731,7 +750,10 @@ fn check_bundles(
         if let Some(ps) = eli.payment_substitute.clone() {
             // TODO: ÷ by required feepayment substitute by count
             if elig_len == 0u64 {
-                check_fee_substitute(&eli.addr, &ps, sent).map_err(|e| e)?;
+                let fee_mint_count = check_fee_substitute(&eli.addr, &ps, sent).map_err(|e| e)?;
+                if fee_mint_count != 0 {
+                    mint_count = mint_count + fee_mint_count;
+                }
             }
         } else if elig.is_empty() {
             if btype == 1 {
@@ -755,31 +777,38 @@ fn check_bundles(
                         want: eli.min_req,
                     });
                 }
-                BundleType::AnyOf { addrs: _ } => {
-                    elig_count.push((eli.clone(), 0u64));
-                    continue;
+                BundleType::AnyOf { addrs: ref any_of } => {
+                    elig_count.push((eli.clone(), elig_len));
+                    check_anyof_bundle_helper(
+                        vec![(eli.clone(), elig_len)],
+                        any_of.clone(),
+                        vec![],
+                    )?;
                 }
-                BundleType::AnyOfBlend { blends: _ } => {
-                    elig_count.push((eli.clone(), 0u64));
-                    continue;
+                BundleType::AnyOfBlend { ref blends } => {
+                    check_anyof_bundle_helper(
+                        vec![(eli.clone(), elig_len)],
+                        vec![],
+                        blends.to_vec(),
+                    )?;
                 }
             }
         }
     }
 
-    // checkup
-    let return_mint = mint_count
-        + match bundle_type {
-            BundleType::AnyOf { addrs: anyof } => {
-                check_anyof_bundle_helper(elig_count, anyof, vec![])?
-            }
-            BundleType::AnyOfBlend {
-                blends: anyofblends,
-            } => check_anyof_bundle_helper(elig_count, vec![], anyofblends)?,
-            BundleType::AllOf {} => mint_count + 1,
-        };
+    // // checkup
+    // let return_mint = mint_count
+    //     + match bundle_type {
+    //         BundleType::AnyOf { addrs } => {
+    //             check_anyof_bundle_helper(elig_count, addrs.clone(), vec![]).map_err(|e| e)?
+    //         }
+    //         BundleType::AnyOfBlend {
+    //             blends: anyofblends,
+    //         } => check_anyof_bundle_helper(elig_count, vec![], anyofblends).map_err(|e| e)?,
+    //         BundleType::AllOf {} => mint_count + 1,
+    //     };
 
-    Ok(return_mint)
+    Ok(mint_count)
 }
 
 fn check_anyof_bundle_helper(
@@ -789,20 +818,37 @@ fn check_anyof_bundle_helper(
 ) -> Result<u64, ContractError> {
     let mut error = ContractError::UnTriggered;
     let mut mc = 0u64;
+    println!("elig_count: {:#?}", elig_count);
 
+    // BundleType::AnyOf
     if anyof.len() != 0 {
+        // iterate through found nfts in bundle
         for this in elig_count.iter() {
+            //iterate through allowed any of
             for any in anyof.clone() {
+                println!("any: {:#?}", any);
+                println!("this.0.addr: {:#?}", this.0.addr);
                 if any == this.0.addr {
-                    if this.0.min_req < this.1 {
-                        error = ContractError::Std(StdError::generic_err("anyOf"));
+                    println!("included in bundle:: {:#?}", this.1);
+                    if this.0.min_req > this.1 {
+                        error = ContractError::NotEnoughNFTsInBundle {
+                            col: this.0.addr.to_string(),
+                            have: this.1,
+                            min: this.0.min_req,
+                            max: this.0.max_req.unwrap_or(this.0.min_req),
+                        };
                     } else {
+                        println!("this.0.min_req: {:#?}", this.0.min_req);
+                        println!("included in bundle:: {:#?}", this.1);
                         mc = mc + 1;
                     }
                 }
             }
         }
     }
+    println!("error: {:#?}", error);
+    println!("mc after: {:#?}", mc);
+
     if anyofblend != vec![] {
         //  todo:anyofBlendLogic
         return Err(ContractError::UnImplemented);
@@ -813,13 +859,16 @@ fn check_anyof_bundle_helper(
     if error.to_string() != ContractError::UnTriggered.to_string() {
         return Err(error);
     };
+
     Ok(mc)
 }
+
 fn check_fee_substitute(
     elig_adddr: &Addr,
     ps: &Coin,
     sent: &Vec<Coin>,
-) -> Result<(), ContractError> {
+) -> Result<u64, ContractError> {
+    let mint_count = 1u64;
     if !sent
         .iter()
         .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
@@ -841,7 +890,7 @@ fn check_fee_substitute(
             wanta: ps.amount.to_string(),
         });
     }
-    return Ok(());
+    return Ok(mint_count);
 }
 pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     message: M,
@@ -864,6 +913,7 @@ fn get_next_id(
     env: Env,
     infused_col_addr: Addr,
     sender: Addr,
+    mint_count: u64,
 ) -> Result<TokenPositionMapping, ContractError> {
     let mintable_num_tokens =
         MINTABLE_NUM_TOKENS.load(deps.storage, infused_col_addr.to_string())?;
@@ -871,8 +921,13 @@ fn get_next_id(
         return Err(ContractError::SoldOut {});
     }
 
-    let mintable_token_mapping =
-        random_mintable_token_mapping(deps.as_ref(), env, sender.clone(), mintable_num_tokens)?;
+    let mintable_token_mapping = random_mintable_token_mapping(
+        deps.as_ref(),
+        env,
+        sender.clone(),
+        mintable_num_tokens,
+        mint_count,
+    )?;
 
     Ok(mintable_token_mapping)
 }
@@ -981,14 +1036,20 @@ fn random_mintable_token_mapping(
     env: Env,
     sender: Addr,
     num_tokens: u32,
+    mint_count: u64,
 ) -> Result<TokenPositionMapping, ContractError> {
     let tx_index = if let Some(tx) = &env.transaction {
         tx.index
     } else {
         0
     };
+    //generate unique SHA256 sum
     let sha256 = Sha256::digest(
-        format!("{}{}{}{}", sender, num_tokens, env.block.height, tx_index).into_bytes(),
+        format!(
+            "{}{}{}{}{}",
+            sender, num_tokens, env.block.height, tx_index, mint_count
+        )
+        .into_bytes(),
     );
     // Cut first 16 bytes from 32 byte value
     let randomness: [u8; 16] = sha256.to_vec()[0..16].try_into().unwrap();

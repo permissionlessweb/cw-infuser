@@ -12,6 +12,7 @@ pub const INFUSION_CREATOR: Map<u64, Addr> = Map::new("ic");
 /// New infused collection info
 pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 // map of index position and token id
+pub const MINT_COUNT: Item<u64> = Item::new("mtc");
 pub const MINTABLE_TOKEN_POSITIONS: Map<u32, u32> = Map::new("mt");
 pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
 
