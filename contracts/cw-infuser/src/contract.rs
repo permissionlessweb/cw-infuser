@@ -10,8 +10,9 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QuerierWrapper, QueryRequest,
-    Reply, Response, StdError, StdResult, Storage, SubMsg, WasmMsg, WasmQuery,
+    Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QuerierWrapper,
+    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
@@ -52,7 +53,7 @@ pub fn instantiate(
     if msg.max_per_bundle.is_some_and(|f| f > 10u64) {
         return Err(ContractError::MaxInfusionErrror);
     }
-    if !(msg.owner_fee <= 100u64) {
+    if !(msg.owner_fee <= Decimal::one()) {
         return Err(ContractError::Std(StdError::generic_err(
             "admin fee incorrect. Must be less than or 100%",
         )));
@@ -575,6 +576,37 @@ fn validate_eligible_collection_list(
     }
     return Ok(validate_nfts.to_vec());
 }
+
+/// Creates the msgs that split any fees between the contract owner and an infusion owner, if configured.
+fn form_feesplit_helper(
+    owner_fee: Decimal,
+    owner: String,
+    payment_recipient: String,
+    fee: Coin,
+) -> Result<Vec<CosmosMsg>, ContractError> {
+    let mut msgs = vec![];
+    // split fees between contract owner and infusion owner
+    let dev_fee = fee.amount * owner_fee;
+    let remaining_fee_amount = fee.amount * (Decimal::one() - owner_fee);
+
+    if dev_fee != Uint128::zero() {
+        let base_fee = CosmosMsg::Bank(BankMsg::Send {
+            to_address: owner,
+            amount: vec![coin(dev_fee.into(), fee.denom.clone())],
+        });
+        msgs.push(base_fee);
+    }
+
+    // remaining fee to infusion owner
+    let fee_msg = CosmosMsg::Bank(BankMsg::Send {
+        to_address: payment_recipient.to_string(),
+        amount: vec![coin(remaining_fee_amount.into(), fee.denom.clone())],
+    });
+
+    msgs.push(fee_msg);
+    Ok(msgs)
+}
+// Infuse bundles. Burns nfts in eligilbe bundles
 fn execute_infuse_bundle(
     deps: DepsMut,
     env: Env,
@@ -613,25 +645,13 @@ fn execute_infuse_bundle(
             if let Some(e) = fee_error {
                 return Err(e);
             } else {
-                // split fees between contract owner and infusion owner
-                let contract_fee = fee.amount.u128() as u64 * cfg.owner_fee / 100;
-                let remaining_fee_amount = fee.amount.u128() as u64 * (100 - cfg.owner_fee) / 100;
-
-                if contract_fee != 0 {
-                    let base_fee = CosmosMsg::Bank(BankMsg::Send {
-                        to_address: cfg.contract_owner.to_string(),
-                        amount: vec![coin(contract_fee.into(), fee.denom.clone())],
-                    });
-                    msgs.push(base_fee);
-                }
-
-                // remaining fee to infusion owner
-                let fee_msg = CosmosMsg::Bank(BankMsg::Send {
-                    to_address: infusion.payment_recipient.to_string(),
-                    amount: vec![coin(remaining_fee_amount.into(), fee.denom.clone())],
-                });
-
-                msgs.push(fee_msg);
+                let fee_msgs = form_feesplit_helper(
+                    cfg.owner_fee,
+                    cfg.contract_owner.to_string(),
+                    infusion.payment_recipient.to_string(),
+                    fee,
+                )?;
+                msgs.extend(fee_msgs);
             }
         }
     }
@@ -647,7 +667,15 @@ fn execute_infuse_bundle(
         // assert ownership
         is_nft_owner(deps.as_ref(), sender.clone(), bundle.nfts.clone())?;
         // add each burn nft & mint infused token to response
-        let burn = burn_bundle(&deps, env.clone(), bundle.nfts, &sender, &infusion, &funds)?;
+        let burn = burn_bundle(
+            &deps,
+            env.clone(),
+            &cfg,
+            bundle.nfts,
+            &sender,
+            &infusion,
+            &funds,
+        )?;
         MINT_COUNT.save(deps.storage, &burn.1)?;
         msgs.extend(burn.0);
     }
@@ -659,6 +687,7 @@ fn execute_infuse_bundle(
 fn burn_bundle(
     deps: &DepsMut,
     env: Env,
+    cfg: &Config,
     nfts: Vec<NFT>,
     sender: &Addr,
     infusion: &InfusionState,
@@ -667,10 +696,12 @@ fn burn_bundle(
     let mut msgs: Vec<CosmosMsg> = Vec::new();
     // confirm bundle is in current infusion, and expected amount sent
     let mint_num = check_bundles(
+        cfg,
         infusion.infusion_params.bundle_type.clone(),
         nfts.clone(),
         infusion.collections.clone(),
         &funds,
+        infusion.payment_recipient.to_string(),
     )?;
 
     println!("mint_num: {:#?}", mint_num);
@@ -686,7 +717,7 @@ fn burn_bundle(
 
     let mut mc = MINT_COUNT.load(deps.storage)?;
 
-    for i in 0..mint_num {
+    for i in 0..mint_num.1 {
         mc = mc + i + 1;
         // increment tokens
         let token_id = get_next_id(
@@ -721,7 +752,7 @@ fn burn_bundle(
                 .infused_collection
                 .addr
                 .clone()
-                .expect("no infused colection"),
+                .expect("no infused collection"),
             None,
         )?;
         msgs.push(msg);
@@ -730,16 +761,24 @@ fn burn_bundle(
     Ok((msgs, mc))
 }
 
+/// Checks all parameters of a bundle, returning the number of infused nfts to mint,
+/// along with a list of ComosMsgs (contract fees,etc) to append to the response.
 fn check_bundles(
+    cfg: &Config,
     bundle_type: BundleType,
     bundle: Vec<NFT>,
     eligible: Vec<NFTCollection>,
     sent: &Vec<Coin>,
-) -> Result<u64, ContractError> {
-    let btype = bundle_type.strain();
-    let mut mint_count = 0u64;
+    payment_rec: String,
+) -> Result<(Vec<CosmosMsg>, u64), ContractError> {
+    let btype: i32 = bundle_type.strain();
+    let mut infused_mint_count = 0u64;
+    let mut msgs = Vec::new();
+    // A mapping of the collections in AllOf that had a successful fee replacement
+    let mut anyof_map = Vec::new();
+    // An ephemeral mapping of the amount of nfts an eligible collection has.
+    let mut total_bundle_map = Vec::new();
 
-    let mut elig_count = Vec::new();
     for eli in &eligible {
         let elig = bundle
             .iter()
@@ -747,14 +786,41 @@ fn check_bundles(
             .collect::<Vec<_>>();
         let elig_len = elig.len() as u64;
 
+        //1.  payment substitute
         if let Some(ps) = eli.payment_substitute.clone() {
-            // TODO: ÷ by required feepayment substitute by count
-            if elig_len == 0u64 {
-                let fee_mint_count = check_fee_substitute(&eli.addr, &ps, sent).map_err(|e| e)?;
-                if fee_mint_count != 0 {
-                    mint_count = mint_count + fee_mint_count;
+            if elig_len < eli.min_req {
+                match btype {
+                    1 => {
+                        let count = check_fee_substitute(btype, &eli.addr, &ps, sent)?;
+                        if count == 1 {
+                            infused_mint_count = infused_mint_count + count;
+                            let fee_msgs = form_feesplit_helper(
+                                cfg.owner_fee,
+                                cfg.contract_owner.to_string(),
+                                payment_rec.clone(),
+                                ps,
+                            )?;
+                            msgs.extend(fee_msgs);
+                            anyof_map.push(eli.addr.to_string());
+                        }
+                    }
+                    _ => {
+                        let count = check_fee_substitute(btype, &eli.addr, &ps, sent)?;
+                        if count != 0u64 {
+                            anyof_map.push(eli.addr.to_string());
+                            let fee_msgs = form_feesplit_helper(
+                                cfg.owner_fee,
+                                cfg.contract_owner.to_string(),
+                                payment_rec.clone(),
+                                ps,
+                            )?;
+                            msgs.extend(fee_msgs);
+                            infused_mint_count = infused_mint_count + count;
+                        }
+                    }
                 }
             }
+            // 2. if no ps, assert allOf bundles error if no eligible nfts were found
         } else if elig.is_empty() {
             if btype == 1 {
                 return Err(ContractError::BundleCollectionNotEligilbe {
@@ -762,84 +828,126 @@ fn check_bundles(
                     col: eli.addr.to_string(),
                 });
             }
-        } else if let Some(max) = eli.max_req {
-            if elig_len > max {
-                return Err(ContractError::BundleNotAccepted {
-                    have: elig_len,
-                    want: eli.min_req,
-                });
-            }
-        } else if elig_len != eli.min_req {
+        }
+
+        // 4. Check for AnyOf & AnyOfBlend are satisfied, or if Allof has
+        if elig_len != eli.min_req {
             match bundle_type {
                 BundleType::AllOf {} => {
-                    return Err(ContractError::BundleNotAccepted {
-                        have: elig_len,
-                        want: eli.min_req,
-                    });
+                    if !anyof_map.contains(&eli.addr.to_string()) {
+                        return Err(ContractError::BundleNotAccepted {
+                            have: elig_len,
+                            want: eli.min_req,
+                        });
+                    }
                 }
                 BundleType::AnyOf { addrs: ref any_of } => {
-                    elig_count.push((eli.clone(), elig_len));
-                    check_anyof_bundle_helper(
+                    if !anyof_map.contains(&eli.addr.to_string()) {
+                        let mc = check_anyof_bundle_helper(
+                            &anyof_map,
+                            sent.to_vec(),
+                            vec![(eli.clone(), elig_len)],
+                            any_of.clone(),
+                            vec![],
+                        )?;
+                        infused_mint_count = infused_mint_count + mc;
+                        // save to map outside of elig loop
+                        total_bundle_map.push((eli.clone(), elig_len));
+                    }
+                }
+                BundleType::AnyOfBlend { ref blends } => {
+                    let mc = check_anyof_bundle_helper(
+                        &anyof_map,
+                        sent.to_vec(),
+                        vec![(eli.clone(), elig_len)],
+                        vec![],
+                        blends.to_vec(),
+                    )?;
+                    infused_mint_count = infused_mint_count + mc;
+                    total_bundle_map.push((eli.clone(), elig_len));
+                }
+            }
+        } else {
+            match bundle_type {
+                BundleType::AnyOf { addrs: ref any_of } => {
+                    total_bundle_map.push((eli.clone(), elig_len));
+                    let mc = check_anyof_bundle_helper(
+                        &anyof_map,
+                        sent.to_vec(),
                         vec![(eli.clone(), elig_len)],
                         any_of.clone(),
                         vec![],
                     )?;
+                    infused_mint_count = infused_mint_count + mc;
                 }
                 BundleType::AnyOfBlend { ref blends } => {
                     check_anyof_bundle_helper(
+                        &anyof_map,
+                        sent.to_vec(),
                         vec![(eli.clone(), elig_len)],
                         vec![],
                         blends.to_vec(),
                     )?;
                 }
+                BundleType::AllOf {} => {}
             }
         }
     }
 
-    // // checkup
-    // let return_mint = mint_count
-    //     + match bundle_type {
-    //         BundleType::AnyOf { addrs } => {
-    //             check_anyof_bundle_helper(elig_count, addrs.clone(), vec![]).map_err(|e| e)?
-    //         }
-    //         BundleType::AnyOfBlend {
-    //             blends: anyofblends,
-    //         } => check_anyof_bundle_helper(elig_count, vec![], anyofblends).map_err(|e| e)?,
-    //         BundleType::AllOf {} => mint_count + 1,
-    //     };
-
-    Ok(mint_count)
+    Ok((msgs, infused_mint_count))
 }
 
 fn check_anyof_bundle_helper(
+    anyof_map: &Vec<String>,
+    sent: Vec<Coin>,
     elig_count: Vec<(NFTCollection, u64)>,
-    anyof: Vec<Addr>,
+    anyof_list: Vec<Addr>,
     anyofblend: Vec<BundleBlend>,
 ) -> Result<u64, ContractError> {
-    let mut error = ContractError::UnTriggered;
     let mut mc = 0u64;
+    let mut error = ContractError::UnTriggered;
     println!("elig_count: {:#?}", elig_count);
+    println!("anyof: {:#?}", anyof_list);
+    println!("sent: {:#?}", sent);
 
-    // BundleType::AnyOf
-    if anyof.len() != 0 {
-        // iterate through found nfts in bundle
-        for this in elig_count.iter() {
-            //iterate through allowed any of
-            for any in anyof.clone() {
-                println!("any: {:#?}", any);
-                println!("this.0.addr: {:#?}", this.0.addr);
-                if any == this.0.addr {
-                    println!("included in bundle:: {:#?}", this.1);
-                    if this.0.min_req > this.1 {
-                        error = ContractError::NotEnoughNFTsInBundle {
-                            col: this.0.addr.to_string(),
-                            have: this.1,
-                            min: this.0.min_req,
-                            max: this.0.max_req.unwrap_or(this.0.min_req),
-                        };
+    if !anyof_list.is_empty() {
+        for any in anyof_list.iter() {
+            println!("mc before: {:#?}", mc);
+            for elig in elig_count.iter() {
+                //  only occurs once for each entry in both
+                if any == elig.0.addr {
+                    if let Some(fps) = &elig.0.payment_substitute {
+                        let res = sent.iter().find(|coin| coin.denom == fps.denom);
+                        if let Some(fee) = res {
+                            if fee.amount != fps.amount {
+                                if !anyof_map.contains(&any.to_string()) {
+                                    error = ContractError::PaymentSubstituteNotProvided {
+                                        col: elig.0.addr.to_string(),
+                                        haved: fee.denom.to_string(),
+                                        havea: fee.amount.to_string(),
+                                        wantd: fps.denom.to_string(),
+                                        wanta: fps.amount.to_string(),
+                                    };
+                                    continue;
+                                } else {
+                                    //  feepayment substitute has been provided for this eligible collection. increment mint count.
+                                    mc = mc + 1;
+                                    continue;
+                                }
+                            } else {
+                                mc = mc + 1;
+                                continue;
+                            }
+                        }
+                    } else if elig.0.min_req > elig.1 {
+
+                        // error = ContractError::NotEnoughNFTsInBundle {
+                        //     col: elig.0.addr.to_string(),
+                        //     have: elig.1,
+                        //     min: elig.0.min_req,
+                        //     max: elig.0.max_req.unwrap_or(elig.0.min_req),
+                        // };
                     } else {
-                        println!("this.0.min_req: {:#?}", this.0.min_req);
-                        println!("included in bundle:: {:#?}", this.1);
                         mc = mc + 1;
                     }
                 }
@@ -863,35 +971,85 @@ fn check_anyof_bundle_helper(
     Ok(mc)
 }
 
+/// Checks if sent tokens contains correct payment substitute for a given elig_adddr.\
+/// Returns the number of nfts to mint for a given fee substitute.\
+/// Bundle types 2 & 3 return 0 if fee-sub not satisfied, bundle type 1 returns error.
 fn check_fee_substitute(
+    btype: i32,
     elig_adddr: &Addr,
     ps: &Coin,
     sent: &Vec<Coin>,
 ) -> Result<u64, ContractError> {
-    let mint_count = 1u64;
-    if !sent
+    // Calculate the total number of whole divisions of the sent amounts by the required amount
+    let mint_count = sent
         .iter()
-        .any(|coin| coin.denom == ps.denom && coin.amount >= ps.amount)
-    {
-        let mut havea = 0u128;
-        let mut haved = String::new();
-        for coin in sent {
-            if coin.denom == ps.denom {
-                havea = coin.amount.into();
-                haved = coin.denom.clone();
-                break;
+        .filter(|coin| coin.denom == ps.denom)
+        .map(|coin| coin.amount / ps.amount)
+        .sum::<Uint128>();
+
+    println!("mint_count:  {:#?}", mint_count);
+
+    // If no matching denominations found, set mint_count to 0
+    let has_matching_denomination = sent.iter().any(|coin| coin.denom == ps.denom);
+    if !has_matching_denomination {
+        match btype {
+            1 => {
+                // Collect all relevant coins for the error message
+                let mut havea = 0u128;
+                let mut haved = String::new();
+                for coin in sent {
+                    if coin.denom == ps.denom {
+                        havea = coin.amount.into();
+                        haved = coin.denom.clone();
+                        break;
+                    }
+                }
+                return Err(ContractError::PaymentSubstituteNotProvided {
+                    col: elig_adddr.to_string(),
+                    haved,
+                    havea: havea.to_string(),
+                    wantd: ps.denom.to_string(),
+                    wanta: ps.amount.to_string(),
+                });
             }
+            2 => return Ok(0),
+            3 => return Ok(0),
+            _ => return Err(ContractError::UnImplemented),
         }
-        return Err(ContractError::PaymentSubstituteNotProvided {
-            col: elig_adddr.to_string(),
-            haved,
-            havea: havea.to_string(),
-            wantd: ps.denom.to_string(),
-            wanta: ps.amount.to_string(),
-        });
     }
-    return Ok(mint_count);
+
+    // Ensure at least one whole division can be made
+    if mint_count == Uint128::zero() {
+        match btype {
+            1 => {
+                // Collect all relevant coins for the error message
+                let mut havea = 0u128;
+                let mut haved = String::new();
+                for coin in sent {
+                    if coin.denom == ps.denom {
+                        havea = coin.amount.into();
+                        haved = coin.denom.clone();
+                        break;
+                    }
+                }
+                return Err(ContractError::PaymentSubstituteNotProvided {
+                    col: elig_adddr.to_string(),
+                    haved,
+                    havea: havea.to_string(),
+                    wantd: ps.denom.to_string(),
+                    wanta: ps.amount.to_string(),
+                });
+            }
+            2 => return Ok(0),
+            3 => return Ok(0),
+            _ => return Err(ContractError::UnImplemented),
+        }
+    }
+
+    // Return the calculated mint_count
+    Ok(mint_count.u128() as u64)
 }
+
 pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     message: M,
     contract_addr: T,
@@ -1156,8 +1314,51 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
         .add_attribute("to_name", CONTRACT_NAME)
         .add_attribute("to_version", CONTRACT_VERSION);
 
+    // TODO: MIGRATE u64 to Decimals in config
     Ok(Response::new().add_event(event))
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+    #[test]
+    fn test_form_feesplit_helper() {
+        let owner_fee = Decimal::from_str("0.1").unwrap(); // 10% fee for owner
+        let owner = String::from("owner");
+        let payment_recipient = String::from("recipient");
+        let fee = Coin {
+            denom: String::from("uthiol"),
+            amount: Uint128::from(1000u128), //
+        };
+
+        let result = form_feesplit_helper(owner_fee, owner, payment_recipient, fee)
+            .expect("Should not return error");
+
+        // 2 msg: one for  devs and one for fee recipient
+        assert_eq!(result.len(), 2);
+
+        // First message should send 300 uinf to owner (30% of 1000)
+        let dev_fee_msg = &result[0];
+        match dev_fee_msg {
+            CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
+                assert_eq!(to_address, "owner");
+                assert_eq!(amount[0].denom, "uthiol");
+                assert_eq!(amount[0].amount, Uint128::from(100u128));
+            }
+            _ => panic!("First message should be a Bank Send message"),
+        }
+
+        // Second message should send 700 uinf to recipient (70% of 1000)
+        let fee_msg = &result[1];
+        match fee_msg {
+            CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
+                assert_eq!(to_address, "recipient");
+                assert_eq!(amount[0].denom, "uthiol");
+                assert_eq!(amount[0].amount, Uint128::from(900u128));
+            }
+            _ => panic!("Second message should be a Bank Send message"),
+        }
+    }
+}

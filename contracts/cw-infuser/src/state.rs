@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, HexBinary, Timestamp};
+use cosmwasm_std::{Addr, Coin, Decimal, HexBinary, Timestamp};
 use cw_storage_plus::{Item, Map};
 use sg721::RoyaltyInfoResponse;
 
@@ -19,7 +19,7 @@ pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
 #[cosmwasm_schema::cw_serde]
 pub struct UpdatingConfig {
     pub contract_owner: Option<String>,
-    pub owner_fee: Option<u64>,
+    pub owner_fee: Option<Decimal>,
     pub min_creation_fee: Option<Coin>,
     pub min_infusion_fee: Option<Coin>,
     pub max_infusions: Option<u64>,
@@ -34,7 +34,7 @@ pub struct Config {
     pub latest_infusion_id: u64,
     pub contract_owner: Addr,
     /// % Fee from any infusion fee set to go to contract owner. 10 == 10% , 71 == 71%
-    pub owner_fee: u64,
+    pub owner_fee: Decimal,
     /// Minimum fee that is required for creating an infusion.
     pub min_creation_fee: Option<Coin>,
     /// Minimum fee that is required to be set when new infusions are being created
@@ -201,3 +201,5 @@ pub struct TokenPositionMapping {
     pub position: u32,
     pub token_id: u32,
 }
+
+ 

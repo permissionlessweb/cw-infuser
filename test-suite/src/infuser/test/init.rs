@@ -1,7 +1,7 @@
 use std::{error::Error, str::FromStr};
 
 use abstract_cw_multi_test::{Contract, IntoAddr};
-use cosmwasm_std::{coin, coins, Event, HexBinary, Uint128};
+use cosmwasm_std::{coin, coins, Decimal, Event, HexBinary, Uint128};
 use cw_infuser::{
     msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
     state::{
@@ -62,7 +62,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         env.infuser.instantiate(
             &InstantiateMsg {
                 contract_owner: Some(env.admin.to_string()),
-                owner_fee: 10u64,
+                owner_fee: Decimal::from_str("0.1")?,
                 min_creation_fee: Some(coin(500u128, "ustars")),
                 min_infusion_fee: Some(coin(100u128, "ustars")),
                 min_per_bundle: None,
@@ -208,7 +208,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             max_per_bundle: None,
             min_per_bundle: None,
             cw721_code_id,
-            owner_fee: 0,
+            owner_fee: Decimal::zero(),
             min_creation_fee: None,
             min_infusion_fee: None,
         };
@@ -333,7 +333,7 @@ fn test_successful_install() -> anyhow::Result<()> {
             code_hash: HexBinary::from_hex(
                 "7e961e9369f7a3619b102834beec5bc2463f9008b40de972c91c45e3b300a805"
             )?,
-            owner_fee: 0u64,
+            owner_fee: Decimal::zero(),
             min_creation_fee: None,
             min_infusion_fee: None,
         }
@@ -826,6 +826,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .iter()
         .filter(|e| e.ty == "transfer")
         .collect::<Vec<&Event>>();
+    println!("fee_transfers: {:#?}", fee_transfers);
     assert_eq!(fee_transfers.len(), 2);
 
     // for attribute with env.sender as recipient key value
@@ -976,11 +977,12 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
 
     assert_eq!(
         err.downcast::<ContractError>()?.to_string(),
-        ContractError::NotEnoughNFTsInBundle {
-            col: nft1.to_string(),
-            have: 1,
-            min: 2,
-            max: 2
+        ContractError::PaymentSubstituteNotProvided {
+            col: nft2.to_string(),
+            haved: "ustars".into(),
+            havea: "0".into(),
+            wantd: "ustars".into(),
+            wanta: "200".into()
         }
         .to_string()
     );
@@ -996,7 +998,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
                 infusion_id: infusion_id.clone(),
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(100, "ustars")]),
+            Some(&[coin(150, "ustars")]),
         )
         .unwrap_err();
 
@@ -1005,13 +1007,13 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
         ContractError::PaymentSubstituteNotProvided {
             col: nft2.to_string(),
             haved: "ustars".into(),
-            havea: "0".into(),
+            havea: "50".into(),
             wantd: "ustars".into(),
             wanta: "200".into()
         }
         .to_string()
     );
-    // ensure only 1 nft minted with anyOf satisfied only once
+    // ensure only 1 nft minted with anyOf satisfied by fee payment
     bundle.nfts = vec![];
 
     let res = app
@@ -1024,9 +1026,10 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
             Some(&[coin(300, "ustars")]),
         )?
         .event_attr_values("wasm", "action");
-    println!("{:#?}", res);
+    println!("event attribute values for infusion: {:#?}", res);
     assert_eq!(res.len(), 1);
     assert_eq!(res[0], "mint");
+    // ensure nft is not burnt
 
     //  ensure 2 nfts minted with anyOf satisfied twice (no-fee-substitute)
     bundle.nfts = vec![
@@ -1049,11 +1052,28 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
             Some(&[coin(300, "ustars")]),
         )?
         .event_attr_values("wasm", "action");
-    println!("{:#?}", res);
+    // println!("{:#?}", res);
     assert_eq!(res.len(), 4);
     assert_eq!(res[2], "mint");
     assert_eq!(res[3], "mint");
-    //  ensure 2 nfts minted with anyOf satisfied twice (fee-substitute)
+
+    //  ensure 1 nft minted if
+    bundle.nfts = vec![];
+    let res = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(500, "ustars")]),
+        )?
+        .event_attr_values("wasm", "action");
+
+    println!("{:#?}", res);
+    assert_eq!(res.len(), 2);
+    assert_eq!(res[0], "mint");
+    assert_eq!(res[1], "mint");
     Ok(())
 }
 
@@ -1154,11 +1174,6 @@ fn test_payment_substitute() -> anyhow::Result<()> {
         }
         .to_string()
     );
-
-    bundle.nfts = vec![NFT {
-        addr: nft1.clone(),
-        token_id: 11,
-    }];
 
     // ensure no token and no replacement errors
     let infuse = app

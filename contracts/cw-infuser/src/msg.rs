@@ -1,13 +1,13 @@
 use crate::state::*;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{Addr, Coin, Decimal};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// owner of this contract
     pub contract_owner: Option<String>,
-    /// Fee from each infusion payment, if required. Goes to contract owner during any infusion. Set to 0 to disable.
-    pub owner_fee: u64,
+    /// Fee from each infusion payment, if required. Goes to contract owner during any infusion. Set to 0.0 to disable.
+    pub owner_fee: Decimal,
     /// Minimum fee that is required for creating an infusion
     pub min_creation_fee: Option<Coin>,
     /// Minimum fee that is required to be set when infusions occur
