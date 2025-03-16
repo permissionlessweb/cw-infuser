@@ -1285,13 +1285,14 @@ fn update_config(
 
 //  source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/vending-minter/src/contract.rs#L1371
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    let current_version = cw2::get_contract_version(deps.storage)?;
-    if current_version.contract != CONTRACT_NAME {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let prev_version = cw2::get_contract_version(deps.storage)?;
+    if prev_version.contract != CONTRACT_NAME {
         return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
     }
 
-    let version: Version = current_version
+    let res = Response::new();
+    let version: Version = prev_version
         .version
         .parse()
         .map_err(|_| StdError::generic_err("Invalid current contract version"))?;
@@ -1304,25 +1305,33 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
     }
     // if same version return
     if version == new_version {
-        return Ok(Response::new());
+        return Ok(res);
+    }
+
+    #[allow(clippy::cmp_owned)]
+    if prev_version.version < "0.3.0".to_string() {
+        crate::upgrades::v0_3_0::migrate_contract_owner_fee_type(deps.storage, &env, &msg)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+        crate::upgrades::v0_3_0::migrate_infusions_bundle_type(deps.storage)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
     }
     // set new contract version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let event = Event::new("migrate")
-        .add_attribute("from_name", current_version.contract)
-        .add_attribute("from_version", current_version.version)
+        .add_attribute("from_name", prev_version.contract)
+        .add_attribute("from_version", prev_version.version)
         .add_attribute("to_name", CONTRACT_NAME)
         .add_attribute("to_version", CONTRACT_VERSION);
 
     // TODO: MIGRATE u64 to Decimals in config
-    Ok(Response::new().add_event(event))
+    Ok(res.add_event(event))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
+    use std::str::FromStr;
     #[test]
     fn test_form_feesplit_helper() {
         let owner_fee = Decimal::from_str("0.1").unwrap(); // 10% fee for owner

@@ -1,4 +1,5 @@
 use clap::Parser;
+use cosmwasm_std::Decimal;
 use cw_infuser::msg::InstantiateMsg;
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
@@ -56,7 +57,7 @@ pub fn main() -> anyhow::Result<()> {
             max_bundles: None,
             max_infusions: None,
             cw721_code_id: CW721_CODE_ID,
-            owner_fee: 10u64,
+            owner_fee: Decimal::new(10u128.into()),
             min_creation_fee: None,
             min_infusion_fee: None,
         },

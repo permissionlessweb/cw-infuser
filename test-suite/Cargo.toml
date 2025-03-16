@@ -18,6 +18,8 @@ vanilla = []
 
 
 [dependencies]
+scripts = { path = "../scripts" }
+
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 
@@ -26,6 +28,7 @@ cosmwasm-schema = { workspace = true }
 serde = { workspace = true }
 schemars = "0.8.16"
 cw-multi-test = "1.2.0"
+cw2 = "1.1.2"
 cw721 = { workspace = true }
 sg2 = "3.15.0"
 
@@ -33,15 +36,18 @@ sg721-base = { version = "3.2.0", optional = true }
 sg-std = { version = "3.2.0", optional = true }
 sg721 = { version = "3.2.0", optional = true }
 #  For gating
-cw2 = "1.1.2"
+hex = "0.4.3"
 cw20-base = "=1.1.2"
 cw-utils = "2.0.0"
-hex = "0.4.3"
 cw-orch = { workspace = true, features = ["daemon"] }
 cw-infuser = { path = "../contracts/cw-infuser" }
 cw-orch-clone-testing = "0.6.4"
+
 cw721-base = { git = "https://github.com/AbstractSDK/cw-nfts", version = "0.18.0" }
-scripts = { path = "../scripts" }
+ v020infuse   = { package="cw-infuser", git = "https://github.com/permissionlessweb/cw-infuser", ref = "6f116f58548fa54b8ebec164429a576175bf48d5" }
+ v020scripts   = { package="scripts", git = "https://github.com/permissionlessweb/cw-infuser", ref = "6f116f58548fa54b8ebec164429a576175bf48d5" }
+
 [dev-dependencies]
 rand = "0.8.5"
 abstract-cw-multi-test = { version = "1.0.1" }
+

@@ -1,6 +1,6 @@
 [package]
 name = "cw-infuser"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
 
@@ -74,5 +74,10 @@ shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "r
 rand_core       = { version = "0.6.4", default-features = false }
 rand_xoshiro    = { version = "0.6.0", default-features = false }
 url                  = "2.2.2"
+
+## previous verion packages for migration
+v020infuse   = { package="cw-infuser", git = "https://github.com/permissionlessweb/cw-infuser", ref = "6f116f58548fa54b8ebec164429a576175bf48d5" }
+ 
+
 [dev-dependencies]
 cw-multi-test = "1.2.0"

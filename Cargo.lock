@@ -1263,7 +1263,8 @@ dependencies = [
 
 [[package]]
 name = "cw-infuser"
-version = "0.2.2"
+version = "0.1.0"
+source = "git+https://github.com/permissionlessweb/cw-infuser#167176340427b19800b76281e7ceea87ac3382ae"
 dependencies = [
  "abstract-cw20",
  "abstract-cw20-base",
@@ -1272,6 +1273,36 @@ dependencies = [
  "cosmwasm-std 1.5.11",
  "cw-asset",
  "cw-controllers",
+ "cw-orch 0.22.2",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw721-base 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand_core 0.6.4",
+ "rand_xoshiro",
+ "schemars",
+ "serde",
+ "sg-std",
+ "sg721",
+ "sg721-base",
+ "sha2 0.10.8",
+ "shuffle",
+ "thiserror",
+ "url",
+]
+
+[[package]]
+name = "cw-infuser"
+version = "0.3.0"
+dependencies = [
+ "abstract-cw20",
+ "abstract-cw20-base",
+ "clap",
+ "cosmwasm-schema 1.5.11",
+ "cosmwasm-std 1.5.11",
+ "cw-asset",
+ "cw-controllers",
+ "cw-infuser 0.1.0",
  "cw-multi-test",
  "cw-orch 0.22.2",
  "cw-storage-plus 1.2.0",
@@ -3908,7 +3939,26 @@ dependencies = [
  "clap",
  "cosmrs",
  "cosmwasm-std 1.5.11",
- "cw-infuser",
+ "cw-infuser 0.3.0",
+ "cw-orch 0.24.1",
+ "cw-orch-clone-testing",
+ "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dotenv",
+ "env_logger",
+ "sg721",
+ "sg721-base",
+]
+
+[[package]]
+name = "scripts"
+version = "0.1.0"
+source = "git+https://github.com/permissionlessweb/cw-infuser#167176340427b19800b76281e7ceea87ac3382ae"
+dependencies = [
+ "anyhow",
+ "clap",
+ "cosmrs",
+ "cosmwasm-std 1.5.11",
+ "cw-infuser 0.1.0",
  "cw-orch 0.24.1",
  "cw-orch-clone-testing",
  "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4535,7 +4585,8 @@ dependencies = [
  "anyhow",
  "cosmwasm-schema 1.5.11",
  "cosmwasm-std 1.5.11",
- "cw-infuser",
+ "cw-infuser 0.1.0",
+ "cw-infuser 0.3.0",
  "cw-multi-test",
  "cw-orch 0.22.2",
  "cw-orch-clone-testing",
@@ -4548,7 +4599,8 @@ dependencies = [
  "hex",
  "rand",
  "schemars",
- "scripts",
+ "scripts 0.1.0",
+ "scripts 0.1.0 (git+https://github.com/permissionlessweb/cw-infuser)",
  "serde",
  "sg-std",
  "sg2",

@@ -1,15 +1,14 @@
-use std::{error::Error, str::FromStr};
-
 use abstract_cw_multi_test::{Contract, IntoAddr};
 use cosmwasm_std::{coin, coins, Decimal, Event, HexBinary, Uint128};
 use cw_infuser::{
-    msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
+    msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsg, QueryMsgFns},
     state::{
-        Bundle, BundleType, Config, InfusedCollection, Infusion, InfusionParamState, NFTCollection,
-        NFT,
+        Bundle, BundleType, Config, InfusedCollection, Infusion, InfusionParamState, InfusionState,
+        NFTCollection, NFT,
     },
     AnyOfErr, ContractError,
 };
+use std::{error::Error, str::FromStr};
 // Use prelude to get all the necessary imports
 use cw_orch::{anyhow, prelude::*};
 use scripts::CwInfuser;
@@ -22,6 +21,18 @@ fn cw721_contract() -> Box<dyn Contract<Empty>> {
     );
     Box::new(contract)
 }
+
+fn v020_infusion() -> Box<dyn Contract<Empty>> {
+    let contract = ContractWrapper::new(
+        v020infuse::contract::execute,
+        v020infuse::contract::instantiate,
+        v020infuse::contract::query,
+    )
+    .with_reply(v020infuse::contract::reply)
+    .with_migrate(v020infuse::contract::migrate);
+    Box::new(contract)
+}
+
 // minimal infuser
 pub struct InfuserSuite<Chain> {
     pub chain: MockBech32,
@@ -51,6 +62,85 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             image: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
         })
     }
+
+    fn default_good_nfts(&self, nfts: &Vec<Addr>) -> anyhow::Result<Vec<NFTCollection>> {
+        let good_nfts = vec![
+            NFTCollection {
+                addr: nfts[0].clone(),
+                min_req: 1,
+                max_req: None,
+                payment_substitute: None,
+            },
+            NFTCollection {
+                addr: nfts[1].clone(),
+                min_req: 1,
+                max_req: None,
+                payment_substitute: None,
+            },
+        ];
+        Ok(good_nfts)
+    }
+    fn default_nft_instantiate(
+        chain: MockBech32,
+        cw721_code: u64,
+        minter: Addr,
+        withdraw: Addr,
+    ) -> anyhow::Result<Vec<Addr>> {
+        let mut nft_collection_addrs = vec![];
+
+        for i in 0..3 {
+            let msg_a = chain.instantiate(
+                cw721_code,
+                &cw721_base::InstantiateMsg {
+                    name: "good-chronic".to_string(),
+                    symbol: "CHRONIC-".to_owned() + i.to_string().as_str(),
+                    minter: Some(minter.to_string()),
+                    withdraw_address: Some(withdraw.to_string()),
+                },
+                Some("cw721-base-good-chronic"),
+                None,
+                &[],
+            )?;
+            let cw721_a = msg_a.instantiated_contract_address()?;
+            println!("test nft collection: {:#?},{:#?}", i, cw721_a.to_string());
+            nft_collection_addrs.push(cw721_a);
+        }
+        Ok(nft_collection_addrs)
+    }
+
+    fn default_nft_approvals(
+        chain: MockBech32,
+        nfts: Vec<Addr>,
+        infuser: Addr,
+        admin: Addr,
+    ) -> anyhow::Result<()> {
+        // approve nfts for new infusion
+        for i in nfts.clone() {
+            for n in 0..10 {
+                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
+                    &cw721_base::ExecuteMsg::Approve {
+                        spender: infuser.to_string(),
+                        token_id: n.to_string(),
+                        expires: None,
+                    };
+                // approve infuser for nft
+                chain.execute(msg, &[], &i.clone())?;
+            }
+            // mint nfts to contract owner
+            for n in 11..21 {
+                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
+                    &cw721_base::ExecuteMsg::Approve {
+                        spender: infuser.to_string(),
+                        token_id: n.to_string(),
+                        expires: None,
+                    };
+                // approve infuser for nft
+                chain.call_as(&admin).execute(msg, &[], &i.clone())?;
+            }
+        }
+        Ok(())
+    }
+
     fn setup_fee_suite() -> anyhow::Result<InfuserSuite<MockBech32>> {
         // setup infuser with admin fees
         let env = InfuserSuite::<MockBech32>::setup()?;
@@ -77,20 +167,13 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         let nft1 = env.nfts[0].clone();
         let nft2 = env.nfts[1].clone();
 
-        let good_nfts = vec![
-            NFTCollection {
-                addr: nft1.clone(),
-                min_req: 1,
-                max_req: None,
-                payment_substitute: None,
-            },
-            NFTCollection {
-                addr: nft2.clone(),
-                min_req: 1,
-                max_req: None,
-                payment_substitute: None,
-            },
-        ];
+        let good_nfts = env.default_good_nfts(&vec![nft1, nft2])?;
+        InfuserSuite::<MockBech32>::default_nft_approvals(
+            env.chain.clone(),
+            env.nfts.clone(),
+            env.infuser.address()?,
+            env.admin.clone(),
+        )?;
 
         let mut infusion_params = InfusionParamState {
             params: None,
@@ -98,52 +181,9 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             bundle_type: BundleType::AllOf {},
         };
 
-        let good_infused = InfusedCollection {
-            addr: None,
-            admin: None,
-            name: "test-".to_string(),
-            symbol: "TEST".to_string(),
-            base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
-                .to_string(),
-            num_tokens: 100,
-            sg: false,
-            royalty_info: None,
-            start_trading_time: None,
-            explicit_content: None,
-            external_link: None,
-            image: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku".to_string(),
-            description: "eret  jerret skeret".to_string(),
-        };
+        let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
         // ensure fee set is within contract level bounds
         infusion_params.mint_fee = Some(coin(100, "ustars"));
-
-        // approve nfts for new infusion
-        for i in env.nfts.clone() {
-            // mint 11 nfts?
-            for n in 0..10 {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
-                        spender: env.infuser.address()?.to_string(),
-                        token_id: n.to_string(),
-                        expires: None,
-                    };
-                // approve infuser for nft
-                env.chain.execute(msg, &[], &i.clone())?;
-            }
-            // mint nfts to contract owner
-            for n in 11..21 {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
-                        spender: env.infuser.address()?.to_string(),
-                        token_id: n.to_string(),
-                        expires: None,
-                    };
-                // approve infuser for nft
-                env.chain
-                    .call_as(&env.admin)
-                    .execute(msg, &[], &i.clone())?;
-            }
-        }
 
         let infusion = Infusion {
             collections: good_nfts.clone(),
@@ -171,6 +211,8 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         mock.add_balance(&sender, coins(100000000, "ubtsg"))?;
         mock.add_balance(&sender, coins(100000000, "ustars"))?;
         let treasury = mock.addr_make("treasury");
+
+        // latest infusion version
         let infuser = CwInfuser::new(mock.clone());
 
         // store cw-infuser
@@ -179,27 +221,12 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         // store cw721
         let cw721 = cw721_contract();
         let cw721_code_id = mock.upload_custom("cw721", cw721)?.uploaded_code_id()?;
-
-        let mut nft_collection_addrs = vec![];
-
-        // create 3 infusions
-        for i in 0..3 {
-            let msg_a = mock.instantiate(
-                cw721_code_id,
-                &cw721_base::InstantiateMsg {
-                    name: "good-chronic".to_string(),
-                    symbol: "CHRONIC-".to_owned() + i.to_string().as_str(),
-                    minter: Some(sender.to_string()),
-                    withdraw_address: Some(treasury.to_string()),
-                },
-                Some("cw721-base-good-chronic"),
-                None,
-                &[],
-            )?;
-            let cw721_a = msg_a.instantiated_contract_address()?;
-            println!("test nft collection: {:#?},{:#?}", i, cw721_a.to_string());
-            nft_collection_addrs.push(cw721_a);
-        }
+        let nft_collection_addrs = InfuserSuite::<MockBech32>::default_nft_instantiate(
+            mock.clone(),
+            cw721_code_id,
+            sender.clone(),
+            treasury.clone(),
+        )?;
 
         let default_init = InstantiateMsg {
             contract_owner: Some(admin.to_string()),
@@ -212,8 +239,11 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             min_creation_fee: None,
             min_infusion_fee: None,
         };
+
         // create cw-infsion app
         infuser.instantiate(&default_init, None, None)?;
+
+        // mint
 
         for i in nft_collection_addrs.clone() {
             // mint 11 nfts?
@@ -257,23 +287,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
 
         let mut infusion = Infusion {
             collections: vec![],
-            infused_collection: InfusedCollection {
-                addr: None,
-                admin: None,
-                name: "test-".to_string(),
-                symbol: "TEST".to_string(),
-                base_uri: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
-                    .to_string(),
-                num_tokens: 100,
-                sg: false,
-                royalty_info: None,
-                start_trading_time: None,
-                explicit_content: None,
-                external_link: None,
-                image: "ipfs://bafybeidhcxcxolehykzlmmfxzcu5tr2bi4p5yaz7a2s6vsdyqkr25ykkku"
-                    .to_string(),
-                description: "eret  jerret skeret".to_string(),
-            },
+            infused_collection: InfuserSuite::<MockBech32>::default_infused_collection()?,
             infusion_params: InfusionParamState {
                 params: None,
                 mint_fee: None,
@@ -420,7 +434,7 @@ fn test_successful_infusion() -> anyhow::Result<()> {
 #[test]
 fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
     let env = InfuserSuite::<MockBech32>::setup()?;
-    let app = env.infuser;
+    let app = env.infuser.clone();
 
     let bad_nfts = vec![
         NFTCollection {
@@ -645,7 +659,7 @@ fn test_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
 fn test_eligible_nft_collections() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let env = InfuserSuite::<MockBech32>::setup()?;
-    let app = env.infuser;
+    let app = env.infuser.clone();
     let not_nft = env.chain.addr_make("mock-nft");
 
     let bad_nfts = vec![
@@ -1288,8 +1302,6 @@ fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let mut env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
     let app = env.infuser;
-    let nft1 = env.nfts[0].clone();
-    let nft2 = env.nfts[1].clone();
 
     // update infusion collect params to undesired state
     env.infusion.collections[1].payment_substitute = Some(coin(1u128, "ustars"));
@@ -1326,6 +1338,159 @@ fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
     Ok(())
 }
 
-// burn during cw721 send
-// confirm random token mints
+#[test]
+fn test_migration_v030() -> anyhow::Result<()> {
+    // setup infuser with admin fees
+    let env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
+
+    // store cw721
+    let v020_infusion = v020_infusion();
+    let v020_infusion_code_id = env
+        .chain
+        .upload_custom("v020infusion", v020_infusion)?
+        .uploaded_code_id()?;
+
+    // instantiate 2 infusion contracts from same code-id
+    let mut infuse_addrs = vec![];
+    for _ in 0..2 {
+        let ia = env
+            .chain
+            .instantiate(
+                v020_infusion_code_id,
+                &v020infuse::msg::InstantiateMsg {
+                    admin: Some(env.admin.to_string()),
+                    admin_fee: 10,
+                    min_creation_fee: Some(coin(1, "ustars")),
+                    min_infusion_fee: Some(coin(2, "ustars")),
+                    min_per_bundle: None,
+                    max_per_bundle: None,
+                    max_bundles: None,
+                    max_infusions: None,
+                    cw721_code_id: 2u64,
+                },
+                Some("infusion being migrated"),
+                Some(&env.admin),
+                &[],
+            )?
+            .instantiated_contract_address()?;
+
+        infuse_addrs.push(ia);
+    }
+
+    // configure cw721
+
+    let good_nfts = env.default_good_nfts(&vec![env.nfts[0].clone(), env.nfts[1].clone()])?;
+
+    let infused_col = InfuserSuite::<MockBech32>::default_infused_collection()?;
+    // create infusion for both
+    for ia in &infuse_addrs {
+        env.chain.execute(
+            &v020infuse::msg::ExecuteMsg::CreateInfusion {
+                collections: vec![v020infuse::state::Infusion {
+                    collections: good_nfts
+                        .clone()
+                        .into_iter()
+                        .map(|n| v020infuse::state::NFTCollection {
+                            addr: n.addr,
+                            min_req: n.min_req,
+                        })
+                        .collect(),
+                    infused_collection: v020infuse::state::InfusedCollection {
+                        sg: infused_col.sg,
+                        addr: None,
+                        admin: infused_col.admin.clone(),
+                        name: infused_col.name.clone(),
+                        symbol: infused_col.symbol.clone(),
+                        base_uri: infused_col.base_uri.clone(),
+                        num_tokens: infused_col.num_tokens.clone(),
+                        extension: infused_col.royalty_info.clone(),
+                    },
+                    infusion_params: v020infuse::state::InfusionParams {
+                        min_per_bundle: None,
+                        mint_fee: Some(coin(100, "ustars")),
+                        params: None,
+                    },
+                    payment_recipient: env.infusion.payment_recipient.clone(),
+                }],
+            },
+            &[coin(1, "ustars".to_string())],
+            &ia,
+        )?;
+
+        InfuserSuite::<MockBech32>::default_nft_approvals(
+            env.chain.clone(),
+            env.nfts.clone(),
+            ia.clone(),
+            env.admin.clone(),
+        )?;
+    }
+    // infuse once for both
+    let mut bundle = v020infuse::state::Bundle {
+        nfts: vec![
+            v020infuse::state::NFT {
+                addr: env.nfts[0].clone(),
+                token_id: 8,
+            },
+            v020infuse::state::NFT {
+                addr: env.nfts[1].clone(),
+                token_id: 9,
+            },
+        ],
+    };
+
+    env.chain.execute(
+        &v020infuse::msg::ExecuteMsg::Infuse {
+            infusion_id: 1,
+            bundle: vec![bundle.clone()],
+        },
+        &[coin(100, "ustars")],
+        &infuse_addrs[0].clone(),
+    )?;
+    bundle.nfts[0].token_id = 7;
+    bundle.nfts[1].token_id = 6;
+
+    env.chain.wait_blocks(1)?;
+    env.chain.execute(
+        &v020infuse::msg::ExecuteMsg::Infuse {
+            infusion_id: 1,
+            bundle: vec![bundle.clone()],
+        },
+        &[coin(100, "ustars")],
+        &infuse_addrs[0].clone(),
+    )?;
+
+    env.chain.call_as(&env.admin).migrate(
+        &cw_infuser::msg::MigrateMsg {},
+        env.infuser.code_id()?,
+        &infuse_addrs[0],
+    )?;
+    env.chain.call_as(&env.admin).migrate(
+        &cw_infuser::msg::MigrateMsg {},
+        env.infuser.code_id()?,
+        &infuse_addrs[1],
+    )?;
+
+    // migrate 1st contract, expect new v030 global config to be saved
+    let cfg1: Config = env.chain.query(&QueryMsg::Config {}, &infuse_addrs[0])?;
+    assert_eq!(cfg1.owner_fee, Decimal::percent(10));
+    // confirm first migration worked
+    let inf: InfusionState = env
+        .chain
+        .query(&QueryMsg::InfusionById { id: 1u64 }, &infuse_addrs[0])?;
+
+    assert_eq!(inf.infusion_params.bundle_type, BundleType::AllOf {});
+
+    // migrate 2nd contract,
+    // confirm second migration worked
+    let cfg1: Config = env.chain.query(&QueryMsg::Config {}, &infuse_addrs[1])?;
+    assert_eq!(cfg1.owner_fee, Decimal::percent(10));
+    // confirm first migration worked
+    let inf: InfusionState = env
+        .chain
+        .query(&QueryMsg::InfusionById { id: 1u64 }, &infuse_addrs[1])?;
+
+    assert_eq!(inf.infusion_params.bundle_type, BundleType::AllOf {});
+    Ok(())
+}
+
 // confirm funds go to destination

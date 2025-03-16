@@ -110,6 +110,9 @@ pub enum ContractError {
     #[error("untriggered")]
     UnTriggered,
 
+    #[error("MigrationError")]
+    MigrationError,
+
     #[error("you have found a contract feature currently unimplemented! dm me with the words `eretskableret - jroc`.")]
     UnImplemented,
 }
