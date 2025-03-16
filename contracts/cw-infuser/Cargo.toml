@@ -3,7 +3,6 @@ name = "cw-infuser"
 version = "0.3.0"
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
-
 exclude = ["scripts"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
