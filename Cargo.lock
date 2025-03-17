@@ -1294,7 +1294,7 @@ dependencies = [
 
 [[package]]
 name = "cw-infuser"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "abstract-cw20",
  "abstract-cw20-base",
@@ -3940,7 +3940,7 @@ dependencies = [
  "clap",
  "cosmrs",
  "cosmwasm-std 1.5.11",
- "cw-infuser 0.3.1",
+ "cw-infuser 0.4.0",
  "cw-orch 0.24.1",
  "cw-orch-clone-testing",
  "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4587,7 +4587,7 @@ dependencies = [
  "cosmwasm-schema 1.5.11",
  "cosmwasm-std 1.5.11",
  "cw-infuser 0.2.1",
- "cw-infuser 0.3.1",
+ "cw-infuser 0.4.0",
  "cw-multi-test",
  "cw-orch 0.22.2",
  "cw-orch-clone-testing",

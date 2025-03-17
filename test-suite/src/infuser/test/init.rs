@@ -1544,6 +1544,21 @@ fn test_migration_v030() -> anyhow::Result<()> {
         .query(&QueryMsg::InfusionById { id: 1u64 }, &infuse_addrs[1])?;
 
     assert_eq!(inf.infusion_params.bundle_type, BundleType::AllOf {});
+
+    // check can infuse
+    env.chain.wait_blocks(1)?;
+    bundle.nfts[0].token_id = 5;
+    bundle.nfts[1].token_id = 4;
+    
+    env.chain.execute(
+        &v020infuse::msg::ExecuteMsg::Infuse {
+            infusion_id: 1,
+            bundle: vec![bundle.clone()],
+        },
+        &[coin(100, "ustars")],
+        &infuse_addrs[0].clone(),
+    )?;
+
     Ok(())
 }
 

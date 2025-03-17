@@ -249,7 +249,7 @@ fn update_infusion_bundle_type(
         }
         BundleType::AnyOfBlend { blends: _ } => return Err(ContractError::UnImplemented),
     }
-    
+
     infusion.infusion_params.bundle_type = bt;
     INFUSION.save(deps.storage, key, &infusion)?;
 
@@ -477,7 +477,8 @@ pub fn execute_create_infusion(
         let key = (infusion_collection_addr_human.clone(), infusion_id);
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
-        MINT_COUNT.save(deps.storage, &0)?;
+        // contribute to contract randomness
+        MINT_COUNT.update(deps.storage, |mc| Ok::<u64, ContractError>(mc + 1u64))?;
         MINTABLE_NUM_TOKENS.save(
             deps.storage,
             infusion_collection_addr_human.to_string(),
@@ -722,7 +723,8 @@ fn execute_infuse_bundle(
     Ok(res.add_messages(msgs))
 }
 
-// burns all nft bundles
+/// checks all bundles nfts, determines how many nfts to mint,
+/// returns msgs to burn, mint nfts, & transfer any fee substitute funds to their destination.
 fn burn_bundle(
     deps: &DepsMut,
     env: Env,
@@ -1353,6 +1355,11 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
             .map_err(|e| StdError::generic_err(e.to_string()))?;
 
         crate::upgrades::v0_3_0::migrate_infusions_bundle_type(deps.storage)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+    }
+    #[allow(clippy::cmp_owned)]
+    if prev_version.version < "0.4.0".to_string() {
+        crate::upgrades::v0_4_0::patch_mint_count_v040(deps.storage)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
     }
     // set new contract version
