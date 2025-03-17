@@ -1,16 +1,16 @@
 use crate::state::*;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{Addr, Coin, Decimal};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Admin of this contract
-    pub admin: Option<String>,
-    /// Fee from each infusion payment, if required. Goes to admin during a successful infusion
-    pub admin_fee: u64,
+    /// owner of this contract
+    pub contract_owner: Option<String>,
+    /// Fee from each infusion payment, if required. Goes to contract owner during any infusion. Set to 0.0 to disable.
+    pub owner_fee: Decimal,
     /// Minimum fee that is required for creating an infusion
     pub min_creation_fee: Option<Coin>,
-    /// Minimum fee that is required to be set when new infusions are being created
+    /// Minimum fee that is required to be set when infusions occur
     pub min_infusion_fee: Option<Coin>,
     /// Minimum tokens required for any infusions eligible collections
     pub min_per_bundle: Option<u64>,
@@ -27,13 +27,31 @@ pub struct InstantiateMsg {
 #[cw_serde]
 #[derive(cw_orch::ExecuteFns)]
 pub enum ExecuteMsg {
-    UpdateConfig {},
     CreateInfusion {
-        collections: Vec<Infusion>,
+        infusions: Vec<Infusion>,
     },
     Infuse {
         infusion_id: u64,
         bundle: Vec<Bundle>,
+    },
+    EndInfusion {
+        id: u64,
+    },
+    UpdateConfig {
+        config: UpdatingConfig,
+    },
+    UpdateInfusionBaseUri {
+        id: u64,
+        base_uri: String,
+    },
+    UpdateInfusionsEligibleCollections {
+        id: u64,
+        to_add: Vec<NFTCollection>,
+        to_remove: Vec<NFTCollection>,
+    },
+    UpdateInfusionMintFee {
+        id: u64,
+        mint_fee: Option<Coin>,
     },
 }
 
@@ -46,7 +64,7 @@ pub enum QueryMsg {
     #[returns(Infusion)]
     Infusion { addr: Addr, id: u64 },
     /// returns an infusion for a given infusion id.
-    #[returns(Infusion)]
+    #[returns(InfusionState)]
     InfusionById { id: u64 },
     /// returns all infusions owned by a given address
     /// defaults to 30 entries from a given index point of the infusion map.

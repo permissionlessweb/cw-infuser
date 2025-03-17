@@ -1,3 +1,5 @@
+use std::fmt;
+
 use cosmwasm_std::{Coin, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
@@ -13,9 +15,7 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
-    #[error(
-        "Fee payment not accepted. Ensure you are sending the correct amount for the fee payment."
-    )]
+    #[error("Fee payment not accepted. Ensure you are sending the correct amount.")]
     FeeNotAccepted,
 
     #[error("{0}")]
@@ -27,14 +27,20 @@ pub enum ContractError {
     #[error("Cannot specify the same contract address more than once")]
     DuplicateCollectionInInfusion,
 
-    #[error("CollectionNotEligible")]
-    CollectionNotEligible,
+    #[error("Bundle of type {bun_type} povided does not contain any nfts for collection: {col}")]
+    BundleCollectionNotEligilbe { bun_type: i32, col: String },
 
     #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
-    BundleNotAccepted{ have: u64, want: u64},
+    BundleNotAccepted { have: u64, want: u64 },
 
     #[error("Bundle cannot be empty.")]
     EmptyBundle,
+
+    #[error("Bundle type AnyOf must only contain atleast 1 instance of any eligible collection")]
+    AnyOfConfigError { err: AnyOfErr },
+
+    #[error("Bundle type AnyOfBlend has an incorrect setup.")]
+    AnyOfBlendConfigError,
 
     #[error("Invalid base token URI (must be an IPFS URI)")]
     InvalidBaseTokenURI {},
@@ -44,6 +50,18 @@ pub enum ContractError {
 
     #[error("Sold out")]
     SoldOut {},
+
+    #[error("BundleCollectionContractEmpty")]
+    BundleCollectionContractEmpty {},
+
+    #[error("payment substitute is enabled for collection {col}, but did not recieve tokens or payment. Have: {havea}{haved}. Want: {wanta}{wantd}")]
+    PaymentSubstituteNotProvided {
+        col: String,
+        haved: String,
+        havea: String,
+        wantd: String,
+        wanta: String,
+    },
 
     #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]
     TooManyCollectionsInInfusion { have: u64, max: u64 },
@@ -60,7 +78,7 @@ pub enum ContractError {
     BadBundle { have: u64, min: u64, max: u64 },
 
     #[error("Too many infusions specified.")]
-    TooManyInfusions,
+    MaxInfusionsError,
 
     #[error("The max_bundles being set is greater than possible. Current hard-coded at 5.")]
     MaxBundleError,
@@ -71,8 +89,11 @@ pub enum ContractError {
     #[error("New infusion require a minimum fee of {min} to be created.")]
     InfusionFeeLessThanMinimumRequired { min: Coin },
 
-    #[error("RequirednfusionFeeError: New infusion fee required not sent. Retry infusion creation with correct funds.")]
-    RequirednfusionFeeError,
+    #[error("RequirednfusionFeeError: New infusion fee of {fee} required not sent. Retry infusion creation with correct funds.")]
+    RequirednfusionFeeError { fee: Coin },
+
+    #[error("contract: {addr} is not an cw721 nft collection.")]
+    AddrIsNotNFTCol { addr: String },
 
     #[error("You cannot set the infusion fee as 0. Omit this value from the create_infsuion message to disable infusion fee requirements.")]
     InfusionFeeCannotbeZero,
@@ -82,4 +103,36 @@ pub enum ContractError {
 
     #[error("Unauthorized.")]
     Unauthorized,
+
+    #[error("InfusionIsEnded.")]
+    InfusionIsEnded,
+
+    #[error("InfusionDescriptionLengthError")]
+    InfusionDescriptionLengthError,
+
+    #[error("untriggered")]
+    UnTriggered,
+
+    #[error("MigrationError")]
+    MigrationError,
+
+    #[error("you have found a contract feature currently unimplemented! dm me with the words `eretskableret - jroc`.")]
+    UnImplemented,
+}
+
+#[cosmwasm_schema::cw_serde]
+#[derive(Error)]
+pub enum AnyOfErr {
+    Uneligible,
+    Empty,
+}
+
+impl fmt::Display for AnyOfErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AnyOfErr::Uneligible => write!(f, "Uneligible error"),
+            AnyOfErr::Empty => write!(f, "Empty error"),
+            // Add cases for other variants as needed
+        }
+    }
 }

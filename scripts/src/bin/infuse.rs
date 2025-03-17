@@ -5,8 +5,6 @@ use cosmwasm_std::Uint128;
 use cw721::ApprovalResponse;
 use cw_infuser::msg::{ExecuteMsgFns, QueryMsgFns};
 use cw_infuser::state::{Bundle, NFT};
-use cw_orch::core::serde_json;
-use cw_orch::daemon::TxSender as _;
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
 use scripts::ELGAFAR_1;
@@ -60,14 +58,14 @@ pub fn main() -> anyhow::Result<()> {
                     include_expired: None,
                 },
             );
-            if res.is_err(){
+            if res.is_err() {
                 println!("Approval query failed, doesnt exists, creating approval for infuser");
-                let am = sg721::ExecuteMsg::<Empty, Empty>::Approve {
+                let am: sg721::ExecuteMsg<Empty, Empty> = sg721::ExecuteMsg::Approve {
                     spender: infuser.addr_str()?,
                     token_id: token.to_string(),
                     expires: None,
                 };
-    
+
                 let approve = chain.execute(&am, &[], &Addr::unchecked(contract_address));
                 msgs.push(approve);
             }

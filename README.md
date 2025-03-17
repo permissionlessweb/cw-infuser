@@ -13,17 +13,16 @@
             |   |   |   |   |   \
             | ~   ~   ~   ~ |`   )
             |                   /
-             \      481        /
+             \       610      /
               \               /
                \    _____    /
                 |--//''`\--|
                 | (( +==)) |
                 |--\_|_//--|
-
 ```
 
 ## Introduction
-Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways. Various bundle requirements, or the collection of tokens one intends to infuse in exchange for a new token.
+Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways. Bundles, or the collection of tokens one intends to infuse,are formed and burned in exchange for a new token from the infused collection.
 ## Additional Info 
 
 ###  Infused Collection
@@ -31,13 +30,12 @@ Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways
 For each infusion, a new infused collection is created. These token-id's are incremented from 0, and kept track of the next token id in the infuser contract. 
 
 #### Base-URI
-The base uri is the folder stored to ipfs containing a list of ipfs documents. The contract sets the uri for each new token being minted based on the count: 
-`token_uri: Some(infusion.infused_collection.base_uri.clone() + &token_id.to_string()),`.
+The base uri is the folder stored to ipfs containing a list of ipfs documents. The contract sets the uri for each new token being minted based on the count:
+This requireds the base uri to be provided with the format of `ipfs://abcd`
 
-This requireds the base uri to be provided with the format of `ipfs://abcd`, so 
 
 ### State.json
-The deployed contracts state can be found [here](./state.json)
+The deployed contracts state can be found [here](./state.json). This file is generated from making use of cw-orchestrator scripts. 
 
 ### Creation Fees 
 A minimum creation fee may be set on the contract level, requiring a fee in order to create an new infusion. This fee goes to the admin of the contract.
@@ -56,8 +54,9 @@ There are cw-orchestrator libraries available to deploy the infusion contracts. 
 
 ### Compile Infuser
 ```sh
-sh scripts/build.sh
+just wasm-optimize
 ```
+
 ### Deploy Infuser
 The following uploads, and instantiates a new infusion to the test network:
 ```sh 
@@ -65,7 +64,7 @@ cargo run --bin deploy -- --network testnet
 ```
 
 ### Create an Infusion 
-A minimum json message to create an infusion:\
+A minimum json message to create an infusion:
 `--col-min-require` in the same order as collections defined, set the minimum tokens required for each to need to infuse.
 ```sh
  cargo run --bin create -- --col-addrs-eligible <collection-addr1,collection-addr2> --col-min-required 4,2 --infuse-col-name infusion-test --infuse-col-symbol INFUSE --infuse-col-base-uri ipfs:// --config-min-per-bundle 1

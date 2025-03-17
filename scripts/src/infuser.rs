@@ -1,10 +1,10 @@
 use cw_infuser::{
-    contract::{execute, instantiate, query, reply},
+    contract::{execute, instantiate, migrate, query, reply},
     msg::*,
 };
 use cw_orch::prelude::*;
 
-#[cw_orch::interface(InstantiateMsg, ExecuteMsg, QueryMsg, Empty, id = "cw-infuser")]
+#[cw_orch::interface(InstantiateMsg, ExecuteMsg, QueryMsg, Empty, id = "cw-infuser2")]
 pub struct CwInfuser;
 
 impl<Chain: CwEnv> Uploadable for CwInfuser<Chain> {
@@ -16,6 +16,10 @@ impl<Chain: CwEnv> Uploadable for CwInfuser<Chain> {
     }
     /// Returns a CosmWasm contract wrapper
     fn wrapper() -> Box<dyn MockContract<Empty>> {
-        Box::new(ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(reply))
+        Box::new(
+            ContractWrapper::new_with_empty(execute, instantiate, query)
+                .with_reply(reply)
+                .with_migrate(migrate),
+        )
     }
 }

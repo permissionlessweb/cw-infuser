@@ -1,10 +1,8 @@
-use std::str::FromStr;
-
 use clap::{arg, command, Parser};
-use cosmwasm_std::Uint128;
 use cw_infuser::msg::ExecuteMsgFns;
-use cw_infuser::state::{InfusedCollection, Infusion, InfusionParams, NFTCollection};
-use cw_orch::daemon::TxSender;
+use cw_infuser::state::{
+    BundleType, InfusedCollection, Infusion, InfusionParamState, NFTCollection,
+};
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
 use scripts::ELGAFAR_1;
@@ -28,6 +26,12 @@ struct Args {
     /// infused collection symbol
     #[arg(long)]
     infuse_col_symbol: String,
+    /// infused collection title image
+    #[arg(long)]
+    infuse_col_image: String,
+    /// infused collection description
+    #[arg(long)]
+    infuse_col_description: String,
     /// infused collection base uri
     #[arg(long)]
     infuse_col_base_uri: String,
@@ -64,14 +68,19 @@ pub fn main() -> anyhow::Result<()> {
     for (collection, min) in collections.iter().zip(min_required.iter()) {
         let addr = Addr::unchecked(collection);
         let min_req: u64 = min.parse().unwrap_or(0);
-        let infusion = NFTCollection { addr, min_req };
+        let infusion = NFTCollection {
+            addr,
+            min_req,
+            max_req: None,
+            payment_substitute: None,
+        };
         infusions.push(infusion);
     }
 
-    let infusion_params = InfusionParams {
-        min_per_bundle: Some(Uint128::from_str(&args.config_min_per_bundle)?.u128() as u64),
+    let infusion_params = InfusionParamState {
         mint_fee: None,
         params: None,
+        bundle_type: BundleType::AllOf {},
     };
 
     let infused_collection = InfusedCollection {
@@ -82,7 +91,12 @@ pub fn main() -> anyhow::Result<()> {
         base_uri: args.infuse_col_base_uri,
         num_tokens: args.infuse_col_num_tokens.parse().unwrap(),
         sg: true,
-        extension: None,
+        royalty_info: None,
+        start_trading_time: None,
+        explicit_content: None,
+        external_link: None,
+        image: args.infuse_col_image,
+        description: todo!(),
     };
 
     // pass infusions to orchestrator
@@ -94,6 +108,8 @@ pub fn main() -> anyhow::Result<()> {
         infused_collection,
         infusion_params,
         payment_recipient: Some(chain.sender_addr()),
+        owner: None,
+        description: Some("todo!()".to_string()),
     }])?;
 
     Ok(())
