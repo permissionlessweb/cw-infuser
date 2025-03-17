@@ -1298,6 +1298,52 @@ fn test_payment_substitute() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
+    // setup infuser with admin fees
+    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
+    let app = env.infuser;
+
+    // update infusion bundle type to undesired state
+    env.infusion.infusion_params.bundle_type = BundleType::AllOf {};
+
+    // good infusion creation
+    let infusion_id = app
+        .execute(
+            &ExecuteMsg::CreateInfusion {
+                infusions: vec![env.infusion.clone()],
+            },
+            Some(&[coin(500, "ustars")]),
+        )?
+        .event_attr_value("wasm", "infusion-id")?;
+    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+
+    //  cannot update bundle type to anyOf with incorrect addr
+
+    let mut bundle_type = BundleType::AnyOf {
+        addrs: vec![env.nfts[2].clone(), env.nfts[1].clone()],
+    };
+
+    let err = app
+        .update_infusion_bundle_type(bundle_type, infusion_id)
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::AnyOfConfigError {
+            err: AnyOfErr::Uneligible,
+        }
+        .to_string()
+    );
+
+    bundle_type = BundleType::AnyOf {
+        addrs: vec![env.nfts[1].clone()],
+    };
+
+    app.update_infusion_bundle_type(bundle_type, infusion_id)?;
+
+    Ok(())
+}
+#[test]
 fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let mut env = InfuserSuite::<MockBech32>::setup_fee_suite()?;

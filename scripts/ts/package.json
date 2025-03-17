@@ -1,7 +1,6 @@
 {
   "name": "@permissionlessweb/cw-infuser",
   "version": "1.0.0",
-  "module": "",
   "description": "cw-Infuser Typescript Types",
   "main": "index.js",
   "scripts": {

@@ -134,6 +134,9 @@ pub fn execute(
         ExecuteMsg::UpdateInfusionMintFee { id, mint_fee } => {
             update_infusion_mint_fee(deps, info, id, mint_fee)
         }
+        ExecuteMsg::UpdateInfusionBundleType { id, bundle_type } => {
+            update_infusion_bundle_type(deps, info, id, bundle_type)
+        }
     }
 }
 
@@ -212,6 +215,42 @@ fn update_infused_base_uri(
         return Err(ContractError::Admin(AdminError::NotAdmin {}));
     }
     infusion.infused_collection.base_uri = base_uri;
+    INFUSION.save(deps.storage, key, &infusion)?;
+
+    Ok(Response::new())
+}
+
+/// Update the mint fee for an infusion
+fn update_infusion_bundle_type(
+    deps: DepsMut,
+    msg: MessageInfo,
+    id: u64,
+    bt: BundleType,
+) -> Result<Response, ContractError> {
+    let key = INFUSION_ID.load(deps.storage, id)?;
+    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
+    if infusion.owner != msg.sender {
+        return Err(ContractError::Admin(AdminError::NotAdmin {}));
+    }
+    match &bt {
+        BundleType::AllOf {} => {}
+        BundleType::AnyOf { addrs } => {
+            let mut unique = vec![];
+            for col in infusion.collections.iter() {
+                unique.push(col.addr.clone());
+            }
+            for addr in addrs {
+                if !unique.contains(&addr) {
+                    return Err(ContractError::AnyOfConfigError {
+                        err: AnyOfErr::Uneligible,
+                    });
+                }
+            }
+        }
+        BundleType::AnyOfBlend { blends: _ } => return Err(ContractError::UnImplemented),
+    }
+    
+    infusion.infusion_params.bundle_type = bt;
     INFUSION.save(deps.storage, key, &infusion)?;
 
     Ok(Response::new())

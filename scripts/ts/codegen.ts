@@ -11,10 +11,10 @@ codegen({
 
   // options are completely optional ;)
   options: {
-    bundle: {
-      bundleFile: 'bundle.ts',
-      scope: 'contracts'
-    },
+    // bundle: {
+    //   bundleFile: 'bundle.ts',
+    //   scope: 'contracts'
+    // },
     types: {
       enabled: true
     },

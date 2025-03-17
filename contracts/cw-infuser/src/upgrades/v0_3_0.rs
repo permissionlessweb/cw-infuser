@@ -96,7 +96,7 @@ pub fn migrate_contract_owner_fee_type(
 
     let v030cfg = CONFIG.may_load(storage)?;
     match v030cfg {
-        Some(cfg) => {
+        Some(_) => {
             // do nothing if exists
         }
         None => {

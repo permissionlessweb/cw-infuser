@@ -50,14 +50,11 @@
 
 ###  Update An Infusion BaseURI
 ```json
-{"update_infusion_base_uri": {"infusion_id": 2, "base_uri":"ipfs://QmPNMu4bKFaVRkyaZssto252vpUGiowair2V27DfdEP4yq", "image":"ipfs://QmRQwG97mf8b3Cpc8YbHSLgaG55cYpiUcZD6W8saUxY2Pd"}}
+{"update_infusion_base_uri": {"infusion_id": 2, "base_uri":"ipfs://QmXWasD3MnpSUNxva3aARnTxVb3hHcb59yMBQ4VRWKw1oB"}}
 ```
 
 
 ### Update an Infusion Eligible Collections Parameters
 ```json
-{"update_infusions_eligible_collections":{
-  "id": 2,"to_add": [{"addr":"stars156x86uprzaj04v7qwnpl8djj5jws3gn73jz08qkydmkd0c0lp6gqv575pm","min_req":3,"max_req":3,payment_substitute:{"denom":"ustars",amount:"10000000000"}}],"to_remove":[]
-
-}}
+{"update_infusions_eligible_collections":{"id": 2,"to_add": [{"addr":"stars156x86uprzaj04v7qwnpl8djj5jws3gn73jz08qkydmkd0c0lp6gqv575pm","min_req":3,"max_req":3,"payment_substitute":{"denom":"ustars","amount":"10000000000"}}],"to_remove":[]}}
 ```

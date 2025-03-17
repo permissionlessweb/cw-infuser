@@ -53,6 +53,10 @@ pub enum ExecuteMsg {
         id: u64,
         mint_fee: Option<Coin>,
     },
+    UpdateInfusionBundleType {
+        id: u64,
+        bundle_type: BundleType,
+    },
 }
 
 #[cw_serde]
