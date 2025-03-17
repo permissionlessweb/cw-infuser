@@ -44,8 +44,8 @@ cw-infuser = { path = "../contracts/cw-infuser" }
 cw-orch-clone-testing = "0.6.4"
 
 cw721-base = { git = "https://github.com/AbstractSDK/cw-nfts", version = "0.18.0" }
- v020infuse   = { package="cw-infuser", git = "https://github.com/permissionlessweb/cw-infuser", ref = "6f116f58548fa54b8ebec164429a576175bf48d5" }
- v020scripts   = { package="scripts", git = "https://github.com/permissionlessweb/cw-infuser", ref = "6f116f58548fa54b8ebec164429a576175bf48d5" }
+v020infuse = {  branch = "v020-migrate",package="cw-infuser",git = "https://github.com/permissionlessweb/cw-infuser"}
+v020scripts =  {  branch = "v020-migrate",package="scripts",git = "https://github.com/permissionlessweb/cw-infuser"}
 
 [dev-dependencies]
 rand = "0.8.5"

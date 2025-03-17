@@ -1358,8 +1358,8 @@ fn test_migration_v030() -> anyhow::Result<()> {
             .instantiate(
                 v020_infusion_code_id,
                 &v020infuse::msg::InstantiateMsg {
-                    admin: Some(env.admin.to_string()),
-                    admin_fee: 10,
+                    contract_owner: Some(env.admin.to_string()),
+                    owner_fee: 10,
                     min_creation_fee: Some(coin(1, "ustars")),
                     min_infusion_fee: Some(coin(2, "ustars")),
                     min_per_bundle: None,
@@ -1386,13 +1386,15 @@ fn test_migration_v030() -> anyhow::Result<()> {
     for ia in &infuse_addrs {
         env.chain.execute(
             &v020infuse::msg::ExecuteMsg::CreateInfusion {
-                collections: vec![v020infuse::state::Infusion {
+                infusions: vec![v020infuse::state::Infusion {
                     collections: good_nfts
                         .clone()
                         .into_iter()
                         .map(|n| v020infuse::state::NFTCollection {
                             addr: n.addr,
                             min_req: n.min_req,
+                            max_req: n.max_req,
+                            payment_substitute: n.payment_substitute,
                         })
                         .collect(),
                     infused_collection: v020infuse::state::InfusedCollection {
@@ -1403,14 +1405,20 @@ fn test_migration_v030() -> anyhow::Result<()> {
                         symbol: infused_col.symbol.clone(),
                         base_uri: infused_col.base_uri.clone(),
                         num_tokens: infused_col.num_tokens.clone(),
-                        extension: infused_col.royalty_info.clone(),
+                        royalty_info: infused_col.royalty_info.clone(),
+                        description: infused_col.description.clone(),
+                        image: infused_col.image.clone(),
+                        start_trading_time: infused_col.start_trading_time.clone(),
+                        explicit_content: infused_col.explicit_content.clone(),
+                        external_link: infused_col.external_link.clone(),
                     },
                     infusion_params: v020infuse::state::InfusionParams {
-                        min_per_bundle: None,
                         mint_fee: Some(coin(100, "ustars")),
                         params: None,
                     },
                     payment_recipient: env.infusion.payment_recipient.clone(),
+                    description: env.infusion.description.clone(),
+                    owner: env.infusion.owner.clone(),
                 }],
             },
             &[coin(1, "ustars".to_string())],

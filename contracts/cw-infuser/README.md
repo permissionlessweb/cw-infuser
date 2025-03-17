@@ -50,7 +50,7 @@
 
 ###  Update An Infusion BaseURI
 ```json
-{"update_infusion_base_uri": {"infusion_id": 1, "base_uri":"ipfs://QmXWasD3MnpSUNxva3aARnTxVb3hHcb59yMBQ4VRWKw1oB"}}
+{"update_infusion_base_uri": {"infusion_id": 2, "base_uri":"ipfs://QmPNMu4bKFaVRkyaZssto252vpUGiowair2V27DfdEP4yq", "image":"ipfs://QmRQwG97mf8b3Cpc8YbHSLgaG55cYpiUcZD6W8saUxY2Pd"}}
 ```
 
 

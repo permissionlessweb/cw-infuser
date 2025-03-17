@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Coin, Decimal, HexBinary, Timestamp};
 use cw_storage_plus::{Item, Map};
 use sg721::RoyaltyInfoResponse;
 
-pub const CONFIG: Item<Config> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("cfg");
 pub const COUNT: Item<i32> = Item::new("count");
 /// infusions saved to map with key of (infused_collection_addr, infusion_id )
 pub const INFUSION: Map<(Addr, u64), InfusionState> = Map::new("infusion");

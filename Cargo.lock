@@ -1263,8 +1263,8 @@ dependencies = [
 
 [[package]]
 name = "cw-infuser"
-version = "0.1.0"
-source = "git+https://github.com/permissionlessweb/cw-infuser#167176340427b19800b76281e7ceea87ac3382ae"
+version = "0.2.1"
+source = "git+https://github.com/permissionlessweb/cw-infuser?branch=v020-migrate#6f116f58548fa54b8ebec164429a576175bf48d5"
 dependencies = [
  "abstract-cw20",
  "abstract-cw20-base",
@@ -1281,6 +1281,7 @@ dependencies = [
  "rand_core 0.6.4",
  "rand_xoshiro",
  "schemars",
+ "semver",
  "serde",
  "sg-std",
  "sg721",
@@ -1293,7 +1294,7 @@ dependencies = [
 
 [[package]]
 name = "cw-infuser"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "abstract-cw20",
  "abstract-cw20-base",
@@ -1302,7 +1303,7 @@ dependencies = [
  "cosmwasm-std 1.5.11",
  "cw-asset",
  "cw-controllers",
- "cw-infuser 0.1.0",
+ "cw-infuser 0.2.1",
  "cw-multi-test",
  "cw-orch 0.22.2",
  "cw-storage-plus 1.2.0",
@@ -3939,7 +3940,7 @@ dependencies = [
  "clap",
  "cosmrs",
  "cosmwasm-std 1.5.11",
- "cw-infuser 0.3.0",
+ "cw-infuser 0.3.1",
  "cw-orch 0.24.1",
  "cw-orch-clone-testing",
  "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3952,13 +3953,13 @@ dependencies = [
 [[package]]
 name = "scripts"
 version = "0.1.0"
-source = "git+https://github.com/permissionlessweb/cw-infuser#167176340427b19800b76281e7ceea87ac3382ae"
+source = "git+https://github.com/permissionlessweb/cw-infuser?branch=v020-migrate#6f116f58548fa54b8ebec164429a576175bf48d5"
 dependencies = [
  "anyhow",
  "clap",
  "cosmrs",
  "cosmwasm-std 1.5.11",
- "cw-infuser 0.1.0",
+ "cw-infuser 0.2.1",
  "cw-orch 0.24.1",
  "cw-orch-clone-testing",
  "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4585,8 +4586,8 @@ dependencies = [
  "anyhow",
  "cosmwasm-schema 1.5.11",
  "cosmwasm-std 1.5.11",
- "cw-infuser 0.1.0",
- "cw-infuser 0.3.0",
+ "cw-infuser 0.2.1",
+ "cw-infuser 0.3.1",
  "cw-multi-test",
  "cw-orch 0.22.2",
  "cw-orch-clone-testing",
@@ -4600,7 +4601,7 @@ dependencies = [
  "rand",
  "schemars",
  "scripts 0.1.0",
- "scripts 0.1.0 (git+https://github.com/permissionlessweb/cw-infuser)",
+ "scripts 0.1.0 (git+https://github.com/permissionlessweb/cw-infuser?branch=v020-migrate)",
  "serde",
  "sg-std",
  "sg2",

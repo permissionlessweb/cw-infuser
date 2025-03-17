@@ -1,4 +1,5 @@
 use cosmwasm_std::{Decimal, Env, Storage};
+use cw_storage_plus::Item;
 
 use crate::{
     msg::MigrateMsg,
@@ -26,10 +27,9 @@ pub fn migrate_infusions_bundle_type(storage: &mut dyn Storage) -> Result<(), Co
         .map(|i| i.unwrap())
         .collect();
 
-    // Now iterate over the collected infusions and save new states
     for (key, state) in infusions {
         INFUSION.save(
-            storage, // Note: storage is mutable here
+            storage,
             key,
             &InfusionState {
                 enabled: true,
@@ -48,15 +48,15 @@ pub fn migrate_infusions_bundle_type(storage: &mut dyn Storage) -> Result<(), Co
                     sg: state.infused_collection.sg,
                     admin: state.infused_collection.admin,
                     name: state.infused_collection.name,
-                    description: "".to_string(),
+                    description: state.infused_collection.description.to_string(),
                     symbol: state.infused_collection.symbol,
                     base_uri: state.infused_collection.base_uri.clone(),
-                    image: state.infused_collection.base_uri,
+                    image: state.infused_collection.image,
                     num_tokens: state.infused_collection.num_tokens,
-                    royalty_info: state.infused_collection.extension,
-                    start_trading_time: None,
-                    explicit_content: None,
-                    external_link: None,
+                    royalty_info: state.infused_collection.royalty_info,
+                    start_trading_time: state.infused_collection.start_trading_time,
+                    explicit_content: state.infused_collection.explicit_content,
+                    external_link: state.infused_collection.external_link,
                     addr: state.infused_collection.addr,
                 },
                 infusion_params: InfusionParamState {
@@ -79,23 +79,32 @@ pub fn migrate_contract_owner_fee_type(
 ) -> Result<(), ContractError> {
     // match with new config type, replacing the owner admin u64 with Decimals
     let v020cfg = v020infuse::state::CONFIG.load(storage)?;
- 
-    CONFIG.save(
-        storage,
-        &Config {
-            latest_infusion_id: v020cfg.latest_infusion_id,
-            contract_owner: v020cfg.admin,
-            owner_fee: Decimal::percent(v020cfg.admin_fee), // turn existing fee into decimal.  100u64 = 100%
-            min_creation_fee: v020cfg.min_creation_fee,
-            min_infusion_fee: v020cfg.min_infusion_fee,
-            max_infusions: v020cfg.max_infusions,
-            min_per_bundle: v020cfg.min_per_bundle,
-            max_per_bundle: v020cfg.max_per_bundle,
-            max_bundles: v020cfg.max_bundles,
-            code_id: v020cfg.code_id,
-            code_hash: v020cfg.code_hash,
-        },
-    )?;
+
+    let newcfg = &Config {
+        latest_infusion_id: v020cfg.latest_infusion_id,
+        contract_owner: v020cfg.contract_owner,
+        owner_fee: Decimal::percent(v020cfg.owner_fee), // turn existing fee into decimal.  100u64 = 100%
+        min_creation_fee: v020cfg.min_creation_fee,
+        min_infusion_fee: v020cfg.min_infusion_fee,
+        max_infusions: v020cfg.max_infusions,
+        min_per_bundle: v020cfg.min_per_bundle,
+        max_per_bundle: v020cfg.max_per_bundle,
+        max_bundles: v020cfg.max_bundles,
+        code_id: v020cfg.code_id,
+        code_hash: v020cfg.code_hash,
+    };
+
+    let v030cfg = CONFIG.may_load(storage)?;
+    match v030cfg {
+        Some(cfg) => {
+            // do nothing if exists
+        }
+        None => {
+            // save new item to map
+            let cfg: Item<Config> = Item::new("cfg");
+            cfg.save(storage, &newcfg)?;
+        }
+    }
 
     Ok(())
 }
