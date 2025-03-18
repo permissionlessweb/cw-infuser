@@ -14,7 +14,7 @@ cw-orch-clone-testing = "0.6.4"
 cw721 = "0.18.0"
 dotenv = "0.15.0"
 env_logger = { version = "0.11.3", default-features = false }
-cw-infuser = {version = "0.4.0", path = "../contracts/cw-infuser" }
+cw-infuser = {version = "0.4.2", path = "../contracts/cw-infuser" }
 sg721 = "^3.3"
 sg721-base = "^3.3"
 clap = "4.5.23"

@@ -13,7 +13,9 @@ pub const INFUSION_CREATOR: Map<u64, Addr> = Map::new("ic");
 pub const INFUSION_INFO: Map<&Addr, InfusionInfo> = Map::new("infusion_info");
 // map of index position and token id
 pub const MINT_COUNT: Item<u64> = Item::new("mtc");
-pub const MINTABLE_TOKEN_POSITIONS: Map<u32, u32> = Map::new("mt");
+/// map of minting positions for infusions:  (infusion_id,mint_position), token-id
+pub const MINTABLE_TOKEN_VECTORS: Map<u64, Vec<u32>> = Map::new("mt_vectors");
+
 pub const MINTABLE_NUM_TOKENS: Map<String, u32> = Map::new("mnt");
 
 #[cosmwasm_schema::cw_serde]
@@ -84,6 +86,7 @@ pub struct InfusionState {
 }
 
 #[cosmwasm_schema::cw_serde]
+#[derive(Default)]
 pub struct InfusionParamState {
     pub bundle_type: BundleType,
     pub mint_fee: Option<Coin>,
@@ -99,7 +102,11 @@ pub enum BundleType {
     // A mapping of possible combinations of eligible collections and required nfts that will be accepted.
     AnyOfBlend { blends: Vec<BundleBlend> },
 }
-
+impl Default for BundleType {
+    fn default() -> Self {
+        BundleType::AllOf {}
+    }
+}
 impl BundleType {
     pub fn strain(&self) -> i32 {
         match self {
@@ -153,6 +160,7 @@ pub struct BlendNFTs {
 }
 
 #[cosmwasm_schema::cw_serde]
+#[derive(Default)]
 pub struct InfusedCollection {
     pub sg: bool,
     pub admin: Option<String>,
@@ -201,5 +209,3 @@ pub struct TokenPositionMapping {
     pub position: u32,
     pub token_id: u32,
 }
-
- 

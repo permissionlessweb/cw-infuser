@@ -73,6 +73,15 @@
 ```
 
 
+### Update Infusion Mint Fee
+```json
+{
+  "update_infusion_mint_fee": {
+    "id": 2,
+    "mint_fee": {"denom":"ustars","amount":"100000000"}
+  }
+}
+```
 ### Update an Infusion Eligible Collections Parameters
 ```json
 {"update_infusions_eligible_collections":{"id": 2,"to_add": [{"addr":"stars156x86uprzaj04v7qwnpl8djj5jws3gn73jz08qkydmkd0c0lp6gqv575pm","min_req":3,"max_req":3,"payment_substitute":{"denom":"ustars","amount":"10000000000"}}],"to_remove":[]}}

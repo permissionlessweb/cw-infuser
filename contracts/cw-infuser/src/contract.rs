@@ -3,14 +3,14 @@ use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, Quer
 use crate::state::{
     Bundle, BundleBlend, BundleType, Config, InfusedCollection, Infusion, InfusionParamState,
     InfusionState, NFTCollection, TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION,
-    INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_POSITIONS, MINT_COUNT, NFT,
+    INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_VECTORS, MINT_COUNT, NFT,
 };
 use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, Order, QuerierWrapper,
+    Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QuerierWrapper,
     QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
     WasmQuery,
 };
@@ -439,12 +439,8 @@ pub fn execute_create_infusion(
             (1..=infusion.infused_collection.num_tokens).collect::<Vec<u32>>(),
         )?;
 
-        // Save mintable token ids map
-        let mut token_position = 1;
-        for token_id in token_ids {
-            MINTABLE_TOKEN_POSITIONS.save(deps.storage, token_position, &token_id)?;
-            token_position += 1;
-        }
+        // Save the updated vector
+        MINTABLE_TOKEN_VECTORS.save(deps.storage, infusion_id, &token_ids)?;
 
         let infusion_config = InfusionState {
             collections: infusion.collections,
@@ -478,7 +474,8 @@ pub fn execute_create_infusion(
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
         // contribute to contract randomness
-        MINT_COUNT.update(deps.storage, |mc| Ok::<u64, ContractError>(mc + 1u64))?;
+        let mc = MINT_COUNT.load(deps.storage).unwrap_or_default();
+        MINT_COUNT.save(deps.storage, &(mc + 1u64))?;
         MINTABLE_NUM_TOKENS.save(
             deps.storage,
             infusion_collection_addr_human.to_string(),
@@ -714,6 +711,7 @@ fn execute_infuse_bundle(
             bundle.nfts,
             &sender,
             &infusion,
+            infusion_id,
             &funds,
         )?;
         MINT_COUNT.save(deps.storage, &burn.1)?;
@@ -732,6 +730,7 @@ fn burn_bundle(
     nfts: Vec<NFT>,
     sender: &Addr,
     infusion: &InfusionState,
+    infusion_id: u64,
     funds: &Vec<Coin>,
 ) -> Result<(Vec<CosmosMsg>, u64), ContractError> {
     let mut msgs: Vec<CosmosMsg> = Vec::new();
@@ -745,7 +744,7 @@ fn burn_bundle(
         infusion.payment_recipient.to_string(),
     )?;
 
-    println!("mint_num: {:#?}", mint_num);
+    // println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
             Cw721ExecuteMsg::Burn {
@@ -773,6 +772,7 @@ fn burn_bundle(
             ),
             sender.clone(),
             mc,
+            infusion_id,
         )?;
 
         // mint_msg
@@ -815,22 +815,26 @@ fn check_bundles(
     let btype: i32 = bundle_type.strain();
     let mut infused_mint_count = 0u64;
     let mut msgs = Vec::new();
-    // A mapping of the collections in AllOf that had a successful fee replacement
+    // A ephemeral map of the eligible nft addr in AllOf that had a successful fee replacement
     let mut anyof_map = Vec::new();
-    // An ephemeral mapping of the amount of nfts an eligible collection has.
+    // An ephemeral map of the # of nfts an eligible collection has.
     let mut total_bundle_map = Vec::new();
 
+    let mut eligible_in_bundle_map = Vec::new();
+    // println!("eligible: {:#?}", eligible);
     for eli in &eligible {
         let elig = bundle
             .iter()
             .filter(|b| b.addr == eli.addr)
             .collect::<Vec<_>>();
         let elig_len = elig.len() as u64;
+        eligible_in_bundle_map.push((eli.addr).clone());
 
-        //1.  payment substitute
+        // 1. payment substitute assertion
         if let Some(ps) = eli.payment_substitute.clone() {
             if elig_len < eli.min_req {
                 match btype {
+                    // allOf
                     1 => {
                         let count = check_fee_substitute(btype, &eli.addr, &ps, sent)?;
                         if count == 1 {
@@ -843,8 +847,10 @@ fn check_bundles(
                             )?;
                             msgs.extend(fee_msgs);
                             anyof_map.push(eli.addr.to_string());
+                        } else {
                         }
                     }
+                    // anyOf & anyOfBlend
                     _ => {
                         let count = check_fee_substitute(btype, &eli.addr, &ps, sent)?;
                         if count != 0u64 {
@@ -930,8 +936,17 @@ fn check_bundles(
                         blends.to_vec(),
                     )?;
                 }
-                BundleType::AllOf {} => {}
+                BundleType::AllOf {} => {},
             }
+        }
+    }
+
+    for bun in bundle {
+        if !eligible_in_bundle_map.contains(&bun.addr) {
+            return Err(ContractError::BundleCollectionNotEligilbe {
+                bun_type: btype,
+                col: bun.addr.to_string(),
+            });
         }
     }
 
@@ -1028,7 +1043,7 @@ fn check_fee_substitute(
         .map(|coin| coin.amount / ps.amount)
         .sum::<Uint128>();
 
-    println!("mint_count:  {:#?}", mint_count);
+    // println!("mint_count:  {:#?}", mint_count);
 
     // If no matching denominations found, set mint_count to 0
     let has_matching_denomination = sent.iter().any(|coin| coin.denom == ps.denom);
@@ -1113,6 +1128,7 @@ fn get_next_id(
     infused_col_addr: Addr,
     sender: Addr,
     mint_count: u64,
+    infusion_id: u64,
 ) -> Result<TokenPositionMapping, ContractError> {
     let mintable_num_tokens =
         MINTABLE_NUM_TOKENS.load(deps.storage, infused_col_addr.to_string())?;
@@ -1126,6 +1142,7 @@ fn get_next_id(
         sender.clone(),
         mintable_num_tokens,
         mint_count,
+        infusion_id,
     )?;
 
     Ok(mintable_token_mapping)
@@ -1206,7 +1223,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
     Binary(result)
 }
 
-fn random_token_list(
+pub fn random_token_list(
     env: &Env,
     sender: Addr,
     mut tokens: Vec<u32>,
@@ -1236,6 +1253,7 @@ fn random_mintable_token_mapping(
     sender: Addr,
     num_tokens: u32,
     mint_count: u64,
+    infusion_id: u64,
 ) -> Result<TokenPositionMapping, ContractError> {
     let tx_index = if let Some(tx) = &env.transaction {
         tx.index
@@ -1257,23 +1275,19 @@ fn random_mintable_token_mapping(
 
     let r = rng.next_u32();
 
-    let order = match r % 2 {
-        1 => Order::Descending,
-        _ => Order::Ascending,
-    };
     let mut rem = 50;
     if rem > num_tokens {
         rem = num_tokens;
     }
-    let n = r % rem;
-    let position = MINTABLE_TOKEN_POSITIONS
-        .keys(deps.storage, None, None, order)
-        .skip(n as usize)
-        .take(1)
-        .collect::<StdResult<Vec<_>>>()?[0];
 
-    let token_id = MINTABLE_TOKEN_POSITIONS.load(deps.storage, position)?;
-    Ok(TokenPositionMapping { position, token_id })
+    let n = r % rem;
+    let infusion_positions = MINTABLE_TOKEN_VECTORS.load(deps.storage, infusion_id)?;
+    let token_id = infusion_positions[n as usize - 1];
+
+    Ok(TokenPositionMapping {
+        position: n,
+        token_id,
+    })
 }
 
 /// Update the configuration of the app
@@ -1360,6 +1374,14 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
     #[allow(clippy::cmp_owned)]
     if prev_version.version < "0.4.0".to_string() {
         crate::upgrades::v0_4_0::patch_mint_count_v040(deps.storage)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+    }
+
+    #[allow(clippy::cmp_owned)]
+    if prev_version.version < "0.4.1".to_string() {
+        let data = crate::upgrades::v0_4_0::v0410_remove_mint_count_store(deps.storage)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+        crate::upgrades::v0_4_0::v0410_add_mint_count_store(deps.storage, env, data)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
     }
     // set new contract version
