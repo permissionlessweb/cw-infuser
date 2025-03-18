@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Env, QuerierWrapper, Storage};
+use cosmwasm_std::{Addr, Env, Storage};
 
 use crate::{
     contract::random_token_list,
@@ -62,7 +62,7 @@ pub fn v0410_add_mint_count_store(
         let infusion = INFUSION.load(storage, infuser)?;
         let token_ids = random_token_list(
             &env,
-            Addr::unchecked(infusion.owner),
+            &Addr::unchecked(infusion.owner),
             (1..=infusion.infused_collection.num_tokens).collect::<Vec<u32>>(),
         )?;
         // omit token id's already minted
@@ -150,7 +150,7 @@ mod test {
         let inf1_token_id = vec!["187", "332", "477", "594", "88"];
         let inf2_token_id = vec!["487"];
         let mut binding = mock_dependencies();
-        let mut mockdeps = binding.as_mut();
+        let mockdeps = binding.as_mut();
         let mut mockenv = mock_env();
         let infcoladdr1 = Addr::unchecked("cosmos1infuse1");
         let infcoladdr2 = Addr::unchecked("cosmos1infus2");
@@ -191,7 +191,7 @@ mod test {
 
         let token_ids1 = random_token_list(
             &mockenv.clone(),
-            info.sender.clone(),
+            &info.sender.clone(),
             (1..=666).collect::<Vec<u32>>(),
         )?;
         //  find the existing tokens we have and save them to map
@@ -215,7 +215,7 @@ mod test {
         mockenv.block.height = mockenv.block.height + 1;
         let token_ids2 = random_token_list(
             &mockenv.clone(),
-            info.sender.clone(),
+            &info.sender.clone(),
             (1..=100).collect::<Vec<u32>>(),
         )?;
 

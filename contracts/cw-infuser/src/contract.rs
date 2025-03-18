@@ -430,7 +430,7 @@ pub fn execute_create_infusion(
 
         let token_ids = random_token_list(
             &env,
-            deps.api.addr_validate(
+            &deps.api.addr_validate(
                 &infusion
                     .infused_collection
                     .addr
@@ -745,7 +745,7 @@ fn burn_bundle(
         infusion.payment_recipient.to_string(),
     )?;
 
-    println!("mint_num: {:#?}", mint_num);
+    // println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
             Cw721ExecuteMsg::Burn {
@@ -764,14 +764,14 @@ fn burn_bundle(
         let token_id = get_next_id(
             &deps,
             env.clone(),
-            Addr::unchecked(
+            &Addr::unchecked(
                 infusion
                     .infused_collection
                     .addr
                     .clone()
                     .expect("no infused collection"),
             ),
-            sender.clone(),
+            &sender,
             mc,
             infusion_id,
         )?;
@@ -1149,8 +1149,8 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
 fn get_next_id(
     deps: &DepsMut,
     env: Env,
-    infused_col_addr: Addr,
-    sender: Addr,
+    infused_col_addr: &Addr,
+    sender: &Addr,
     mint_count: u64,
     infusion_id: u64,
 ) -> Result<TokenPositionMapping, ContractError> {
@@ -1249,7 +1249,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
 
 pub fn random_token_list(
     env: &Env,
-    sender: Addr,
+    sender: &Addr,
     mut tokens: Vec<u32>,
 ) -> Result<Vec<u32>, ContractError> {
     let tx_index = if let Some(tx) = &env.transaction {
@@ -1305,8 +1305,13 @@ fn random_mintable_token_mapping(
     }
 
     let n = r % rem;
+
     let infusion_positions = MINTABLE_TOKEN_VECTORS.load(deps.storage, infusion_id)?;
-    let token_id = infusion_positions[n as usize - 1];
+    // println!("rem: {:#?}", rem);
+    // println!("num_tokens: {:#?}", num_tokens);
+    // println!("n: {:#?}", n);
+    // println!("infusion_positions: {:#?}", infusion_positions);
+    let token_id = infusion_positions[n as usize];
 
     Ok(TokenPositionMapping {
         position: n,
@@ -1422,8 +1427,103 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+
     use super::*;
     use std::str::FromStr;
+
+    fn mint_sim(
+        mut env: Env,
+        deps: &DepsMut,
+        inf_col_addr: &Addr,
+        sender: &Addr,
+        mc: u64,
+        token_id: u64,
+        infusion_id: u64,
+    ) -> TokenPositionMapping {
+        env.block.height += 1;
+
+        get_next_id(&deps, env.clone(), inf_col_addr, &sender, mc, infusion_id).unwrap()
+    }
+    #[test]
+    fn test_validate_token_selecta_aka_random_token_list() {
+        let mut binding = mock_dependencies();
+        let deps = binding.as_mut();
+        let api = deps.api.clone();
+        let info = mock_info("sender", &[]);
+        let mut env = mock_env();
+        let inf_col_addr_1 = Addr::unchecked("cosmos1abc");
+        let inf_col_addr_2 = Addr::unchecked("cosmos1zya");
+
+        let token_ids1 =
+            random_token_list(&env, &info.sender, (1..=666).collect::<Vec<u32>>()).unwrap();
+        env.block.height += 1;
+        let token_ids2 =
+            random_token_list(&env, &info.sender, (1..=100).collect::<Vec<u32>>()).unwrap();
+
+        // Save the updated vector
+        MINTABLE_TOKEN_VECTORS
+            .save(deps.storage, 1, &token_ids1)
+            .unwrap();
+        // Save the updated vector
+        MINTABLE_TOKEN_VECTORS
+            .save(deps.storage, 2, &token_ids2)
+            .unwrap();
+
+        MINTABLE_NUM_TOKENS
+            .save(deps.storage, inf_col_addr_1.to_string(), &666)
+            .unwrap();
+        MINTABLE_NUM_TOKENS
+            .save(deps.storage, inf_col_addr_2.to_string(), &100)
+            .unwrap();
+
+        let mut found1 = vec![];
+        let mut found2 = vec![];
+        for id in &token_ids1 {
+            if found1.contains(&id) {
+                panic!("ahhh")
+            } else {
+                found1.push(id);
+            }
+        }
+        for id in &token_ids2 {
+            if found2.contains(&id) {
+                panic!("ahhh")
+            } else {
+                found2.push(id);
+            }
+        }
+        let mut sim_mint_count = 2;
+        for i in 1..token_ids1.len() {
+            // ensure we do not have token id collisions
+            let tpm = mint_sim(
+                env.clone(),
+                &deps,
+                &inf_col_addr_1,
+                &info.sender,
+                sim_mint_count + 1,
+                token_ids1[i].into(),
+                1,
+            );
+        }
+        for i in 1..token_ids2.len() {
+            // ensure we do not have token id collisions
+            let tpm = mint_sim(
+                env.clone(),
+                &deps,
+                &inf_col_addr_2,
+                &info.sender,
+                sim_mint_count,
+                token_ids2[i].into(),
+                2,
+            );
+            println!(
+                "tpm.position: {:#?}, tpm.token_id:{:#?} ",
+                tpm.position, tpm.token_id
+            );
+            sim_mint_count += 1;
+        }
+    }
     #[test]
     fn test_form_feesplit_helper() {
         let owner_fee = Decimal::from_str("0.1").unwrap(); // 10% fee for owner
