@@ -27,6 +27,9 @@ pub enum ContractError {
     #[error("Cannot specify the same contract address more than once")]
     DuplicateCollectionInInfusion,
 
+    #[error("NftIsNotEligible: {col}")]
+    NftIsNotEligible { col: String },
+
     #[error("Bundle of type {bun_type} povided does not contain any nfts for collection: {col}")]
     BundleCollectionNotEligilbe { bun_type: i32, col: String },
 

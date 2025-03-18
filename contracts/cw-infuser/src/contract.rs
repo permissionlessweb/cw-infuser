@@ -714,6 +714,7 @@ fn execute_infuse_bundle(
             infusion_id,
             &funds,
         )?;
+        println!("burn: {:#?}", burn);
         MINT_COUNT.save(deps.storage, &burn.1)?;
         msgs.extend(burn.0);
     }
@@ -744,7 +745,7 @@ fn burn_bundle(
         infusion.payment_recipient.to_string(),
     )?;
 
-    // println!("mint_num: {:#?}", mint_num);
+    println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
             Cw721ExecuteMsg::Burn {
@@ -815,14 +816,12 @@ fn check_bundles(
     let btype: i32 = bundle_type.strain();
     let mut infused_mint_count = 0u64;
     let mut msgs = Vec::new();
-    // A ephemeral map of the eligible nft addr in AllOf that had a successful fee replacement
-    let mut anyof_map = Vec::new();
-    // An ephemeral map of the # of nfts an eligible collection has.
+    let mut fee_sub_map = Vec::new();
     let mut total_bundle_map = Vec::new();
-
     let mut eligible_in_bundle_map = Vec::new();
-    // println!("eligible: {:#?}", eligible);
+
     for eli in &eligible {
+        // println!("eligigble debug: {:#?}", eli);
         let elig = bundle
             .iter()
             .filter(|b| b.addr == eli.addr)
@@ -838,7 +837,6 @@ fn check_bundles(
                     1 => {
                         let count = check_fee_substitute(btype, &eli.addr, &ps, sent)?;
                         if count == 1 {
-                            infused_mint_count = infused_mint_count + count;
                             let fee_msgs = form_feesplit_helper(
                                 cfg.owner_fee,
                                 cfg.contract_owner.to_string(),
@@ -846,15 +844,19 @@ fn check_bundles(
                                 ps,
                             )?;
                             msgs.extend(fee_msgs);
-                            anyof_map.push(eli.addr.to_string());
-                        } else {
+                            fee_sub_map.push(eli.addr.to_string());
+                            infused_mint_count += count;
+                            // println!(
+                            //     "mint-count increment: allOf-substitute: {:#?}",
+                            //     infused_mint_count
+                            // );
                         }
                     }
                     // anyOf & anyOfBlend
                     _ => {
                         let count = check_fee_substitute(btype, &eli.addr, &ps, sent)?;
                         if count != 0u64 {
-                            anyof_map.push(eli.addr.to_string());
+                            fee_sub_map.push(eli.addr.to_string());
                             let fee_msgs = form_feesplit_helper(
                                 cfg.owner_fee,
                                 cfg.contract_owner.to_string(),
@@ -862,7 +864,11 @@ fn check_bundles(
                                 ps,
                             )?;
                             msgs.extend(fee_msgs);
-                            infused_mint_count = infused_mint_count + count;
+                            infused_mint_count += count;
+                            // println!(
+                            //     "mint-count increment: anyOf-substitute: {:#?}",
+                            //     infused_mint_count
+                            // );
                         }
                     }
                 }
@@ -881,7 +887,7 @@ fn check_bundles(
         if elig_len != eli.min_req {
             match bundle_type {
                 BundleType::AllOf {} => {
-                    if !anyof_map.contains(&eli.addr.to_string()) {
+                    if !fee_sub_map.contains(&eli.addr.to_string()) {
                         return Err(ContractError::BundleNotAccepted {
                             have: elig_len,
                             want: eli.min_req,
@@ -889,28 +895,36 @@ fn check_bundles(
                     }
                 }
                 BundleType::AnyOf { addrs: ref any_of } => {
-                    if !anyof_map.contains(&eli.addr.to_string()) {
+                    if !fee_sub_map.contains(&eli.addr.to_string()) {
                         let mc = check_anyof_bundle_helper(
-                            &anyof_map,
+                            &fee_sub_map,
                             sent.to_vec(),
                             vec![(eli.clone(), elig_len)],
                             any_of.clone(),
                             vec![],
                         )?;
-                        infused_mint_count = infused_mint_count + mc;
+                        infused_mint_count += mc;
+                        println!(
+                            "infused_mint_count incremented anyOf: {:#?}",
+                            infused_mint_count
+                        );
                         // save to map outside of elig loop
                         total_bundle_map.push((eli.clone(), elig_len));
                     }
                 }
                 BundleType::AnyOfBlend { ref blends } => {
                     let mc = check_anyof_bundle_helper(
-                        &anyof_map,
+                        &fee_sub_map,
                         sent.to_vec(),
                         vec![(eli.clone(), elig_len)],
                         vec![],
                         blends.to_vec(),
                     )?;
-                    infused_mint_count = infused_mint_count + mc;
+                    infused_mint_count += mc;
+                    // println!(
+                    //     "infused_mint_count incremented anyOfBlend: {:#?}",
+                    //     infused_mint_count
+                    // );
                     total_bundle_map.push((eli.clone(), elig_len));
                 }
             }
@@ -919,35 +933,48 @@ fn check_bundles(
                 BundleType::AnyOf { addrs: ref any_of } => {
                     total_bundle_map.push((eli.clone(), elig_len));
                     let mc = check_anyof_bundle_helper(
-                        &anyof_map,
+                        &fee_sub_map,
                         sent.to_vec(),
                         vec![(eli.clone(), elig_len)],
                         any_of.clone(),
                         vec![],
                     )?;
-                    infused_mint_count = infused_mint_count + mc;
+                    infused_mint_count += mc;
+                    // println!(
+                    //     "infused_mint_count incremented anyOf: {:#?}",
+                    //     infused_mint_count
+                    // );
                 }
                 BundleType::AnyOfBlend { ref blends } => {
                     check_anyof_bundle_helper(
-                        &anyof_map,
+                        &fee_sub_map,
                         sent.to_vec(),
                         vec![(eli.clone(), elig_len)],
                         vec![],
                         blends.to_vec(),
                     )?;
                 }
-                BundleType::AllOf {} => {},
+                BundleType::AllOf {} => {}
             }
         }
     }
 
     for bun in bundle {
         if !eligible_in_bundle_map.contains(&bun.addr) {
-            return Err(ContractError::BundleCollectionNotEligilbe {
-                bun_type: btype,
+            return Err(ContractError::NftIsNotEligible {
                 col: bun.addr.to_string(),
             });
         }
+    }
+
+    match btype {
+        1 => {
+            if infused_mint_count != 1 {
+                infused_mint_count = 1;
+                // println!("allOf bundle validated. mint count set to: {:#?}", infused_mint_count);
+            }
+        }
+        _ => {}
     }
 
     Ok((msgs, infused_mint_count))
@@ -962,9 +989,9 @@ fn check_anyof_bundle_helper(
 ) -> Result<u64, ContractError> {
     let mut mc = 0u64;
     let mut error = ContractError::UnTriggered;
-    println!("elig_count: {:#?}", elig_count);
-    println!("anyof: {:#?}", anyof_list);
-    println!("sent: {:#?}", sent);
+    // println!("elig_count: {:#?}", elig_count);
+    // println!("anyof: {:#?}", anyof_list);
+    // println!("sent: {:#?}", sent);
 
     if !anyof_list.is_empty() {
         for any in anyof_list.iter() {
@@ -1010,15 +1037,12 @@ fn check_anyof_bundle_helper(
             }
         }
     }
-    println!("error: {:#?}", error);
-    println!("mc after: {:#?}", mc);
+    // println!("error: {:#?}", error);
+    // println!("mc after: {:#?}", mc);
 
     if anyofblend != vec![] {
         //  todo:anyofBlendLogic
         return Err(ContractError::UnImplemented);
-        // for this in elig_count.iter() {
-        //     for any in anyofblend.clone() {}
-        // }
     }
     if error.to_string() != ContractError::UnTriggered.to_string() {
         return Err(error);

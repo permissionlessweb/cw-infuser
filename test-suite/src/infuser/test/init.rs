@@ -918,7 +918,6 @@ fn test_infusion_fee_all_of() -> anyhow::Result<()> {
     env.infusion.collections[1].payment_substitute = Some(coin(200u128, "ustars"));
 
     // good infusion creation
-    // good infusion creation
     let infusion_id = app
         .execute(
             &ExecuteMsg::CreateInfusion {
@@ -984,8 +983,7 @@ fn test_infusion_fee_all_of() -> anyhow::Result<()> {
 
     assert_eq!(
         err.downcast::<ContractError>()?.to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            bun_type: 1,
+        ContractError::NftIsNotEligible {
             col: env.nfts[2].to_string(),
         }
         .to_string()
@@ -1049,6 +1047,100 @@ fn test_infusion_fee_all_of() -> anyhow::Result<()> {
     assert_eq!(res[0], "burn");
     assert_eq!(res[1], "burn");
     assert_eq!(res[2], "mint");
+
+    env.chain.wait_blocks(1)?;
+    // good infusion creation
+    env.infusion.collections[1].payment_substitute = None;
+    let infusion_id = app
+        .execute(
+            &ExecuteMsg::CreateInfusion {
+                infusions: vec![env.infusion.clone()],
+            },
+            Some(&[coin(500, "ustars")]),
+        )?
+        .event_attr_value("wasm", "infusion-id")?;
+
+    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+
+    let mut bundle = Bundle { nfts: vec![] };
+
+    let err = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(300, "ustars")]),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::BundleCollectionNotEligilbe {
+            bun_type: 1,
+            col: env.nfts[0].to_string(),
+        }
+        .to_string()
+    );
+
+    bundle.nfts = vec![
+        NFT {
+            addr: env.nfts[0].clone(),
+            token_id: 15,
+        },
+        NFT {
+            addr: env.nfts[0].clone(),
+            token_id: 16,
+        },
+    ];
+
+    let err = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(300, "ustars")]),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>()?.to_string(),
+        ContractError::BundleCollectionNotEligilbe {
+            bun_type: 1,
+            col: env.nfts[1].to_string(),
+        }
+        .to_string()
+    );
+    bundle.nfts.extend(vec![
+        NFT {
+            addr: env.nfts[1].clone(),
+            token_id: 15,
+        },
+        NFT {
+            addr: env.nfts[2].clone(),
+            token_id: 11,
+        },
+    ]);
+    bundle.nfts.pop();
+    let res = app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                infusion_id: infusion_id.clone(),
+                bundle: vec![bundle.clone()],
+            },
+            Some(&[coin(300, "ustars")]),
+        )?
+        .event_attr_values("wasm", "action");
+    println!("event attribute values for infusion: {:#?}", res);
+    assert_eq!(res.len(), 4);
+    assert_eq!(res[0], "burn");
+    assert_eq!(res[1], "burn");
+    assert_eq!(res[2], "burn");
+    assert_eq!(res[3], "mint");
 
     // error on incorrect static mint fee
     Ok(())
