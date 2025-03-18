@@ -1562,4 +1562,29 @@ mod tests {
             _ => panic!("Second message should be a Bank Send message"),
         }
     }
+
+    #[test]
+
+    // 47KB for 10k
+    fn verify_storage_size() {
+        let mut deps = mock_dependencies();
+
+        let data: Vec<u32> = (1..=10000).collect();
+
+        // Store the data
+
+        MINTABLE_TOKEN_VECTORS
+            .save(&mut deps.storage, 1, &data)
+            .unwrap();
+
+        // Load raw bytes
+
+        let key = MINTABLE_TOKEN_VECTORS.key(1);
+
+        let raw_bytes = deps.storage.get(&key).unwrap();
+
+        assert_eq!(raw_bytes.len(), 48895);
+
+        // Passes
+    }
 }
