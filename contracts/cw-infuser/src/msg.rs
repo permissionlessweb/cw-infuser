@@ -57,6 +57,10 @@ pub enum ExecuteMsg {
         id: u64,
         bundle_type: BundleType,
     },
+    Shuffle {
+        id: u64,
+        infused_collection_addr: String,
+    },
 }
 
 #[cw_serde]

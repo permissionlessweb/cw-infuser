@@ -101,6 +101,7 @@ pub fn instantiate(
             owner_fee: msg.owner_fee,
             min_creation_fee: msg.min_creation_fee,
             min_infusion_fee: msg.min_infusion_fee,
+            // shuffle_fee: todo!(),
         },
     )?;
     Ok(Response::new())
@@ -137,6 +138,10 @@ pub fn execute(
         ExecuteMsg::UpdateInfusionBundleType { id, bundle_type } => {
             update_infusion_bundle_type(deps, info, id, bundle_type)
         }
+        ExecuteMsg::Shuffle {
+            id,
+            infused_collection_addr,
+        } => execute_shuffle(deps, env, info, id, infused_collection_addr),
     }
 }
 
@@ -430,7 +435,7 @@ pub fn execute_create_infusion(
 
         let token_ids = random_token_list(
             &env,
-            &deps.api.addr_validate(
+            deps.api.addr_validate(
                 &infusion
                     .infused_collection
                     .addr
@@ -758,8 +763,10 @@ fn burn_bundle(
 
     let mut mc = MINT_COUNT.load(deps.storage)?;
 
-    for i in 0..mint_num.1 {
-        mc = mc + i + 1;
+    let mut selected_tokens = Vec::new();
+
+    for _ in 0..mint_num.1 {
+        mc = mc + 1;
         // increment tokens
         let token_id = get_next_id(
             &deps,
@@ -768,7 +775,7 @@ fn burn_bundle(
                 infusion
                     .infused_collection
                     .addr
-                    .clone()
+                    .as_ref()
                     .expect("no infused collection"),
             ),
             &sender,
@@ -776,14 +783,39 @@ fn burn_bundle(
             infusion_id,
         )?;
 
+        // Ensure we don't get the same token twice in a bundle
+        let mut final_token_id = token_id.clone();
+        if selected_tokens.contains(&token_id.token_id) {
+            // If we somehow get a duplicate, increment mint count again and retry
+            mc = mc + 1;
+            final_token_id = get_next_id(
+                &deps,
+                env.clone(),
+                &Addr::unchecked(
+                    infusion
+                        .infused_collection
+                        .addr
+                        .clone()
+                        .expect("no infused collection"),
+                ),
+                &sender,
+                mc,
+                infusion_id,
+            )?;
+            selected_tokens.push(final_token_id.token_id);
+        } else {
+            selected_tokens.push(token_id.token_id);
+        }
+
         // mint_msg
         let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
-            token_id: token_id.token_id.to_string(),
+            token_id: final_token_id.token_id.to_string(),
             owner: sender.to_string(),
             token_uri: Some(format!(
-                "{}/{}",
+                "{}/{}{}",
                 infusion.infused_collection.base_uri.clone(),
-                token_id.token_id.to_string()
+                final_token_id.token_id.to_string(),
+                ".json".to_string()
             )),
             extension: Empty {},
         };
@@ -800,6 +832,7 @@ fn burn_bundle(
         msgs.push(msg);
     }
 
+    // Return the final mint count which has been properly incremented for each token ID
     Ok((msgs, mc))
 }
 
@@ -1144,8 +1177,7 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     Ok(execute.into())
 }
 
-/// Get the next token id for the infused collection addr being minted
-/// TODO: will prob need hook or query to collection to confirm the next token_id  is accurate
+/// Get the next token id for the infused collection addr being minte
 fn get_next_id(
     deps: &DepsMut,
     env: Env,
@@ -1249,7 +1281,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
 
 pub fn random_token_list(
     env: &Env,
-    sender: &Addr,
+    sender: Addr,
     mut tokens: Vec<u32>,
 ) -> Result<Vec<u32>, ContractError> {
     let tx_index = if let Some(tx) = &env.transaction {
@@ -1288,7 +1320,7 @@ fn random_mintable_token_mapping(
     let sha256 = Sha256::digest(
         format!(
             "{}{}{}{}{}",
-            sender, num_tokens, env.block.height, tx_index, mint_count
+            mint_count, env.block.height, tx_index, sender, num_tokens,
         )
         .into_bytes(),
     );
@@ -1304,12 +1336,14 @@ fn random_mintable_token_mapping(
         rem = num_tokens;
     }
 
+    // token position is random  value mod 50
     let n = r % rem;
 
     let infusion_positions = MINTABLE_TOKEN_VECTORS.load(deps.storage, infusion_id)?;
+    // println!("r: {:#?}", r);
     // println!("rem: {:#?}", rem);
-    // println!("num_tokens: {:#?}", num_tokens);
     // println!("n: {:#?}", n);
+    // println!("num_tokens: {:#?}", num_tokens);
     // println!("infusion_positions: {:#?}", infusion_positions);
     let token_id = infusion_positions[n as usize];
 
@@ -1365,6 +1399,46 @@ fn update_config(
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
+}
+
+// source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/token-merge-minter/src/contract.rs#L338
+// Anyone can pay to shuffle at any time
+// Introduces another source of randomness to minting
+// There's a fee because this action is expensive.
+pub fn execute_shuffle(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    inf_id: u64,
+    inf_col_addr: String,
+) -> Result<Response, ContractError> {
+    let mut res = Response::new();
+
+    let config = CONFIG.load(deps.storage)?;
+
+    // Check not sold out
+    let mintable_num_tokens = MINTABLE_NUM_TOKENS.load(deps.storage, inf_col_addr)?;
+    if mintable_num_tokens == 0 {
+        return Err(ContractError::SoldOut {});
+    }
+
+    // get positions and token_ids, then randomize token_ids and reassign positions
+    let mut positions = vec![];
+    let mut token_ids = vec![];
+
+    let mapping = MINTABLE_TOKEN_VECTORS.load(deps.storage, inf_id)?;
+
+    mapping.iter().enumerate().for_each(|(pos, token_id)| {
+        positions.push(pos);
+        token_ids.push(*token_id);
+    });
+
+    let randomized_token_ids = random_token_list(&env, info.sender.clone(), token_ids.clone())?;
+    MINTABLE_TOKEN_VECTORS.save(deps.storage, inf_id, &randomized_token_ids)?;
+
+    Ok(res
+        .add_attribute("action", "shuffle")
+        .add_attribute("sender", info.sender))
 }
 
 //  source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/vending-minter/src/contract.rs#L1371
@@ -1456,10 +1530,10 @@ mod tests {
         let inf_col_addr_2 = Addr::unchecked("cosmos1zya");
 
         let token_ids1 =
-            random_token_list(&env, &info.sender, (1..=666).collect::<Vec<u32>>()).unwrap();
+            random_token_list(&env, info.sender.clone(), (1..=666).collect::<Vec<u32>>()).unwrap();
         env.block.height += 1;
         let token_ids2 =
-            random_token_list(&env, &info.sender, (1..=100).collect::<Vec<u32>>()).unwrap();
+            random_token_list(&env, info.sender.clone(), (1..=100).collect::<Vec<u32>>()).unwrap();
 
         // Save the updated vector
         MINTABLE_TOKEN_VECTORS
@@ -1587,4 +1661,61 @@ mod tests {
 
         // Passes
     }
+
+    // #[test]
+    // fn test_unique_token_ids_in_bundle() {
+    //     let mut binding = mock_dependencies();
+    //     let infuser = binding.api.addr_make("eretskeret");
+    //     let deps = binding.as_mut();
+    //     let info = mock_info("sender", &[]);
+    //     let mut env = mock_env();
+    //     let infused_collection_addr = Addr::unchecked("cosmos1abc");
+
+    //     // Set up a small set of token IDs (1-10)
+    //     let token_ids =
+    //         random_token_list(&env, info.sender.clone(), (1..=10000).collect::<Vec<u32>>())
+    //             .unwrap();
+    //     MINTABLE_TOKEN_VECTORS
+    //         .save(deps.storage, 1, &token_ids)
+    //         .unwrap();
+    //     MINTABLE_NUM_TOKENS
+    //         .save(deps.storage, infused_collection_addr.to_string(), &10000)
+    //         .unwrap();
+
+    //     // Initialize mint count
+    //     MINT_COUNT.save(deps.storage, &0u64).unwrap();
+
+    //     // Simulate multiple mints in the same bundle (like what happens in burn_bundle)
+    //     let mut selected_tokens = Vec::new();
+    //     let mut mint_count = 0;
+
+    //     // Try to mint 5 tokens (half of our supply)
+    //     for i in 0..5000 {
+    //         mint_count += 1;
+
+    //         let token_mapping = get_next_id(
+    //             &deps,
+    //             env.clone(),
+    //             &infused_collection_addr,
+    //             &infuser,
+    //             mint_count,
+    //             1,
+    //         )
+    //         .unwrap();
+
+    //         env.block.height += 1;
+    //         // Make sure we don't get a duplicate token ID
+    //         assert!(
+    //             !selected_tokens.contains(&token_mapping.token_id),
+    //             "Duplicate token ID found: {}, iteration: {}",
+    //             token_mapping.token_id,
+    //             i
+    //         );
+
+    //         selected_tokens.push(token_mapping.token_id);
+    //     }
+
+    //     // Ensure we got 5 unique tokens
+    //     assert_eq!(selected_tokens.len(), 5);
+    // }
 }

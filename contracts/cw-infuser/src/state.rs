@@ -35,6 +35,8 @@ pub struct Config {
     // Default at 0.
     pub latest_infusion_id: u64,
     pub contract_owner: Addr,
+    /// Fee required to contribute to randomness
+    // pub shuffle_fee: Option<Coin>,
     /// % Fee from any infusion fee set to go to contract owner. 10 == 10% , 71 == 71%
     pub owner_fee: Decimal,
     /// Minimum fee that is required for creating an infusion.
@@ -102,6 +104,7 @@ pub enum BundleType {
     // A mapping of possible combinations of eligible collections and required nfts that will be accepted.
     AnyOfBlend { blends: Vec<BundleBlend> },
 }
+
 impl Default for BundleType {
     fn default() -> Self {
         BundleType::AllOf {}
@@ -205,6 +208,7 @@ pub struct CompatibleTraits {
     pub b: String,
 }
 
+#[cosmwasm_schema::cw_serde]
 pub struct TokenPositionMapping {
     pub position: u32,
     pub token_id: u32,
