@@ -25,6 +25,7 @@ cw-storage-plus = { workspace = true }
 
 anyhow = { workspace = true }
 cosmwasm-schema = { workspace = true }
+cw-infusions = { workspace = true }
 serde = { workspace = true }
 schemars = "0.8.16"
 cw-multi-test = "1.2.0"

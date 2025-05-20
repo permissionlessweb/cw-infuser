@@ -1,6 +1,11 @@
 use crate::state::*;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Coin, Decimal};
+use cw_infusions::{
+    bundles::{Bundle, BundleType},
+    state::{EligibleNFTCollection, Infusion, InfusionState},
+    wavs::{WavsBundle, WavsRecordResponse},
+};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -22,6 +27,8 @@ pub struct InstantiateMsg {
     pub max_infusions: Option<u64>,
     /// Code-ID of the cw721-collection
     pub cw721_code_id: u64,
+    /// Optional key wavs operators make use of, if support is enabled
+    pub wavs_public_key: Option<String>,
 }
 
 #[cw_serde]
@@ -30,24 +37,27 @@ pub enum ExecuteMsg {
     CreateInfusion {
         infusions: Vec<Infusion>,
     },
+    WavsEntryPoint {
+        infusions: Vec<WavsBundle>,
+    },
     Infuse {
-        infusion_id: u64,
+        id: u64,
         bundle: Vec<Bundle>,
     },
     EndInfusion {
         id: u64,
     },
-    UpdateConfig {
-        config: UpdatingConfig,
-    },
     UpdateInfusionBaseUri {
         id: u64,
         base_uri: String,
     },
+    UpdateConfig {
+        config: UpdatingConfig,
+    },
     UpdateInfusionsEligibleCollections {
         id: u64,
-        to_add: Vec<NFTCollection>,
-        to_remove: Vec<NFTCollection>,
+        to_add: Vec<EligibleNFTCollection>,
+        to_remove: Vec<EligibleNFTCollection>,
     },
     UpdateInfusionMintFee {
         id: u64,
@@ -59,7 +69,6 @@ pub enum ExecuteMsg {
     },
     Shuffle {
         id: u64,
-        infused_collection_addr: String,
     },
 }
 
@@ -79,12 +88,13 @@ pub enum QueryMsg {
     /// TODO: optimize pagination
     #[returns(InfusionsResponse)]
     Infusions { addr: Addr, index: u64 },
-    /// boolean if addr is an eligible collection for bundle
     #[returns(bool)]
     IsInBundle {
         collection_addr: Addr,
         infusion_id: u64,
     },
+    #[returns(Vec<WavsRecordResponse>)]
+    WavsRecord { burner: Addr, nfts: Vec<String> },
 }
 
 #[cosmwasm_schema::cw_serde]

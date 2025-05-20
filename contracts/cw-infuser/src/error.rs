@@ -30,14 +30,25 @@ pub enum ContractError {
     #[error("NftIsNotEligible: {col}")]
     NftIsNotEligible { col: String },
 
-    #[error("Bundle of type {bun_type} povided does not contain any nfts for collection: {col}")]
-    BundleCollectionNotEligilbe { bun_type: i32, col: String },
+    #[error("Bundle of type {bun_type} povided does not contain any nfts for collection: {col}. wavs_enabled: {wavs}, min_req: {min_req}")]
+    BundleCollectionNotEligilbe {
+        bun_type: i32,
+        col: String,
+        wavs: bool,
+        min_req: u64,
+    },
 
     #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
     BundleNotAccepted { have: u64, want: u64 },
 
+    #[error("Bundle Not Accepted. Burnt Record:{have}. Minimum Required: {need}")]
+    WavsBundleNotAccepted { have: u64, need: u64 },
+
     #[error("Bundle cannot be empty.")]
     EmptyBundle,
+
+    #[error("Lets not burn a bundle without reason to. There already exist a record of burnt nfts that satisfies the min required for this collection, and you are trying to burn additional nfts that wouldn't satisfy bundle requirements")]
+    UselessBundleBurn,
 
     #[error("Bundle type AnyOf must only contain atleast 1 instance of any eligible collection")]
     AnyOfConfigError { err: AnyOfErr },

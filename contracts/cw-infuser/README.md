@@ -9,10 +9,19 @@
 - support for depositing nfts (used to ommit nfts approval tx requirement)
 - immuatbility support (cannot update baseuri, ...)
 - add bundle recipies: configure what types of bundles can be made:
-  - allOf: requires the minimum for all eligible collections
-  - anyOf: any of 1 of the eligible collections
+  <!-- - allOf: requires the minimum for all eligible collections -->
+  <!-- - anyOf: any of 1 of the eligible collections -->
   - anyOfBlend: select which elgible collections may be set to have blended requirements.
 - instantiate fee-split upon infusion creation for 
+
+
+### wavs process
+1. enable wavs on infusion creation (admin only)
+  - contract will add eligible collections to its global store
+2. burn nft normally (no contract call)
+3. wavs service will be triggered by burnt nfts, updates record of nfts burnt by operator
+4. burner can proceed to infuse as normally.
+
 
 ## Instantiate
 ```json
