@@ -1341,39 +1341,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-infuse-launchpad"
-version = "0.4.2"
-dependencies = [
- "abstract-cw20",
- "abstract-cw20-base",
- "clap",
- "cosmwasm-schema 1.5.11",
- "cosmwasm-std 1.5.11",
- "cw-asset",
- "cw-controllers 1.1.2",
- "cw-infuser 0.2.1",
- "cw-multi-test 1.2.0",
- "cw-orch 0.22.2",
- "cw-storage-plus 1.2.0",
- "cw-utils 1.0.3",
- "cw2 1.1.2",
- "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "cw721-base 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand_core 0.6.4",
- "rand_xoshiro",
- "schemars",
- "semver",
- "serde",
- "sg-std",
- "sg721",
- "sg721-base",
- "sha2 0.10.8",
- "shuffle",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
 name = "cw-infuser"
 version = "0.2.1"
 source = "git+https://github.com/permissionlessweb/cw-infuser?branch=v020-migrate#6f116f58548fa54b8ebec164429a576175bf48d5"
@@ -1416,6 +1383,7 @@ dependencies = [
  "cw-asset",
  "cw-controllers 1.1.2",
  "cw-infuser 0.2.1",
+ "cw-infusions",
  "cw-multi-test 1.2.0",
  "cw-orch 0.22.2",
  "cw-storage-plus 1.2.0",
@@ -1435,6 +1403,18 @@ dependencies = [
  "shuffle",
  "thiserror 1.0.69",
  "url",
+]
+
+[[package]]
+name = "cw-infusions"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "cosmwasm-schema 1.5.11",
+ "cosmwasm-std 1.5.11",
+ "cw-orch 0.25.1",
+ "sg721",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -4301,6 +4281,7 @@ dependencies = [
  "cosmrs",
  "cosmwasm-std 1.5.11",
  "cw-infuser 0.4.2",
+ "cw-infusions",
  "cw-orch 0.24.1",
  "cw-orch-clone-testing",
  "cw721 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4963,6 +4944,7 @@ dependencies = [
  "cosmwasm-std 1.5.11",
  "cw-infuser 0.2.1",
  "cw-infuser 0.4.2",
+ "cw-infusions",
  "cw-multi-test 1.2.0",
  "cw-orch 0.22.2",
  "cw-orch-clone-testing",

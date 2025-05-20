@@ -1,8 +1,6 @@
-use cosmwasm_std::{Decimal, Env, Storage};
-use cw_infusions::{bundles::BundleType, state::EligibleNFTCollection};
-use cw_storage_plus::Item;
+use cosmwasm_std::{Env, Storage};
 
-use crate::{msg::MigrateMsg, state::INFUSION, ContractError};
+use crate::{msg::MigrateMsg, ContractError};
 
 /// Migrate all bundles to default BundleType::AllOf
 pub fn migrate_infusions_bundle_type(storage: &mut dyn Storage) -> Result<(), ContractError> {

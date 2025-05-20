@@ -1,9 +1,7 @@
-use cosmwasm_std::{Addr, Env, Storage};
+use cosmwasm_std::{Env, Storage};
 
 use crate::{
-    contract::random_token_list,
-    msg::QueryMsg,
-    state::{INFUSION, MINT_COUNT},
+    state::MINT_COUNT,
     ContractError,
 };
 
@@ -17,8 +15,8 @@ pub fn patch_mint_count_v040(storage: &mut dyn Storage) -> Result<(), ContractEr
 pub fn v0410_remove_mint_count_store(
     storage: &mut dyn Storage,
 ) -> Result<Vec<Vec<(u32, u32)>>, ContractError> {
-    let inf1_token_id = vec!["187", "332", "477", "594", "88"];
-    let inf2_token_id = vec!["487"];
+    let inf1_token_id = ["187", "332", "477", "594", "88"];
+    let inf2_token_id = ["487"];
 
     // iterate through all token positions.
     let mtp = v020infuse::state::MINTABLE_TOKEN_POSITIONS.range(
@@ -46,7 +44,7 @@ pub fn v0410_remove_mint_count_store(
         } else if inf2_token_id.contains(&key.1.to_string().as_str()) {
             inf2_found.push(key);
         }
-        count = count + 1;
+        count += 1;
     }
 
     Ok(vec![inf1_found, inf2_found])
@@ -131,18 +129,15 @@ pub fn v0410_add_mint_count_store(
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Addr,
-    };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cw_orch::anyhow;
 
-    use crate::{contract::random_token_list, state::INFUSION};
+    use crate::contract::random_token_list;
 
     #[test]
     fn test_migration() -> anyhow::Result<()> {
-        let inf1_token_id = vec!["187", "332", "477", "594", "88"];
-        let inf2_token_id = vec!["487"];
+        let inf1_token_id = ["187", "332", "477", "594", "88"];
+        let inf2_token_id = ["487"];
         let mut binding = mock_dependencies();
         let mockdeps = binding.as_mut();
         let mut mockenv = mock_env();
@@ -203,10 +198,10 @@ mod test {
                 position,
                 &token_id,
             )?;
-            position = position + 1;
+            position += 1;
         }
 
-        mockenv.block.height = mockenv.block.height + 1;
+        mockenv.block.height += 1;
         let token_ids2 = random_token_list(
             &mockenv.clone(),
             info.sender.clone(),
@@ -224,7 +219,7 @@ mod test {
                 position,
                 &token_id,
             )?;
-            position = position + 1;
+            position += 1;
         }
 
         println!("inf_found1: {:#?}", inf_found1);
