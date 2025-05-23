@@ -94,7 +94,12 @@ pub enum QueryMsg {
         infusion_id: u64,
     },
     #[returns(Vec<WavsRecordResponse>)]
-    WavsRecord { burner: Addr, nfts: Vec<String> },
+    WavsRecord {
+        nfts: Vec<String>,
+        burner: Option<Addr>,
+    },
+    // #[returns(Vec<WavsEligibleRes>)]
+    // WavsEligibleCollection { nfts: Vec<String> },
 }
 
 #[cosmwasm_schema::cw_serde]

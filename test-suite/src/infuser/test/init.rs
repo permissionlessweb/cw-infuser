@@ -1,8 +1,8 @@
 use abstract_cw_multi_test::{Contract, IntoAddr};
 use cosmwasm_std::{coin, coins, Decimal, Event, HexBinary, Uint128};
 use cw_infuser::{
-    msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsg, QueryMsgFns},
-    state::{Config, WAVS_TRACKED},
+    msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
+    state::Config,
     AnyOfErr, ContractError,
 };
 use cw_infusions::{
@@ -244,7 +244,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         let infusion = Infusion {
             collections: good_nfts.clone(),
             infused_collection: good_infused.clone(),
-            infusion_params: infusion_params,
+            infusion_params,
             payment_recipient: Some(payment_recipient.clone()),
             owner: None,
             description: Some("testewates".to_string()),
@@ -560,7 +560,7 @@ fn test_all_of_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
                     },
                 ],
             }],
-            infusion_id.clone(),
+            infusion_id,
         )
         .unwrap_err()
         .downcast::<ContractError>()?
@@ -601,7 +601,7 @@ fn test_all_of_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
                     },
                 ],
             }],
-            infusion_id.clone(),
+            infusion_id,
         )
         .unwrap_err()
         .downcast::<ContractError>()?
@@ -647,7 +647,7 @@ fn test_all_of_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
                     },
                 ],
             }],
-            infusion_id.clone(),
+            infusion_id,
         )
         .unwrap_err()
         .downcast::<ContractError>()?
@@ -722,7 +722,7 @@ fn test_all_of_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
                 ],
             },
         ],
-        infusion_id.clone(),
+        infusion_id,
     )?;
 
     // good infusion
@@ -863,7 +863,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(1, "ustars")]),
@@ -880,7 +880,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
             .call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 &[coin(1, "ustars")],
@@ -897,7 +897,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
     bundle.nfts[1].token_id = 12;
     let infuse = app.call_as(&env.admin).execute(
         &ExecuteMsg::Infuse {
-            id: infusion_id.clone(),
+            id: infusion_id,
             bundle: vec![bundle.clone()],
         },
         Some(&[coin(100, "ustars")]),
@@ -913,7 +913,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(100, "ustars")]),
@@ -934,7 +934,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .find(|e| {
             e.attributes
                 .iter()
-                .any(|a| a.key == "recipient" && a.value == env.admin.to_string())
+                .any(|a| a.key == "recipient" && a.value == env.admin)
         })
         .expect("infusion creation fees were not sent to the correct destination. Should have gone to the contract owner")
         .attributes
@@ -949,7 +949,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .find(|e| {
             e.attributes
                 .iter()
-                .any(|a| a.key == "recipient" && a.value == env.payment_recipient.to_string())
+                .any(|a| a.key == "recipient" && a.value == env.payment_recipient)
         })
         .expect("No admin event found")
         .attributes
@@ -1018,7 +1018,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(100, "ustars")]),
@@ -1046,7 +1046,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(300, "ustars")]),
@@ -1065,7 +1065,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(300, "ustars")]),
@@ -1093,7 +1093,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(50, "ustars")]),
@@ -1108,7 +1108,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(300, "ustars")]),
@@ -1141,7 +1141,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(300, "ustars")]),
@@ -1173,7 +1173,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(300, "ustars")]),
@@ -1205,7 +1205,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(300, "ustars")]),
@@ -1314,7 +1314,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(100, "ustars")]),
@@ -1341,7 +1341,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(150, "ustars")]),
@@ -1365,7 +1365,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(300, "ustars")]),
@@ -1391,7 +1391,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(300, "ustars")]),
@@ -1409,7 +1409,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(500, "ustars")]),
@@ -1462,7 +1462,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![],
                 },
                 None,
@@ -1479,7 +1479,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 None,
@@ -1506,7 +1506,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(200, "ustars")]),
@@ -1529,7 +1529,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(100, "ustars")]),
@@ -1557,7 +1557,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(200, "ustars")]),
@@ -1574,7 +1574,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
     assert_eq!(
         app.execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
             Some(&[coin(300, "ustars")]),
@@ -1603,7 +1603,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
                 Some(&[coin(100, "ustars"), coin(200, "ubtsg")]),
@@ -1623,7 +1623,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
 
     app.call_as(&env.admin).execute(
         &ExecuteMsg::Infuse {
-            id: infusion_id.clone(),
+            id: infusion_id,
             bundle: vec![bundle.clone()],
         },
         Some(&[coin(300, "ustars")]),
@@ -1637,7 +1637,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
 #[test]
 fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {})?;
+    let env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {})?;
     let app = env.infuser;
 
     // good infusion creation
@@ -1795,7 +1795,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![],
             },
             Some(&[coin(200, "ustars")]),
@@ -1810,7 +1810,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
-                    id: infusion_id.clone(),
+                    id: infusion_id,
                     bundle: vec![],
                 },
                 Some(&[coin(200, "ustars")]),
@@ -1850,7 +1850,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: bundles.clone(),
             },
             Some(&[coin(200, "ustars")]),
@@ -1876,7 +1876,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: bundles.clone(),
             },
             Some(&[coin(200, "ustars")]),
@@ -1891,16 +1891,16 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
     app.call_as(&env.wavs_service.clone())
         .wavs_entry_point(wavs_bundle.clone())?;
 
-    let res = app.wavs_record(env.admin.clone(), vec![env.nfts[0].to_string()])?;
+    let res = app.wavs_record(vec![env.nfts[0].to_string()], Some(env.admin.clone()))?;
     println!("{:#?}", res);
-    assert_eq!(res[0].count, 2u64);
+    assert_eq!(res[0].count, Some(2u64));
 
     println!("ensure we can now mint with the remaining balance in the wavs record store");
     let res = app
         .call_as(&env.admin)
         .execute(
             &ExecuteMsg::Infuse {
-                id: infusion_id.clone(),
+                id: infusion_id,
                 bundle: vec![],
             },
             Some(&[coin(200, "ustars")]),
@@ -1909,9 +1909,9 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
     assert_eq!(res.len(), 1);
     assert_eq!(res[0], "mint");
 
-    let res = app.wavs_record(env.admin.clone(), vec![env.nfts[0].to_string()])?;
+    let res = app.wavs_record(vec![env.nfts[0].to_string()], Some(env.admin.clone()))?;
     println!("{:#?}", res);
-    assert_eq!(res[0].count, 0);
+    assert_eq!(res[0].count, Some(0));
     Ok(())
 }
 

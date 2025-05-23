@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, Decimal};
+use cosmwasm_std::{Addr, Coin};
 
 use crate::{bundles::BundleType, nfts::InfusedCollection, BurnParams};
 

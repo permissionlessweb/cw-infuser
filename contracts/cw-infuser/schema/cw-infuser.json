@@ -1,6 +1,6 @@
 {
   "contract_name": "cw-infuser",
-  "contract_version": "0.3.1",
+  "contract_version": "0.4.2",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -89,6 +89,13 @@
             "$ref": "#/definitions/Decimal"
           }
         ]
+      },
+      "wavs_public_key": {
+        "description": "Optional key wavs operators make use of, if support is enabled",
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "additionalProperties": false,
@@ -149,6 +156,30 @@
       {
         "type": "object",
         "required": [
+          "wavs_entry_point"
+        ],
+        "properties": {
+          "wavs_entry_point": {
+            "type": "object",
+            "required": [
+              "infusions"
+            ],
+            "properties": {
+              "infusions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/WavsBundle"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
           "infuse"
         ],
         "properties": {
@@ -156,7 +187,7 @@
             "type": "object",
             "required": [
               "bundle",
-              "infusion_id"
+              "id"
             ],
             "properties": {
               "bundle": {
@@ -165,7 +196,7 @@
                   "$ref": "#/definitions/Bundle"
                 }
               },
-              "infusion_id": {
+              "id": {
                 "type": "integer",
                 "format": "uint64",
                 "minimum": 0.0
@@ -192,27 +223,6 @@
                 "type": "integer",
                 "format": "uint64",
                 "minimum": 0.0
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "update_config"
-        ],
-        "properties": {
-          "update_config": {
-            "type": "object",
-            "required": [
-              "config"
-            ],
-            "properties": {
-              "config": {
-                "$ref": "#/definitions/UpdatingConfig"
               }
             },
             "additionalProperties": false
@@ -250,6 +260,27 @@
       {
         "type": "object",
         "required": [
+          "update_config"
+        ],
+        "properties": {
+          "update_config": {
+            "type": "object",
+            "required": [
+              "config"
+            ],
+            "properties": {
+              "config": {
+                "$ref": "#/definitions/UpdatingConfig"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
           "update_infusions_eligible_collections"
         ],
         "properties": {
@@ -269,13 +300,13 @@
               "to_add": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/NFTCollection"
+                  "$ref": "#/definitions/EligibleNFTCollection"
                 }
               },
               "to_remove": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/NFTCollection"
+                  "$ref": "#/definitions/EligibleNFTCollection"
                 }
               }
             },
@@ -333,6 +364,29 @@
               "bundle_type": {
                 "$ref": "#/definitions/BundleType"
               },
+              "id": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "shuffle"
+        ],
+        "properties": {
+          "shuffle": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
               "id": {
                 "type": "integer",
                 "format": "uint64",
@@ -518,6 +572,50 @@
         "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
         "type": "string"
       },
+      "EligibleNFTCollection": {
+        "type": "object",
+        "required": [
+          "addr",
+          "min_req"
+        ],
+        "properties": {
+          "addr": {
+            "description": "collection address",
+            "allOf": [
+              {
+                "$ref": "#/definitions/Addr"
+              }
+            ]
+          },
+          "max_req": {
+            "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "min_req": {
+            "description": "Minimum tokens required to infuse",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "payment_substitute": {
+            "description": "If set, infuser can send exact amount of tokens to replace eligil",
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Coin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "InfusedCollection": {
         "type": "object",
         "required": [
@@ -622,7 +720,7 @@
             "description": "NFT collections eligible for a specific infusion",
             "type": "array",
             "items": {
-              "$ref": "#/definitions/NFTCollection"
+              "$ref": "#/definitions/EligibleNFTCollection"
             }
           },
           "description": {
@@ -649,7 +747,7 @@
             ]
           },
           "owner": {
-            "description": "Owner of the infusion. Defaults to messaage sender if omitted.",
+            "description": "Owner of the infusion.",
             "anyOf": [
               {
                 "$ref": "#/definitions/Addr"
@@ -660,7 +758,6 @@
             ]
           },
           "payment_recipient": {
-            "description": "Recipient of payments for an infusion. Defaults to message sender if omitted.",
             "anyOf": [
               {
                 "$ref": "#/definitions/Addr"
@@ -676,13 +773,15 @@
       "InfusionParamState": {
         "type": "object",
         "required": [
-          "bundle_type"
+          "bundle_type",
+          "wavs_enabled"
         ],
         "properties": {
           "bundle_type": {
             "$ref": "#/definitions/BundleType"
           },
           "mint_fee": {
+            "description": "required alongside a bundle. Sent to infusion owner",
             "anyOf": [
               {
                 "$ref": "#/definitions/Coin"
@@ -701,6 +800,9 @@
                 "type": "null"
               }
             ]
+          },
+          "wavs_enabled": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -719,50 +821,6 @@
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
-          }
-        },
-        "additionalProperties": false
-      },
-      "NFTCollection": {
-        "type": "object",
-        "required": [
-          "addr",
-          "min_req"
-        ],
-        "properties": {
-          "addr": {
-            "description": "collection address",
-            "allOf": [
-              {
-                "$ref": "#/definitions/Addr"
-              }
-            ]
-          },
-          "max_req": {
-            "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "min_req": {
-            "description": "Minimum tokens required to infuse",
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "payment_substitute": {
-            "description": "If set, infuser can send exact amount of tokens to replace eligil",
-            "anyOf": [
-              {
-                "$ref": "#/definitions/Coin"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "additionalProperties": false
@@ -872,6 +930,29 @@
           }
         },
         "additionalProperties": false
+      },
+      "WavsBundle": {
+        "type": "object",
+        "required": [
+          "infused_ids",
+          "infuser",
+          "nft_addr"
+        ],
+        "properties": {
+          "infused_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "infuser": {
+            "type": "string"
+          },
+          "nft_addr": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
@@ -973,7 +1054,6 @@
         "additionalProperties": false
       },
       {
-        "description": "boolean if addr is an eligible collection for bundle",
         "type": "object",
         "required": [
           "is_in_bundle"
@@ -999,6 +1079,58 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "wavs_record"
+        ],
+        "properties": {
+          "wavs_record": {
+            "type": "object",
+            "required": [
+              "burner",
+              "nfts"
+            ],
+            "properties": {
+              "burner": {
+                "$ref": "#/definitions/Addr"
+              },
+              "nfts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "wavs_eligible_collection"
+        ],
+        "properties": {
+          "wavs_eligible_collection": {
+            "type": "object",
+            "required": [
+              "nfts"
+            ],
+            "properties": {
+              "nfts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     ],
     "definitions": {
@@ -1014,6 +1146,7 @@
     "config": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Config",
+      "description": "map of infusion",
       "type": "object",
       "required": [
         "code_hash",
@@ -1096,7 +1229,7 @@
           "minimum": 0.0
         },
         "owner_fee": {
-          "description": "% Fee from any infusion fee set to go to contract owner. 10 == 10% , 71 == 71%",
+          "description": "Fee required to contribute to randomness % Fee from any infusion fee set to go to contract owner. 10 == 10% , 71 == 71%",
           "allOf": [
             {
               "$ref": "#/definitions/Decimal"
@@ -1153,7 +1286,7 @@
           "description": "NFT collections eligible for a specific infusion",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/NFTCollection"
+            "$ref": "#/definitions/EligibleNFTCollection"
           }
         },
         "description": {
@@ -1180,7 +1313,7 @@
           ]
         },
         "owner": {
-          "description": "Owner of the infusion. Defaults to messaage sender if omitted.",
+          "description": "Owner of the infusion.",
           "anyOf": [
             {
               "$ref": "#/definitions/Addr"
@@ -1191,7 +1324,6 @@
           ]
         },
         "payment_recipient": {
-          "description": "Recipient of payments for an infusion. Defaults to message sender if omitted.",
           "anyOf": [
             {
               "$ref": "#/definitions/Addr"
@@ -1361,6 +1493,50 @@
           "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
           "type": "string"
         },
+        "EligibleNFTCollection": {
+          "type": "object",
+          "required": [
+            "addr",
+            "min_req"
+          ],
+          "properties": {
+            "addr": {
+              "description": "collection address",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                }
+              ]
+            },
+            "max_req": {
+              "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "min_req": {
+              "description": "Minimum tokens required to infuse",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "payment_substitute": {
+              "description": "If set, infuser can send exact amount of tokens to replace eligil",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Coin"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "InfusedCollection": {
           "type": "object",
           "required": [
@@ -1456,13 +1632,15 @@
         "InfusionParamState": {
           "type": "object",
           "required": [
-            "bundle_type"
+            "bundle_type",
+            "wavs_enabled"
           ],
           "properties": {
             "bundle_type": {
               "$ref": "#/definitions/BundleType"
             },
             "mint_fee": {
+              "description": "required alongside a bundle. Sent to infusion owner",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Coin"
@@ -1481,50 +1659,9 @@
                   "type": "null"
                 }
               ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "NFTCollection": {
-          "type": "object",
-          "required": [
-            "addr",
-            "min_req"
-          ],
-          "properties": {
-            "addr": {
-              "description": "collection address",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Addr"
-                }
-              ]
             },
-            "max_req": {
-              "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "min_req": {
-              "description": "Minimum tokens required to infuse",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "payment_substitute": {
-              "description": "If set, infuser can send exact amount of tokens to replace eligil",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Coin"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+            "wavs_enabled": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false
@@ -1580,7 +1717,7 @@
           "description": "NFT collections eligible for a specific infusion",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/NFTCollection"
+            "$ref": "#/definitions/EligibleNFTCollection"
           }
         },
         "enabled": {
@@ -1606,12 +1743,7 @@
           "$ref": "#/definitions/Addr"
         },
         "payment_recipient": {
-          "description": "Recipient of payments for an infusion",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Addr"
-            }
-          ]
+          "$ref": "#/definitions/Addr"
         }
       },
       "additionalProperties": false,
@@ -1773,6 +1905,50 @@
           "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
           "type": "string"
         },
+        "EligibleNFTCollection": {
+          "type": "object",
+          "required": [
+            "addr",
+            "min_req"
+          ],
+          "properties": {
+            "addr": {
+              "description": "collection address",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                }
+              ]
+            },
+            "max_req": {
+              "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "min_req": {
+              "description": "Minimum tokens required to infuse",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "payment_substitute": {
+              "description": "If set, infuser can send exact amount of tokens to replace eligil",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Coin"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "InfusedCollection": {
           "type": "object",
           "required": [
@@ -1868,13 +2044,15 @@
         "InfusionParamState": {
           "type": "object",
           "required": [
-            "bundle_type"
+            "bundle_type",
+            "wavs_enabled"
           ],
           "properties": {
             "bundle_type": {
               "$ref": "#/definitions/BundleType"
             },
             "mint_fee": {
+              "description": "required alongside a bundle. Sent to infusion owner",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Coin"
@@ -1893,50 +2071,9 @@
                   "type": "null"
                 }
               ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "NFTCollection": {
-          "type": "object",
-          "required": [
-            "addr",
-            "min_req"
-          ],
-          "properties": {
-            "addr": {
-              "description": "collection address",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Addr"
-                }
-              ]
             },
-            "max_req": {
-              "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "min_req": {
-              "description": "Minimum tokens required to infuse",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "payment_substitute": {
-              "description": "If set, infuser can send exact amount of tokens to replace eligil",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Coin"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+            "wavs_enabled": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false
@@ -2149,6 +2286,50 @@
           "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
           "type": "string"
         },
+        "EligibleNFTCollection": {
+          "type": "object",
+          "required": [
+            "addr",
+            "min_req"
+          ],
+          "properties": {
+            "addr": {
+              "description": "collection address",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                }
+              ]
+            },
+            "max_req": {
+              "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "min_req": {
+              "description": "Minimum tokens required to infuse",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "payment_substitute": {
+              "description": "If set, infuser can send exact amount of tokens to replace eligil",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Coin"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "InfusedCollection": {
           "type": "object",
           "required": [
@@ -2244,13 +2425,15 @@
         "InfusionParamState": {
           "type": "object",
           "required": [
-            "bundle_type"
+            "bundle_type",
+            "wavs_enabled"
           ],
           "properties": {
             "bundle_type": {
               "$ref": "#/definitions/BundleType"
             },
             "mint_fee": {
+              "description": "required alongside a bundle. Sent to infusion owner",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Coin"
@@ -2269,6 +2452,9 @@
                   "type": "null"
                 }
               ]
+            },
+            "wavs_enabled": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false
@@ -2288,7 +2474,7 @@
               "description": "NFT collections eligible for a specific infusion",
               "type": "array",
               "items": {
-                "$ref": "#/definitions/NFTCollection"
+                "$ref": "#/definitions/EligibleNFTCollection"
               }
             },
             "enabled": {
@@ -2314,56 +2500,7 @@
               "$ref": "#/definitions/Addr"
             },
             "payment_recipient": {
-              "description": "Recipient of payments for an infusion",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Addr"
-                }
-              ]
-            }
-          },
-          "additionalProperties": false
-        },
-        "NFTCollection": {
-          "type": "object",
-          "required": [
-            "addr",
-            "min_req"
-          ],
-          "properties": {
-            "addr": {
-              "description": "collection address",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Addr"
-                }
-              ]
-            },
-            "max_req": {
-              "description": "Optional, maximum tokens able to be infused. If not set, contract expects exact # of min_req per collection in bundle.",
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "min_req": {
-              "description": "Minimum tokens required to infuse",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "payment_substitute": {
-              "description": "If set, infuser can send exact amount of tokens to replace eligil",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Coin"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/Addr"
             }
           },
           "additionalProperties": false
@@ -2406,6 +2543,62 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Boolean",
       "type": "boolean"
+    },
+    "wavs_eligible_collection": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_WavsEligibleRes",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/WavsEligibleRes"
+      },
+      "definitions": {
+        "WavsEligibleRes": {
+          "description": "Response on if a given nft collection is eligible for one of existing infusions. This is for the wavs services to query & filter out performing state transitions on unregistered nft collections.",
+          "type": "object",
+          "required": [
+            "addr",
+            "exists"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            },
+            "exists": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "wavs_record": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_WavsRecordResponse",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/WavsRecordResponse"
+      },
+      "definitions": {
+        "WavsRecordResponse": {
+          "description": "An bech32 address and its burn count",
+          "type": "object",
+          "required": [
+            "addr",
+            "count"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      }
     }
   }
 }

@@ -1,8 +1,8 @@
 use crate::error::{AnyOfErr, ContractError};
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    Config, TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION, INFUSION_ID,
-    MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_VECTORS, MINT_COUNT, WAVS_ADMIN, WAVS_TRACKED,
+    Config, TokenPositionMapping, UpdatingConfig, CONFIG, ELIGIBLE_COLLECTION, INFUSION,
+    INFUSION_ID, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_VECTORS, MINT_COUNT, WAVS_ADMIN, WAVS_TRACKED,
 };
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::entry_point;
@@ -16,17 +16,20 @@ use cw2::set_contract_version;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
+
 use cw_infusions::bundles::{AnyOfCount, Bundle, BundleBlend, BundleType};
 use cw_infusions::nfts::{InfusedCollection, NFT};
 use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionState};
 use cw_infusions::wavs::{WavsBundle, WavsMintCountResponse, WavsRecordResponse};
+
 use nois::int_in_range;
 use rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro128PlusPlus;
+use shuffle::{fy::FisherYates, shuffler::Shuffler};
+
 use semver::Version;
 use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
 use sha2::{Digest, Sha256};
-use shuffle::{fy::FisherYates, shuffler::Shuffler};
 use url::Url;
 
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
@@ -200,12 +203,14 @@ fn update_infusion_eligible_collections(
     }
     // ensure new eligible collection params
     let collections = validate_eligible_collection_list(
+        deps.storage,
         deps.querier,
         &cfg,
         &infusion.infusion_params.bundle_type,
         &infusion.collections,
         &to_add,
         true,
+        id,
     )?;
     infusion.collections = collections;
 
@@ -363,13 +368,19 @@ pub fn execute_create_infusion(
             }
         }
 
+        // get the global infusion id
+        let infusion_id: u64 = cfg.latest_infusion_id + 1;
+        cfg.latest_infusion_id = infusion_id;
+
         validate_eligible_collection_list(
+            deps.storage,
             deps.querier,
             &cfg,
             &infusion.infusion_params.bundle_type,
             &vec![],
             &infusion.collections,
             false,
+            infusion_id,
         )?;
         // sanitize base token uri
         let mut base_token_uri = infusion.infused_collection.base_uri.trim().to_string();
@@ -389,9 +400,6 @@ pub fn execute_create_infusion(
         };
 
         let infusion_collection_addr_human = deps.api.addr_humanize(&infusion_addr)?;
-        // get the global infusion id
-        let infusion_id: u64 = cfg.latest_infusion_id + 1;
-        cfg.latest_infusion_id = infusion_id;
 
         // sets msg sender as infusion admin for infused collection if not specified
         let infusion_admin = infusion
@@ -471,14 +479,16 @@ pub fn execute_create_infusion(
         INFUSION.save(deps.storage, key.clone(), &infusion_config)?;
         INFUSION_ID.save(deps.storage, infusion_id, &key)?;
         // contribute to contract randomness
-        let mc = MINT_COUNT.load(deps.storage).unwrap_or_default();
-        MINT_COUNT.save(deps.storage, &(mc + 1u64))?;
+        let mc = MINT_COUNT.load(deps.storage).unwrap_or_default() + 1;
+        MINT_COUNT.save(deps.storage, &mc)?;
         MINTABLE_NUM_TOKENS.save(
             deps.storage,
             infusion_collection_addr_human.to_string(),
             &infusion.infused_collection.num_tokens,
         )?;
         CONFIG.save(deps.storage, &cfg)?;
+
+        // map with vector of infusion ids registered for a given NFT collection  addr:
 
         msgs.push(infusion_collection_submsg);
         attrs.push(Attribute::new("infusion-id", infusion_id.to_string()));
@@ -493,12 +503,14 @@ pub fn execute_create_infusion(
 /// Performs various validations on an infusions eligilbe collections being set. If triggered via config update,
 /// we validate any possible conficts from existing store values with ones to_add.
 fn validate_eligible_collection_list(
+    storage: &mut dyn Storage,
     query: QuerierWrapper,
     cfg: &Config,
     bundle_type: &BundleType,
     existing: &Vec<EligibleNFTCollection>,
     to_add: &Vec<EligibleNFTCollection>,
     updating_config: bool,
+    infusion_id: u64,
 ) -> Result<Vec<EligibleNFTCollection>, ContractError> {
     // checks min_per_bundle
     if cfg.max_bundles < to_add.len() as u64 {
@@ -534,6 +546,7 @@ fn validate_eligible_collection_list(
     // checks for any unique collections
     let mut unique = Vec::new();
     for col in validate_nfts.iter() {
+        let addr = &col.addr.to_string();
         if unique.contains(&col.addr) {
             return Err(ContractError::DuplicateCollectionInInfusion);
         }
@@ -561,6 +574,14 @@ fn validate_eligible_collection_list(
         }
 
         unique.push(col.addr.clone());
+
+        match ELIGIBLE_COLLECTION.may_load(storage, addr)? {
+            Some(mut e) => ELIGIBLE_COLLECTION.save(storage, addr, {
+                e.push(infusion_id);
+                &e
+            })?,
+            None => ELIGIBLE_COLLECTION.save(storage, addr, &vec![infusion_id])?,
+        };
     }
 
     let unique_len = unique.len();
@@ -1284,29 +1305,50 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
 
 pub fn query_retrieve_wavs_record(
     deps: Deps,
-    addr: Addr,
+    addr: Option<Addr>,
     nfts: Vec<String>,
 ) -> StdResult<Vec<WavsRecordResponse>> {
     // Limit 10 nfts
     if nfts.len() > 10usize {
         return Err(StdError::generic_err("try to query less nft at once"));
     }
+    // querying count for specific  addr
+    if let Some(burn) = addr {
+        let responses: Vec<WavsRecordResponse> = nfts
+            .into_iter()
+            .map(|nft| {
+                let count = WAVS_TRACKED
+                    .may_load(deps.storage, (&burn.clone(), nft.clone()))
+                    .unwrap_or_default();
 
-    let responses: Vec<WavsRecordResponse> = nfts
-        .into_iter()
-        .map(|nft| {
-            let count = WAVS_TRACKED
-                .may_load(deps.storage, (&addr.clone(), nft.clone()))
-                .unwrap_or_default();
+                WavsRecordResponse {
+                    addr: burn.to_string(),
+                    count: Some(count.expect("ahhh")),
+                }
+            })
+            .collect();
 
-            WavsRecordResponse {
-                addr: addr.to_string(),
-                count: count.expect("ahhh"),
-            }
-        })
-        .collect();
-
-    Ok(responses)
+        Ok(responses)
+    } else {
+        Ok(nfts
+            .into_iter()
+            .map(|nft| {
+                match ELIGIBLE_COLLECTION
+                    .may_load(deps.storage, &nft)
+                    .unwrap_or_default()
+                {
+                    Some(a) => WavsRecordResponse {
+                        addr: nft,
+                        count: Some(0u64),
+                    },
+                    None => WavsRecordResponse {
+                        addr: nft,
+                        count: None,
+                    },
+                }
+            })
+            .collect())
+    }
 }
 
 pub fn query_config(deps: Deps) -> StdResult<Config> {
