@@ -9,10 +9,19 @@
 - support for depositing nfts (used to ommit nfts approval tx requirement)
 - immuatbility support (cannot update baseuri, ...)
 - add bundle recipies: configure what types of bundles can be made:
-  - allOf: requires the minimum for all eligible collections
-  - anyOf: any of 1 of the eligible collections
+  <!-- - allOf: requires the minimum for all eligible collections -->
+  <!-- - anyOf: any of 1 of the eligible collections -->
   - anyOfBlend: select which elgible collections may be set to have blended requirements.
 - instantiate fee-split upon infusion creation for 
+
+
+### wavs process
+1. enable wavs on infusion creation (admin only)
+  - contract will add eligible collections to its global store
+2. burn nft normally (no contract call)
+3. wavs service will be triggered by burnt nfts, updates record of nfts burnt by operator
+4. burner can proceed to infuse as normally.
+
 
 ## Instantiate
 ```json
@@ -50,14 +59,39 @@
 
 ###  Update An Infusion BaseURI
 ```json
-{"update_infusion_base_uri": {"infusion_id": 2, "base_uri":"ipfs://QmPNMu4bKFaVRkyaZssto252vpUGiowair2V27DfdEP4yq", "image":"ipfs://QmRQwG97mf8b3Cpc8YbHSLgaG55cYpiUcZD6W8saUxY2Pd"}}
+{"update_infusion_base_uri": {"infusion_id": 2, "base_uri":"ipfs://QmXWasD3MnpSUNxva3aARnTxVb3hHcb59yMBQ4VRWKw1oB"}}
+```
+
+###  Update An Infusion Bundle Type
+```json
+{
+  "update_infusion_bundle_type": {
+    "id": 2,
+    "bundle_type": {
+      "any_of": {
+        "addrs": [
+          "stars156x86uprzaj04v7qwnpl8djj5jws3gn73jz08qkydmkd0c0lp6gqv575pm",
+          "stars1ha2lthlyxleqszwah869hhg7wvzjtxz59w6tk4s2jkmk62shk3vskftn66",
+          "stars1xy930u7nzynzzeld2erved4rtdkzrleqt9jr2fvkxn3d6ct4s5xs3lynaj",
+          "stars1swkzrx40jj2q5q3nh45pp60lqvpm6gwjcumpg5e72h2y8dyjh87sxh3ven"
+        ]
+      }
+    }
+  }
+}
 ```
 
 
+### Update Infusion Mint Fee
+```json
+{
+  "update_infusion_mint_fee": {
+    "id": 2,
+    "mint_fee": {"denom":"ustars","amount":"100000000"}
+  }
+}
+```
 ### Update an Infusion Eligible Collections Parameters
 ```json
-{"update_infusions_eligible_collections":{
-  "id": 2,"to_add": [{"addr":"stars156x86uprzaj04v7qwnpl8djj5jws3gn73jz08qkydmkd0c0lp6gqv575pm","min_req":3,"max_req":3,payment_substitute:{"denom":"ustars",amount:"10000000000"}}],"to_remove":[]
-
-}}
+{"update_infusions_eligible_collections":{"id": 2,"to_add": [{"addr":"stars156x86uprzaj04v7qwnpl8djj5jws3gn73jz08qkydmkd0c0lp6gqv575pm","min_req":3,"max_req":3,"payment_substitute":{"denom":"ustars","amount":"10000000000"}}],"to_remove":[]}}
 ```

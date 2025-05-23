@@ -60,6 +60,7 @@ pub fn main() -> anyhow::Result<()> {
             owner_fee: Decimal::new(10u128.into()),
             min_creation_fee: None,
             min_infusion_fee: None,
+            wavs_public_key: None,
         },
         Some(&Addr::unchecked(CONTRACT_MIGRATION_OWNER)),
         None,

@@ -1,6 +1,6 @@
 [package]
 name = "cw-infuser"
-version = "0.3.1"
+version = "0.4.2"
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
 exclude = ["scripts"]
@@ -57,6 +57,7 @@ cw-orch = { version = "0.22.2" }
 
 cw721 =  "0.18.0"
 cw721-base  = { version = "0.18.0", features = ["library"] }
+cw-infusions = {workspace = true }
 
 # Stargaze libs
 sg-std = {version= "^3.2", optional = true }
@@ -72,6 +73,7 @@ semver                      = "1"
 shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
 rand_core       = { version = "0.6.4", default-features = false }
 rand_xoshiro    = { version = "0.6.0", default-features = false }
+nois                        = { version = "2.0.0" }
 url                  = "2.2.2"
 
 ## previous verion packages for migration

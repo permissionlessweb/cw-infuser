@@ -1,8 +1,8 @@
 use clap::{arg, command, Parser};
 use cw_infuser::msg::ExecuteMsgFns;
-use cw_infuser::state::{
-    BundleType, InfusedCollection, Infusion, InfusionParamState, NFTCollection,
-};
+use cw_infusions::bundles::BundleType;
+use cw_infusions::nfts::InfusedCollection;
+use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionParamState};
 use cw_orch::prelude::*;
 use scripts::infuser::CwInfuser;
 use scripts::ELGAFAR_1;
@@ -54,7 +54,7 @@ pub fn main() -> anyhow::Result<()> {
     // grab count and each collection addr from args
     let bundle_collections = args.col_addrs_eligible;
     let mint_nft_per_bundle = args.col_min_required;
-    let mut infusions: Vec<NFTCollection> = vec![];
+    let mut infusions: Vec<EligibleNFTCollection> = vec![];
     // create infusion msg type from args
     let collections: Vec<String> = bundle_collections
         .split(',')
@@ -68,7 +68,7 @@ pub fn main() -> anyhow::Result<()> {
     for (collection, min) in collections.iter().zip(min_required.iter()) {
         let addr = Addr::unchecked(collection);
         let min_req: u64 = min.parse().unwrap_or(0);
-        let infusion = NFTCollection {
+        let infusion = EligibleNFTCollection {
             addr,
             min_req,
             max_req: None,
@@ -81,6 +81,7 @@ pub fn main() -> anyhow::Result<()> {
         mint_fee: None,
         params: None,
         bundle_type: BundleType::AllOf {},
+        wavs_enabled: true,
     };
 
     let infused_collection = InfusedCollection {
@@ -96,7 +97,7 @@ pub fn main() -> anyhow::Result<()> {
         explicit_content: None,
         external_link: None,
         image: args.infuse_col_image,
-        description: todo!(),
+        description: "eret".into(),
     };
 
     // pass infusions to orchestrator

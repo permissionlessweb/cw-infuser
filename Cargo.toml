@@ -1,5 +1,11 @@
 [workspace]
-members = [ "contracts/cw-infuser", "scripts","test-suite"]
+members = [ 
+  "contracts/cw-infuser",
+  "contracts/cw721/*",
+   "packages/*",
+   "scripts",
+   "test-suite"
+   ]
 resolver = "2"
 exclude = ["scripts"]
 [workspace.features]
@@ -20,6 +26,8 @@ cw-storage-plus = "1.2.0"
 cw721 =  "0.18.0"
 cw721-base  = { version = "0.18.0", features = ["library"] }
 
+cw-infuser = { path = "./contracts/cw-infuser" }
+cw-infusions = { path = "./packages/cw-infusions" }
 scripts = { path = "../scripts" }
 cw-orch = { version = "0.22.2" }
 abstract-cw20-base = "2.0.0"
