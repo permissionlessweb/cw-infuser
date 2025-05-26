@@ -1,20 +1,2 @@
 
 
-
-### UPDATING COLLECTION INFO
-```json
-{
-    "update_collection_info": {
-        "collection_info": {
-            "description": "Infused Collection: Achieving peace of mind through alignment of intentions and actions. Art designed by the legendary Jinxto \u003c3",
-            "image": "ipfs://QmRxSCKLTDPwjBy4HieLLkZE5vLCACRLAfBthu3iHMGu2w",
-            "external_link": "https://infuse.permissionless.money",
-            "explicit_content": null,
-            "royalty_info": {
-                "payment_address": "stars1a5hezc5p5qgy8hx365dh5zzps4ckee9c6dv6k5",
-                "share": "0.06"
-            },
-        }
-    }
-}
-```
