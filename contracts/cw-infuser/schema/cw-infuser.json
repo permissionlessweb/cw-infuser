@@ -113,7 +113,8 @@
           "denom": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "Decimal": {
         "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
@@ -550,7 +551,8 @@
           "denom": {
             "type": "string"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "CompatibleTraits": {
         "type": "object",
@@ -1089,37 +1091,19 @@
           "wavs_record": {
             "type": "object",
             "required": [
-              "burner",
               "nfts"
             ],
             "properties": {
               "burner": {
-                "$ref": "#/definitions/Addr"
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/Addr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
-              "nfts": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "wavs_eligible_collection"
-        ],
-        "properties": {
-          "wavs_eligible_collection": {
-            "type": "object",
-            "required": [
-              "nfts"
-            ],
-            "properties": {
               "nfts": {
                 "type": "array",
                 "items": {
@@ -1256,7 +1240,8 @@
             "denom": {
               "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "Decimal": {
           "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
@@ -1471,7 +1456,8 @@
             "denom": {
               "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "CompatibleTraits": {
           "type": "object",
@@ -1883,7 +1869,8 @@
             "denom": {
               "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "CompatibleTraits": {
           "type": "object",
@@ -2264,7 +2251,8 @@
             "denom": {
               "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "CompatibleTraits": {
           "type": "object",
@@ -2544,33 +2532,6 @@
       "title": "Boolean",
       "type": "boolean"
     },
-    "wavs_eligible_collection": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Array_of_WavsEligibleRes",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/WavsEligibleRes"
-      },
-      "definitions": {
-        "WavsEligibleRes": {
-          "description": "Response on if a given nft collection is eligible for one of existing infusions. This is for the wavs services to query & filter out performing state transitions on unregistered nft collections.",
-          "type": "object",
-          "required": [
-            "addr",
-            "exists"
-          ],
-          "properties": {
-            "addr": {
-              "type": "string"
-            },
-            "exists": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false
-        }
-      }
-    },
     "wavs_record": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Array_of_WavsRecordResponse",
@@ -2583,15 +2544,17 @@
           "description": "An bech32 address and its burn count",
           "type": "object",
           "required": [
-            "addr",
-            "count"
+            "addr"
           ],
           "properties": {
             "addr": {
               "type": "string"
             },
             "count": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint64",
               "minimum": 0.0
             }
