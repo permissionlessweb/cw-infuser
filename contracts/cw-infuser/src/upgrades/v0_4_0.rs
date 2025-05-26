@@ -19,12 +19,12 @@ pub fn v0410_remove_mint_count_store(
     let inf2_token_id = ["487"];
 
     // iterate through all token positions.
-    let mtp = v020infuse::state::MINTABLE_TOKEN_POSITIONS.range(
-        storage,
-        None,
-        None,
-        cosmwasm_std::Order::Ascending,
-    );
+    // let mtp = v020infuse::state::MINTABLE_TOKEN_POSITIONS.range(
+    //     storage,
+    //     None,
+    //     None,
+    //     cosmwasm_std::Order::Ascending,
+    // );
 
     // 1. reset all keys, taking note of keys already minted
     // 2. retain position of used key to prevent double use
@@ -35,17 +35,17 @@ pub fn v0410_remove_mint_count_store(
     let mut inf2_found = vec![];
 
     let mut count = 0;
-    for kvkey in mtp {
-        let key = kvkey?;
-        if inf1_token_id.contains(&key.1.to_string().as_str()) {
-            inf1_found.push(key);
-            // we found a key that was used for the first infusion.
-            // lets reference the map position to save this back to the position it was in.
-        } else if inf2_token_id.contains(&key.1.to_string().as_str()) {
-            inf2_found.push(key);
-        }
-        count += 1;
-    }
+    // for kvkey in mtp {
+    //     let key = kvkey?;
+    //     if inf1_token_id.contains(&key.1.to_string().as_str()) {
+    //         inf1_found.push(key);
+    //         // we found a key that was used for the first infusion.
+    //         // lets reference the map position to save this back to the position it was in.
+    //     } else if inf2_token_id.contains(&key.1.to_string().as_str()) {
+    //         inf2_found.push(key);
+    //     }
+    //     count += 1;
+    // }
 
     Ok(vec![inf1_found, inf2_found])
 }
@@ -185,21 +185,21 @@ mod test {
         )?;
         //  find the existing tokens we have and save them to map
         //find token positions for minted tokens
-        let mut inf_found1 = vec![];
-        let mut inf_found2 = vec![];
+        // let mut inf_found1 = vec![];
+        // let mut inf_found2 = vec![];
 
         let mut position = 1;
-        for token_id in token_ids1 {
-            if inf1_token_id.contains(&token_id.to_string().as_str()) {
-                inf_found1.push((position, token_id));
-            }
-            v020infuse::state::MINTABLE_TOKEN_POSITIONS.save(
-                mockdeps.storage,
-                position,
-                &token_id,
-            )?;
-            position += 1;
-        }
+        // for token_id in token_ids1 {
+        //     if inf1_token_id.contains(&token_id.to_string().as_str()) {
+        //         inf_found1.push((position, token_id));
+        //     }
+        //     v020infuse::state::MINTABLE_TOKEN_POSITIONS.save(
+        //         mockdeps.storage,
+        //         position,
+        //         &token_id,
+        //     )?;
+        //     position += 1;
+        // }
 
         mockenv.block.height += 1;
         let token_ids2 = random_token_list(
@@ -210,20 +210,20 @@ mod test {
 
         // save keys with their maps, incorrectly
         position = 1;
-        for token_id in token_ids2 {
-            if inf2_token_id.contains(&token_id.to_string().as_str()) {
-                inf_found2.push((position, token_id));
-            }
-            v020infuse::state::MINTABLE_TOKEN_POSITIONS.save(
-                mockdeps.storage,
-                position,
-                &token_id,
-            )?;
-            position += 1;
-        }
+        // for token_id in token_ids2 {
+        //     if inf2_token_id.contains(&token_id.to_string().as_str()) {
+        //         inf_found2.push((position, token_id));
+        //     }
+        //     v020infuse::state::MINTABLE_TOKEN_POSITIONS.save(
+        //         mockdeps.storage,
+        //         position,
+        //         &token_id,
+        //     )?;
+        //     position += 1;
+        // }
 
-        println!("inf_found1: {:#?}", inf_found1);
-        println!("inf_found2: {:#?}", inf_found2);
+        // println!("inf_found1: {:#?}", inf_found1);
+        // println!("inf_found2: {:#?}", inf_found2);
 
         // run migrations
         let store_data = super::v0410_remove_mint_count_store(mockdeps.storage)?;

@@ -14,10 +14,10 @@ pub fn migrate_infusions_bundle_type(storage: &mut dyn Storage) -> Result<(), Co
     // println!("range: {:#?}", range);
 
     // Collect all infusion key-value pairs into a vector first
-    let infusions: Vec<_> = v020infuse::state::INFUSION
-        .range(storage, None, None, cosmwasm_std::Order::Descending)
-        .map(|i| i.unwrap())
-        .collect();
+    // let infusions: Vec<_> = v020infuse::state::INFUSION
+    //     .range(storage, None, None, cosmwasm_std::Order::Descending)
+    //     .map(|i| i.unwrap())
+    //     .collect();
 
     // for (key, state) in infusions {
     //     INFUSION.save(

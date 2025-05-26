@@ -22,8 +22,7 @@ incremental = false
 overflow-checks = true
 
 [features]
-default = ["sg"]
-sg = ["sg-std", "sg721", "sg721-base"]
+default = []
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
@@ -40,29 +39,22 @@ optimize-arm = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-cosmwasm-schema = "1.5.11"
-cosmwasm-std = { version = "1.5.11", features = [
+cosmwasm-schema  = {workspace = true }
+cosmwasm-std = { workspace = true, features = [
   "cosmwasm_1_4",
   # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
   # "cosmwasm_2_0",
 ] }
 cw-asset = { version = "3.0.0" }
-cw-storage-plus = "1.2.0"
-cw2 = "1.1.2"
+cw-storage-plus = "2.0.0"
+cw2 =  { workspace = true }
 cw-controllers = { version = "1.1.2" }
-
-abstract-cw20 = "2.0.0"
-abstract-cw20-base = "2.0.0"
-cw-orch = { version = "0.22.2" }
-
-cw721 =  "0.18.0"
-cw721-base  = { version = "0.18.0", features = ["library"] }
+ 
+cw-orch =  { workspace = true }
+cw721 =  { workspace = true }
+cw721-base  = { workspace = true, features = ["library"] }
 cw-infusions = {workspace = true }
 
-# Stargaze libs
-sg-std = {version= "^3.2", optional = true }
-sg721 = {version= "^3.3", optional = true }
-sg721-base = {version= "^3.3", optional = true }
 
 clap = { version = "4.5.23", features = ["derive"] }
 schemars = "0.8.16"

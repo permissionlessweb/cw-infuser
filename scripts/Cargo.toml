@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.79"
 cosmrs = "0.15.0"
-cosmwasm-std = "1.5.2"
-cw-orch = { version = "0.24.1", features = ["daemon"] }
+cosmwasm-std = { workspace = true }
+cw-orch = { version = "0.28.0", features = ["daemon"] }
 cw-orch-clone-testing = "0.6.4"
 cw721 = "0.18.0"
 dotenv = "0.15.0"

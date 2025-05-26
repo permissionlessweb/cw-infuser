@@ -13,8 +13,8 @@ use cw_infusions::{
 };
 use std::{error::Error, str::FromStr};
 // Use prelude to get all the necessary imports
-use cw_orch::{anyhow, prelude::*};
 use cw_infuser_scripts::CwInfuser;
+use cw_orch::{anyhow, prelude::*};
 
 fn cw721_contract() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
@@ -25,16 +25,16 @@ fn cw721_contract() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
-fn v020_infusion() -> Box<dyn Contract<Empty>> {
-    let contract = ContractWrapper::new(
-        v020infuse::contract::execute,
-        v020infuse::contract::instantiate,
-        v020infuse::contract::query,
-    )
-    .with_reply(v020infuse::contract::reply)
-    .with_migrate(v020infuse::contract::migrate);
-    Box::new(contract)
-}
+// fn v020_infusion() -> Box<dyn Contract<Empty>> {
+//     let contract = ContractWrapper::new(
+//         v020infuse::contract::execute,
+//         v020infuse::contract::instantiate,
+//         v020infuse::contract::query,
+//     )
+//     .with_reply(v020infuse::contract::reply)
+//     .with_migrate(v020infuse::contract::migrate);
+//     Box::new(contract)
+// }
 
 // minimal infuser
 pub struct InfuserSuite<Chain> {
@@ -95,38 +95,34 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         for i in nft_collection_addrs.clone() {
             // mint 11 nfts?
             for n in 0..nft_count {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Mint {
-                        token_id: n.to_string(),
-                        owner: chain.sender.to_string(),
-                        token_uri: None,
-                        extension: None,
-                    };
+                let msg: &cw721_base::msg::ExecuteMsg = &cw721_base::msg::ExecuteMsg::Mint {
+                    token_id: n.to_string(),
+                    owner: chain.sender.to_string(),
+                    token_uri: None,
+                    extension: None,
+                };
                 chain.execute(msg, &[], &i.clone())?;
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
-                        spender: infuser.to_string(),
-                        token_id: n.to_string(),
-                        expires: None,
-                    };
+                let msg: &cw721_base::msg::ExecuteMsg = &cw721_base::msg::ExecuteMsg::Approve {
+                    spender: infuser.to_string(),
+                    token_id: n.to_string(),
+                    expires: None,
+                };
                 // approve infuser for nft
                 chain.execute(msg, &[], &i.clone())?;
             }
             for n in 11..21 {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Mint {
-                        token_id: n.to_string(),
-                        owner: admin.to_string(),
-                        token_uri: None,
-                        extension: None,
-                    };
+                let msg: &cw721_base::msg::ExecuteMsg = &cw721_base::msg::ExecuteMsg::Mint {
+                    token_id: n.to_string(),
+                    owner: admin.to_string(),
+                    token_uri: None,
+                    extension: None,
+                };
                 chain.execute(msg, &[], &i.clone())?;
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
-                        spender: infuser.to_string(),
-                        token_id: n.to_string(),
-                        expires: None,
-                    };
+                let msg: &cw721_base::msg::ExecuteMsg = &cw721_base::msg::ExecuteMsg::Approve {
+                    spender: infuser.to_string(),
+                    token_id: n.to_string(),
+                    expires: None,
+                };
                 // approve infuser for nft
                 chain.call_as(&admin).execute(msg, &[], &i.clone())?;
             }
@@ -145,11 +141,13 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         for i in 0..3 {
             let msg_a = chain.instantiate(
                 cw721_code,
-                &cw721_base::InstantiateMsg {
+                &cw721_base::msg::InstantiateMsg {
                     name: "good-chronic".to_string(),
                     symbol: "CHRONIC-".to_owned() + i.to_string().as_str(),
                     minter: Some(minter.to_string()),
                     withdraw_address: Some(withdraw.to_string()),
+                    collection_info_extension: todo!(),
+                    creator: todo!(),
                 },
                 Some("cw721-base-good-chronic"),
                 None,
@@ -171,23 +169,21 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         // approve nfts for new infusion
         for i in nfts.clone() {
             for n in 0..10 {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
-                        spender: infuser.to_string(),
-                        token_id: n.to_string(),
-                        expires: None,
-                    };
+                let msg: &cw721_base::msg::ExecuteMsg = &cw721_base::msg::ExecuteMsg::Approve {
+                    spender: infuser.to_string(),
+                    token_id: n.to_string(),
+                    expires: None,
+                };
                 // approve infuser for nft
                 chain.execute(msg, &[], &i.clone())?;
             }
             // mint nfts to contract owner
             for n in 11..21 {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
-                        spender: infuser.to_string(),
-                        token_id: n.to_string(),
-                        expires: None,
-                    };
+                let msg: &cw721_base::msg::ExecuteMsg = &cw721_base::msg::ExecuteMsg::Approve {
+                    spender: infuser.to_string(),
+                    token_id: n.to_string(),
+                    expires: None,
+                };
                 // approve infuser for nft
                 chain.call_as(&admin).execute(msg, &[], &i.clone())?;
             }
@@ -217,7 +213,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 wavs_public_key: Some(env.wavs_service.to_string()),
             },
             Some(&env.admin.clone()),
-            None,
+            &[],
         )?;
         let nft1 = env.nfts[0].clone();
         let nft2 = env.nfts[1].clone();
@@ -300,7 +296,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         };
 
         // create cw-infsion app
-        infuser.instantiate(&default_init, None, None)?;
+        infuser.instantiate(&default_init, None, &[])?;
 
         // mint
         InfuserSuite::<MockBech32>::mint_and_approve_helper(
@@ -339,7 +335,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 &ExecuteMsg::CreateInfusion {
                     infusions: vec![infusion.clone()],
                 },
-                None,
+                &[],
             )?;
             mock.next_block()?;
         }
@@ -800,7 +796,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(499, "ustars")]),
+            &[coin(499, "ustars")],
         )
         .unwrap_err()
         .downcast::<ContractError>()
@@ -818,7 +814,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(501, "ustars")]),
+            &[coin(501, "ustars")],
         )
         .unwrap_err()
         .downcast::<ContractError>()
@@ -837,7 +833,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?,
     )
@@ -866,7 +862,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(1, "ustars")]),
+                &[coin(1, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -900,7 +896,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
             id: infusion_id,
             bundle: vec![bundle.clone()],
         },
-        Some(&[coin(100, "ustars")]),
+        &[coin(100, "ustars")],
     );
     assert!(infuse.is_ok());
 
@@ -916,7 +912,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(100, "ustars")]),
+            &[coin(100, "ustars")],
         )?
         .events;
 
@@ -934,7 +930,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .find(|e| {
             e.attributes
                 .iter()
-                .any(|a| a.key == "recipient" && a.value == env.admin)
+                .any(|a| a.key == "recipient" && a.value == env.admin.to_string())
         })
         .expect("infusion creation fees were not sent to the correct destination. Should have gone to the contract owner")
         .attributes
@@ -949,7 +945,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .find(|e| {
             e.attributes
                 .iter()
-                .any(|a| a.key == "recipient" && a.value == env.payment_recipient)
+                .any(|a| a.key == "recipient" && a.value == env.payment_recipient.to_string())
         })
         .expect("No admin event found")
         .attributes
@@ -965,7 +961,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         &ExecuteMsg::CreateInfusion {
             infusions: vec![env.infusion.clone()],
         },
-        None,
+        &[],
     )?;
 
     Ok(())
@@ -992,7 +988,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?;
 
@@ -1021,7 +1017,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(100, "ustars")]),
+                &[coin(100, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1049,7 +1045,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(300, "ustars")]),
+                &[coin(300, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1068,7 +1064,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1096,7 +1092,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(50, "ustars")]),
+                &[coin(50, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1111,7 +1107,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1129,7 +1125,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?,
     )?
@@ -1144,7 +1140,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(300, "ustars")]),
+                &[coin(300, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1176,7 +1172,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(300, "ustars")]),
+                &[coin(300, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1208,7 +1204,7 @@ fn test_all_of_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1243,7 +1239,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )
         .unwrap_err()
         .downcast::<ContractError>()?
@@ -1265,7 +1261,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )
         .unwrap_err()
         .downcast::<ContractError>()?
@@ -1292,7 +1288,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?,
     )?
@@ -1317,7 +1313,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(100, "ustars")]),
+                &[coin(100, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1344,7 +1340,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(150, "ustars")]),
+                &[coin(150, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1368,7 +1364,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1394,7 +1390,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("{:#?}", res);
@@ -1412,7 +1408,7 @@ fn test_infusion_fee_any_of() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_values("wasm", "action");
 
@@ -1448,7 +1444,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?,
     )?
@@ -1465,7 +1461,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![],
                 },
-                None,
+                &[],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1482,7 +1478,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                None,
+                &[],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1509,7 +1505,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(200, "ustars")]),
+                &[coin(200, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1532,7 +1528,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(100, "ustars")]),
+            &[coin(100, "ustars")],
         )
         .unwrap_err();
 
@@ -1560,7 +1556,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(200, "ustars")]),
+                &[coin(200, "ustars")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1577,7 +1573,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "ustars")],
         )
         .unwrap_err()
         .downcast::<ContractError>()?
@@ -1606,7 +1602,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![bundle.clone()],
                 },
-                Some(&[coin(100, "ustars"), coin(200, "ubtsg")]),
+                &[coin(100, "ustars"), coin(200, "ubtsg")],
             )
             .unwrap_err()
             .downcast::<ContractError>()?
@@ -1626,7 +1622,7 @@ fn test_all_of_payment_substitute() -> anyhow::Result<()> {
             id: infusion_id,
             bundle: vec![bundle.clone()],
         },
-        Some(&[coin(300, "ustars")]),
+        &[coin(300, "ustars")],
     )?;
 
     // check with limits
@@ -1647,7 +1643,7 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?,
     )?
@@ -1695,7 +1691,7 @@ fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?;
     let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
@@ -1744,7 +1740,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "ustars")],
         )?
         .event_attr_value("wasm", "infusion-id")?,
     )?
@@ -1798,7 +1794,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![],
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("{:#?}", res);
@@ -1813,7 +1809,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                     id: infusion_id,
                     bundle: vec![],
                 },
-                Some(&[coin(200, "ustars")]),
+                &[coin(200, "ustars")],
             )
             .unwrap_err()
             .source()
@@ -1853,7 +1849,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: bundles.clone(),
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "ustars")],
         )?
         .event_attr_values("wasm", "action");
 
@@ -1879,7 +1875,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: bundles.clone(),
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     // println!("{:#?}", res);
@@ -1903,7 +1899,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![],
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "ustars")],
         )?
         .event_attr_values("wasm", "action");
     assert_eq!(res.len(), 1);

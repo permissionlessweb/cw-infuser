@@ -53,7 +53,7 @@ pub fn main() -> anyhow::Result<()> {
     for (contract_address, id) in collections.iter().zip(token_id.iter()) {
         for token in id {
             let res: Result<ApprovalResponse, _> = chain.wasm_querier().smart_query(
-                contract_address.clone(),
+                &Addr::unchecked(contract_address.clone()),
                 &sg721_base::QueryMsg::Approval {
                     token_id: token.to_string(),
                     spender: infuser.addr_str()?,

@@ -40,3 +40,24 @@ pub struct RoyaltyInfoResponse {
     pub payment_address: String,
     pub share: Decimal,
 }
+
+
+#[cosmwasm_schema::cw_serde]
+pub struct CollectionInfo<T> {
+    pub creator: String,
+    pub description: String,
+    pub image: String,
+    pub external_link: Option<String>,
+    pub explicit_content: Option<bool>,
+    pub start_trading_time: Option<Timestamp>,
+    pub royalty_info: Option<T>,
+}
+
+
+#[cosmwasm_schema::cw_serde]
+pub struct SgInstantiateMsg {
+    pub name: String,
+    pub symbol: String,
+    pub minter: String,
+    pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
+}
