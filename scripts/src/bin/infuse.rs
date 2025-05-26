@@ -5,11 +5,11 @@ use cosmwasm_std::Uint128;
 use cw721::ApprovalResponse;
 use cw_infuser::msg::{ExecuteMsgFns, QueryMsgFns};
 
+use cw_infuser_scripts::{CwInfuser, ELGAFAR_1};
 use cw_infusions::bundles::Bundle;
+
 use cw_infusions::nfts::NFT;
 use cw_orch::prelude::*;
-use scripts::infuser::CwInfuser;
-use scripts::ELGAFAR_1;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]

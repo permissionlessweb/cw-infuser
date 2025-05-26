@@ -2,8 +2,8 @@ use clap::Parser;
 use cosmwasm_std::Decimal;
 use cw_infuser::msg::InstantiateMsg;
 use cw_orch::prelude::*;
-use scripts::infuser::CwInfuser;
-use scripts::{ELGAFAR_1, STARGAZE_1};
+use cw_infuser_scripts::CwInfuser;
+use cw_infuser_scripts::{ELGAFAR_1, STARGAZE_1};
 
 const CONTRACT_MIGRATION_OWNER: &str = "stars1ampqmqrmuc03d7828qqw296q9ygnt5quf778hv";
 const CW721_CODE_ID: u64 = 274;

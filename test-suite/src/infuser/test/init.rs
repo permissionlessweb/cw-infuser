@@ -14,7 +14,7 @@ use cw_infusions::{
 use std::{error::Error, str::FromStr};
 // Use prelude to get all the necessary imports
 use cw_orch::{anyhow, prelude::*};
-use scripts::CwInfuser;
+use cw_infuser_scripts::CwInfuser;
 
 fn cw721_contract() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(

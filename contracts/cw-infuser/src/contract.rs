@@ -1319,7 +1319,7 @@ pub fn query_retrieve_wavs_record(
             .map(|nft| {
                 let count = WAVS_TRACKED
                     .may_load(deps.storage, (&burn.clone(), nft.clone()))
-                    .unwrap_or_default();
+                    .unwrap_or(Some(0));
 
                 WavsRecordResponse {
                     addr: burn.to_string(),
