@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use clap::{arg, command, Parser};
 use cosmwasm_std::Uint128;
-use cw721::ApprovalResponse;
+use cw721::msg::ApprovalResponse;
 use cw_infuser::msg::{ExecuteMsgFns, QueryMsgFns};
 
 use cw_infuser_scripts::{CwInfuser, ELGAFAR_1};

@@ -16,13 +16,7 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-sg721 = "^3.3"
 base64 = "0.22.1"
-cosmwasm-std = { workspace = true, features = [
-  "cosmwasm_1_4",
-  # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
-  # "cosmwasm_2_0",
-] }
-cosmwasm-schema =  { workspace = true}
-cw-orch = "0.25.0"
 sha2 = { version = "0.10.8", default-features = false }
+cosmwasm-schema =  { workspace = true}
+cosmwasm-std = { workspace = true, features = [ ] }

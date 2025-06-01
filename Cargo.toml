@@ -1,6 +1,7 @@
 [workspace]
 members = [ 
   "contracts/cw-infuser",
+  "contracts/cw-irl",
    "packages/*",
    "scripts",
  # "contracts/cw721/*",
