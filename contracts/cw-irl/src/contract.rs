@@ -2,11 +2,10 @@ use crate::error::ContractError;
 use crate::{
     CreateEventTickets, ExecuteMsg, InstantiateMsg, MintTicketObject, OsmosisMintObject, QueryMsg,
 };
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_json_binary, Addr, AnyMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg,
+    coin, to_json_binary, AnyMsg, Binary, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, StdResult, SubMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Item;

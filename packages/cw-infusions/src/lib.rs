@@ -3,7 +3,7 @@ pub mod nfts;
 pub mod state;
 pub mod wavs;
 
-use cosmwasm_std::{Binary, Decimal, HexBinary};
+use cosmwasm_std::{Binary, HexBinary};
 extern crate cosmwasm_std;
 pub type TokenId = String;
 pub const MAX_TEXT_LENGTH: u32 = 512;

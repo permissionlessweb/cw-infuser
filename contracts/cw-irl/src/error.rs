@@ -1,6 +1,5 @@
-use std::fmt;
 
-use cosmwasm_std::{CheckedMultiplyRatioError, Coin, Instantiate2AddressError, StdError};
+use cosmwasm_std::StdError;
 use cw_controllers::AdminError;
 use thiserror::Error;
 

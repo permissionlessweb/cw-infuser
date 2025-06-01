@@ -31,10 +31,10 @@ pub fn v0410_remove_mint_count_store(
     // 3. remove old map from store
     // 4. initialize new maps using prefixes
 
-    let mut inf1_found = vec![];
-    let mut inf2_found = vec![];
+    let inf1_found = vec![];
+    let inf2_found = vec![];
 
-    let mut count = 0;
+    let count = 0;
     // for kvkey in mtp {
     //     let key = kvkey?;
     //     if inf1_token_id.contains(&key.1.to_string().as_str()) {
