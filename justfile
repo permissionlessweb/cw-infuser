@@ -1,4 +1,4 @@
-workspace-optimize:
+wasm:
     #!/bin/bash
     if [[ $(uname -m) == 'arm64' ]] || [ $(uname -m) == 'aarch64' ]]; then docker run --rm -v "$(pwd)":/code \
             --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
@@ -10,3 +10,4 @@ workspace-optimize:
             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
             --platform linux/amd64 \
             cosmwasm/optimizer:0.16.0; fi
+

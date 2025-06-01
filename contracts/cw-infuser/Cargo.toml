@@ -30,12 +30,12 @@ library = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
+  cosmwasm/optimizer:0.16.1
 """
 optimize-arm = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer-arm64:0.16.0
+  cosmwasm/optimizer-arm64:0.16.1
 """
 
 [dependencies]
@@ -43,12 +43,12 @@ cosmwasm-schema  = {workspace = true }
 cosmwasm-std = { workspace = true, features = [
   "cosmwasm_1_4",
   # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
-  # "cosmwasm_2_0",
+ "cosmwasm_2_0",
 ] }
-cw-asset = { version = "3.0.0" }
-cw-storage-plus = "2.0.0"
+cw-asset = "4.0.0"
+cw-storage-plus =  { workspace = true }
 cw2 =  { workspace = true }
-cw-controllers = { version = "1.1.2" }
+cw-controllers = "2.0.0"
  
 cw-orch =  { workspace = true }
 cw721 =  { workspace = true }
@@ -68,7 +68,6 @@ rand_xoshiro    = { version = "0.6.0", default-features = false }
 nois                        = { version = "2.0.0" }
 url                  = "2.2.2"
 
-## previous verion packages for migration
-v020infuse = { package="cw-infuser",git = "https://github.com/permissionlessweb/cw-infuser", branch = "v020-migrate"}
+ 
 [dev-dependencies]
-cw-multi-test = "1.2.0"
+cw-multi-test = "2.2.0"
