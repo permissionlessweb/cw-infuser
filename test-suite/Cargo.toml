@@ -42,6 +42,6 @@ hex = "0.4.3"
 
 [dev-dependencies]
 rand = "0.8.5"
-cw-multi-test = "2.0.0"
+cw-multi-test = "2.4.0"
 abstract-cw-multi-test = { version = "2.2.4" }
 

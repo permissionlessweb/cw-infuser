@@ -51,22 +51,23 @@ cw2 =  { workspace = true }
 cw-controllers = "2.0.0"
  
 cw-orch =  { workspace = true }
+
 cw721 =  { workspace = true }
 cw721-base  = { workspace = true, features = ["library"] }
 cw-infusions = {workspace = true }
-
 
 clap = { version = "4.5.23", features = ["derive"] }
 schemars = "0.8.16"
 sha2 = { version = "0.10.8", default-features = false }
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.58" }
 semver                      = "1"
+thiserror = { version = "1.0.58" }
+url                  = "2.2.2"
+
 shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
 rand_core       = { version = "0.6.4", default-features = false }
 rand_xoshiro    = { version = "0.6.0", default-features = false }
 nois                        = { version = "2.0.0" }
-url                  = "2.2.2"
 
  
 [dev-dependencies]

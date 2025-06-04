@@ -33,6 +33,7 @@ pub struct CreateEventTickets {
 #[cosmwasm_schema::cw_serde]
 pub struct MintTicketObject {
     pub amount: u128,
+    /// address of ephemeral ticket account
     pub ticket: String,
 }
 #[cosmwasm_schema::cw_serde]
