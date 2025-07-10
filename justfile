@@ -11,3 +11,10 @@ wasm:
             --platform linux/amd64 \
             cosmwasm/optimizer:0.16.0; fi
 
+schema:
+    #!/bin/bash
+    sh scripts/schema-and-codegen.sh
+
+deploy: 
+    #!/bin/bash
+    cargo run --bin deploy
