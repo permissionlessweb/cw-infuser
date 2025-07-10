@@ -1,8 +1,8 @@
 [package]
 name = "cw-infusions"
-authors = ["hard-nett <hardnettt@proton.me>"]
+authors.workspace = true
 description = "Rust definition of name service metadata, used by Bitsong Accounts."
-version = "0.1.0"
+version.workspace = true 
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.

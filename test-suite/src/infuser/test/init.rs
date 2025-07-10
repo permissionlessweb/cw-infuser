@@ -146,8 +146,8 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                     symbol: "CHRONIC-".to_owned() + i.to_string().as_str(),
                     minter: Some(minter.to_string()),
                     withdraw_address: Some(withdraw.to_string()),
-                    collection_info_extension: todo!(),
-                    creator: todo!(),
+                    collection_info_extension: None,
+                    creator: None,
                 },
                 Some("cw721-base-good-chronic"),
                 None,
@@ -736,7 +736,7 @@ fn test_all_of_eligible_nft_collections() -> anyhow::Result<()> {
     let env = InfuserSuite::<MockBech32>::setup()?;
     let app = env.infuser.clone();
     let not_nft = env.chain.addr_make("mock-nft");
-
+    println!("{:#?}", not_nft);
     let bad_nfts = vec![
         EligibleNFTCollection {
             addr: env.nfts[0].clone(),

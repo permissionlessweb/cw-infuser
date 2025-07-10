@@ -1,6 +1,6 @@
 [package]
 name = "cw-infuser"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
 exclude = ["scripts"]
@@ -72,3 +72,4 @@ nois                        = { version = "2.0.0" }
  
 [dev-dependencies]
 cw-multi-test = "2.2.0"
+easy-addr = { workspace = true }

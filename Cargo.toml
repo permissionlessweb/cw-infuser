@@ -5,9 +5,18 @@ members = [
    "packages/*",
    "scripts",
  # "contracts/cw721/*",
-# "test-suite"
+ "test-suite"
    ]
 resolver = "2"
+
+[workspace.package]
+repository = "https://github.com/permissionlessweb/cw-infuser"
+edition = "2021"
+resolver = "2"
+version = "0.4.3"
+authors = ["hard-nett <hardnettt@proton.me>"]
+
+
 [workspace.features]
 default = []
 
@@ -31,6 +40,7 @@ anyhow = "1.0.79"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
 sha2                 = { version = "0.10.2", default-features = false }
 schemars = "0.8.16"
+easy-addr = { path = "packages/easy-addr" }
 
 [profile.release]
 rpath = false

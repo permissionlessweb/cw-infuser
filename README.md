@@ -31,3 +31,12 @@ The deployed contracts state can be found [here](./state.json). This file is gen
 ## Scripts 
 There are cw-orchestrator libraries available to deploy the infusion contracts. First, ensure your environment variables are set, such as mnemnoics state file locations, artifacts directories, transaction options, and logging. Full environment envariable details can be found here: https://orchestrator.abstract.money/contracts/env-variable.html
 
+
+## Tests
+```sh
+ # for unit tests
+ cargo test
+# for integration tests
+ cargo test --package test-suite --lib -- infuser::test::init --show-output 
+```
+

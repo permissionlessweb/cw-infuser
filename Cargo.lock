@@ -1094,7 +1094,7 @@ dependencies = [
 
 [[package]]
 name = "cw-infuser"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "clap",
  "cosmwasm-schema 2.2.2",
@@ -1108,6 +1108,7 @@ dependencies = [
  "cw2 2.0.0",
  "cw721 0.20.0",
  "cw721-base 0.20.0",
+ "easy-addr",
  "nois",
  "rand_core 0.6.4",
  "rand_xoshiro",
@@ -1139,7 +1140,7 @@ dependencies = [
 
 [[package]]
 name = "cw-infusions"
-version = "0.1.0"
+version = "0.4.3"
 dependencies = [
  "base64 0.22.1",
  "cosmwasm-schema 2.2.2",
@@ -1777,6 +1778,16 @@ name = "dyn-clone"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c7a8fb8a9fbf66c1f703fe16184d10ca0ee9d23be5b4436400408ba54a95005"
+
+[[package]]
+name = "easy-addr"
+version = "0.4.3"
+dependencies = [
+ "cosmwasm-std 2.2.2",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "ecdsa"
@@ -4139,6 +4150,30 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "test-suite"
+version = "0.1.0"
+dependencies = [
+ "abstract-cw-multi-test",
+ "anyhow",
+ "cosmwasm-schema 2.2.2",
+ "cosmwasm-std 2.2.2",
+ "cw-infuser",
+ "cw-infuser-scripts",
+ "cw-infusions",
+ "cw-multi-test",
+ "cw-orch",
+ "cw-storage-plus 2.0.0",
+ "cw-utils 2.0.0",
+ "cw2 2.0.0",
+ "cw721 0.20.0",
+ "cw721-base 0.20.0",
+ "hex",
+ "rand",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
