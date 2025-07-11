@@ -1,6 +1,6 @@
 [package]
 name = "cw-infuser"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
 exclude = ["scripts"]
@@ -75,6 +75,5 @@ rand_xoshiro    = { version = "0.6.0", default-features = false }
 url                  = "2.2.2"
 
 ## previous verion packages for migration
-v020infuse = { package="cw-infuser",git = "https://github.com/permissionlessweb/cw-infuser", branch = "v020-migrate"}
 [dev-dependencies]
 cw-multi-test = "1.2.0"

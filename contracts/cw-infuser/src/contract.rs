@@ -1445,9 +1445,9 @@ pub fn execute_shuffle(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let prev_version = cw2::get_contract_version(deps.storage)?;
-    if prev_version.contract != CONTRACT_NAME {
-        return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
-    }
+    // if prev_version.contract != CONTRACT_NAME {
+    //     return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
+    // }
 
     let res = Response::new();
     let version: Version = prev_version
@@ -1466,27 +1466,28 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
         return Ok(res);
     }
 
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.3.0".to_string() {
-        crate::upgrades::v0_3_0::migrate_contract_owner_fee_type(deps.storage, &env, &msg)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
+    // #[allow(clippy::cmp_owned)]
+    // if prev_version.version < "0.3.0".to_string() {
+    //     crate::upgrades::v0_3_0::migrate_contract_owner_fee_type(deps.storage, &env, &msg)
+    //         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
-        crate::upgrades::v0_3_0::migrate_infusions_bundle_type(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.4.0".to_string() {
-        crate::upgrades::v0_4_0::patch_mint_count_v040(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
+    //     crate::upgrades::v0_3_0::migrate_infusions_bundle_type(deps.storage)
+    //         .map_err(|e| StdError::generic_err(e.to_string()))?;
+    // }
+    // #[allow(clippy::cmp_owned)]
+    // if prev_version.version < "0.4.0".to_string() {
+    //     crate::upgrades::v0_4_0::patch_mint_count_v040(deps.storage)
+    //         .map_err(|e| StdError::generic_err(e.to_string()))?;
+    // }
 
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.4.1".to_string() {
-        let data = crate::upgrades::v0_4_0::v0410_remove_mint_count_store(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-        crate::upgrades::v0_4_0::v0410_add_mint_count_store(deps.storage, env, data)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
+    // #[allow(clippy::cmp_owned)]
+    // if prev_version.version < "0.4.1".to_string() {
+    //     let data = crate::upgrades::v0_4_0::v0410_remove_mint_count_store(deps.storage)
+    //         .map_err(|e| StdError::generic_err(e.to_string()))?;
+    //     crate::upgrades::v0_4_0::v0410_add_mint_count_store(deps.storage, env, data)
+    //         .map_err(|e| StdError::generic_err(e.to_string()))?;
+    // }
+
     // set new contract version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let event = Event::new("migrate")
@@ -1661,61 +1662,4 @@ mod tests {
 
         // Passes
     }
-
-    // #[test]
-    // fn test_unique_token_ids_in_bundle() {
-    //     let mut binding = mock_dependencies();
-    //     let infuser = binding.api.addr_make("eretskeret");
-    //     let deps = binding.as_mut();
-    //     let info = mock_info("sender", &[]);
-    //     let mut env = mock_env();
-    //     let infused_collection_addr = Addr::unchecked("cosmos1abc");
-
-    //     // Set up a small set of token IDs (1-10)
-    //     let token_ids =
-    //         random_token_list(&env, info.sender.clone(), (1..=10000).collect::<Vec<u32>>())
-    //             .unwrap();
-    //     MINTABLE_TOKEN_VECTORS
-    //         .save(deps.storage, 1, &token_ids)
-    //         .unwrap();
-    //     MINTABLE_NUM_TOKENS
-    //         .save(deps.storage, infused_collection_addr.to_string(), &10000)
-    //         .unwrap();
-
-    //     // Initialize mint count
-    //     MINT_COUNT.save(deps.storage, &0u64).unwrap();
-
-    //     // Simulate multiple mints in the same bundle (like what happens in burn_bundle)
-    //     let mut selected_tokens = Vec::new();
-    //     let mut mint_count = 0;
-
-    //     // Try to mint 5 tokens (half of our supply)
-    //     for i in 0..5000 {
-    //         mint_count += 1;
-
-    //         let token_mapping = get_next_id(
-    //             &deps,
-    //             env.clone(),
-    //             &infused_collection_addr,
-    //             &infuser,
-    //             mint_count,
-    //             1,
-    //         )
-    //         .unwrap();
-
-    //         env.block.height += 1;
-    //         // Make sure we don't get a duplicate token ID
-    //         assert!(
-    //             !selected_tokens.contains(&token_mapping.token_id),
-    //             "Duplicate token ID found: {}, iteration: {}",
-    //             token_mapping.token_id,
-    //             i
-    //         );
-
-    //         selected_tokens.push(token_mapping.token_id);
-    //     }
-
-    //     // Ensure we got 5 unique tokens
-    //     assert_eq!(selected_tokens.len(), 5);
-    // }
 }

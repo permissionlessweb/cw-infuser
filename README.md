@@ -1,25 +1,4 @@
 # Cw-Infuser
-```
-
-                     /"\
-                    |\./|
-                    |   |
-                    |   |
-                    |>~<|
-                    |   |
-                 /'\|   |/'\..
-             /~\|   |   |   | \
-            |   =[@]=   |   |  \
-            |   |   |   |   |   \
-            | ~   ~   ~   ~ |`   )
-            |                   /
-             \       610      /
-              \               /
-               \    _____    /
-                |--//''`\--|
-                | (( +==)) |
-                |--\_|_//--|
-```
 
 ## Introduction
 Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways. Bundles, or the collection of tokens one intends to infuse,are formed and burned in exchange for a new token from the infused collection.
@@ -79,3 +58,25 @@ To infuse:\
 ```
 <!-- cargo run --bin infuse -- --id 1 --collections stars18vng693zqjgwd08p3ypzy26h8f7d7yjweahn5hxq2xnuu837emuslfzn5w,stars1pxcrcl2kt30qdjny8ek6fpkffye4xstvypqdgmh5ssr4yrfu8sgs7450ql --collection-ids 91-90-89-88,86-58 -->
 
+## [License](https://github.com/permissionlessweb/cw-infuser/blob/main/LICENSE)
+```
+
+                     /"\
+                    |\./|
+                    |   |
+                    |   |
+                    |>~<|
+                    |   |
+                 /'\|   |/'\..
+             /~\|   |   |   | \
+            |   =[@]=   |   |  \
+            |   |   |   |   |   \
+            | ~   ~   ~   ~ |`   )
+            |                   /
+             \       675     /
+              \               /
+               \    _____    /
+                |--//''`\--|
+                | (( +==)) |
+                |--\_|_//--|
+```
