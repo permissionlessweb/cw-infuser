@@ -1,21 +1,19 @@
 [package]
-name = "scripts"
+name = "cw-infuser-scripts"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.79"
-cosmrs = "0.15.0"
-cosmwasm-std = "1.5.2"
-cw-orch = { version = "0.24.1", features = ["daemon"] }
-cw-orch-clone-testing = "0.6.4"
-cw721 = "0.18.0"
 dotenv = "0.15.0"
+clap = "4.5.23"
 env_logger = { version = "0.11.3", default-features = false }
-cw-infuser = {version = "0.4.2", path = "../contracts/cw-infuser" }
+anyhow = "1.0.79"
+cosmwasm-std = { workspace = true }
+cw-infuser = { path = "../contracts/cw-infuser" }
 cw-infusions = {  path = "../packages/cw-infusions" }
+cw-orch = { workspace = true, features = ["daemon"] }
+cw721 = { workspace = true }
 sg721 = "^3.3"
 sg721-base = "^3.3"
-clap = "4.5.23"

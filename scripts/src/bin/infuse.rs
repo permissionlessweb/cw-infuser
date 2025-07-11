@@ -2,14 +2,14 @@ use std::str::FromStr;
 
 use clap::{arg, command, Parser};
 use cosmwasm_std::Uint128;
-use cw721::ApprovalResponse;
+use cw721::msg::ApprovalResponse;
 use cw_infuser::msg::{ExecuteMsgFns, QueryMsgFns};
 
+use cw_infuser_scripts::{CwInfuser, ELGAFAR_1};
 use cw_infusions::bundles::Bundle;
+
 use cw_infusions::nfts::NFT;
 use cw_orch::prelude::*;
-use scripts::infuser::CwInfuser;
-use scripts::ELGAFAR_1;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -53,7 +53,7 @@ pub fn main() -> anyhow::Result<()> {
     for (contract_address, id) in collections.iter().zip(token_id.iter()) {
         for token in id {
             let res: Result<ApprovalResponse, _> = chain.wasm_querier().smart_query(
-                contract_address.clone(),
+                &Addr::unchecked(contract_address.clone()),
                 &sg721_base::QueryMsg::Approval {
                     token_id: token.to_string(),
                     spender: infuser.addr_str()?,

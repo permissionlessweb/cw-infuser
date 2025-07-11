@@ -1,7 +1,10 @@
 #[cosmwasm_schema::cw_serde]
 pub struct WavsBundle {
+    /// Address of the account that infused the nfts
     pub infuser: String,
+    /// Address of nft that was infused
     pub nft_addr: String,
+    /// nft-id's of nfts that were infused
     pub infused_ids: Vec<String>,
 }
 

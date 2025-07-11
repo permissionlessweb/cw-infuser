@@ -1,11 +1,11 @@
 use clap::{arg, command, Parser};
 use cw_infuser::msg::ExecuteMsgFns;
+use cw_infuser_scripts::CwInfuser;
+use cw_infuser_scripts::ELGAFAR_1;
 use cw_infusions::bundles::BundleType;
 use cw_infusions::nfts::InfusedCollection;
 use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionParamState};
 use cw_orch::prelude::*;
-use scripts::infuser::CwInfuser;
-use scripts::ELGAFAR_1;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]

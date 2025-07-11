@@ -5,37 +5,40 @@ use crate::state::{
     INFUSION_ID, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_VECTORS, MINT_COUNT, WAVS_ADMIN, WAVS_TRACKED,
 };
 use cosmwasm_schema::serde::Serialize;
-use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
     Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QuerierWrapper,
     QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
     WasmQuery,
 };
+use cosmwasm_std::{entry_point, Fraction};
 use cw2::set_contract_version;
-use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
-use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
+use cw721::msg::{Cw721ExecuteMsg, OwnerOfResponse};
+use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
 
 use cw_infusions::bundles::{AnyOfCount, Bundle, BundleBlend, BundleType};
-use cw_infusions::nfts::{InfusedCollection, NFT};
+use cw_infusions::nfts::{
+    CollectionInfo, InfusedCollection, RoyaltyInfoResponse, SgInstantiateMsg, NFT,
+};
 use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionState};
 use cw_infusions::wavs::{WavsBundle, WavsMintCountResponse, WavsRecordResponse};
 
+use cw_infusions::CompatibleTraits;
 use nois::int_in_range;
 use rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro128PlusPlus;
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
 
 use semver::Version;
-use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
+
 use sha2::{Digest, Sha256};
 use url::Url;
 
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw-infuser";
+const CONTRACT_NAME: &str = "crates.io:sg-minter";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -103,7 +106,7 @@ pub fn instantiate(
             min_per_bundle: msg.min_per_bundle.unwrap_or(1),
             max_per_bundle: msg.max_per_bundle.unwrap_or(10u64),
             code_id: msg.cw721_code_id,
-            code_hash: cw721_checksum.checksum,
+            code_hash: HexBinary::from_hex(&cw721_checksum.checksum.to_hex())?,
             latest_infusion_id: 0,
             max_infusions: msg.max_infusions.unwrap_or(2u64),
             max_bundles: msg.max_bundles.unwrap_or(5),
@@ -165,6 +168,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::WavsRecord { burner, nfts } => {
             to_json_binary(&query_retrieve_wavs_record(deps, burner, nfts)?)
         }
+        QueryMsg::InfusionGenetics { id } => to_json_binary(&query_infusion_genetics(deps, id)?),
     }
 }
 
@@ -333,6 +337,11 @@ pub fn execute_create_infusion(
         if infusion.description.is_some_and(|a| a.len() > 512) {
             return Err(ContractError::InfusionDescriptionLengthError {});
         }
+
+        if infusion.infusion_params.params.iter().len() > 4 {
+            return Err(ContractError::MetadataArrayLengthError);
+        }
+
         // assert creation fees
         if let Some(creation_fee) = cfg.min_creation_fee.clone() {
             if info.sender == cfg.contract_owner {
@@ -412,9 +421,12 @@ pub fn execute_create_infusion(
             false => to_json_binary(&Cw721InstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
-                minter: env.contract.address.to_string(), // this contract
+                minter: Some(env.contract.address.to_string()),
+                collection_info_extension: None,
+                creator: Some(infusion_admin.clone()),
+                withdraw_address: Some(infusion_admin.clone()),
             })?,
-            true => to_json_binary(&Sg721InitMsg {
+            true => to_json_binary(&SgInstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
                 minter: env.contract.address.to_string(), // this contract
@@ -426,15 +438,31 @@ pub fn execute_create_infusion(
                     external_link: infusion.infused_collection.external_link.clone(),
                     explicit_content: infusion.infused_collection.explicit_content,
                     start_trading_time: infusion.infused_collection.start_trading_time,
-                    royalty_info: match infusion.infused_collection.royalty_info.clone() {
-                        Some(r) => Some(RoyaltyInfoResponse {
-                            payment_address: r.payment_address,
-                            share: r.share,
-                        }),
-                        None => None,
-                    },
+                    royalty_info: infusion.infused_collection.royalty_info.clone(),
                 },
             })?,
+            //     &SgInstantiateMsg {
+            //     name: infusion.infused_collection.name.clone(),
+            //     symbol: infusion.infused_collection.symbol.clone(),
+            //     minter: env.contract.address.to_string(), // this contract
+            //     collection_info: CollectionInfo::<RoyaltyInfoResponse> {
+            //         creator: infusion_admin.clone(),
+            //         description: "Infused Collection: ".to_owned()
+            //             + &infusion.infused_collection.description,
+            //         image: infusion.infused_collection.image.clone(),
+            //         external_link: infusion.infused_collection.external_link.clone(),
+            //         explicit_content: infusion.infused_collection.explicit_content,
+            //         start_trading_time: None, //infusion.infused_collection.start_trading_time,
+            //         royalty_info: match infusion.infused_collection.royalty_info.clone() {
+            //             Some(r) => Some(RoyaltyInfoResponse {
+            //                 payment_address: r.payment_address,
+            //                 share: r.share,
+            //             }),
+            //             None => None,
+            //         },
+            //     },
+            // }
+            // )?,
         };
 
         let init_infusion = WasmMsg::Instantiate2 {
@@ -550,12 +578,24 @@ fn validate_eligible_collection_list(
         if unique.contains(&col.addr) {
             return Err(ContractError::DuplicateCollectionInInfusion);
         }
-        // check if addr is cw721 collection
-        let _res: cw721::ContractInfoResponse = query
-            .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
+
+        let _res: cw721_v18::ContractInfoResponse = query
+            .query_wasm_smart(col.addr.clone(), &cw721_v18::Cw721QueryMsg::ContractInfo {})
             .map_err(|_| ContractError::AddrIsNotNFTCol {
                 addr: col.addr.to_string(),
             })?;
+
+        // // check if addr is cw721 collection
+        // let _res: cw721::msg::CollectionInfoAndExtensionResponse<
+        //     Option<cw721::CollectionExtension<RoyaltyInfoResponse>>,
+        // > = query
+        //     .query_wasm_smart(
+        //         col.addr.clone(),
+        //         &cw721_base::msg::QueryMsg::GetCollectionInfoAndExtension {},
+        //     )
+        //     .map_err(|_| ContractError::AddrIsNotNFTCol {
+        //         addr: col.addr.to_string(),
+        //     })?;
 
         // checks # of nft required per bundle
         if col.addr.to_string().is_empty() {
@@ -639,8 +679,14 @@ fn form_feesplit_helper(
 ) -> Result<Vec<CosmosMsg>, ContractError> {
     let mut msgs = vec![];
     // split fees between contract owner and infusion owner
-    let dev_fee = fee.amount * owner_fee;
-    let remaining_fee_amount = fee.amount * (Decimal::one() - owner_fee);
+    let dev_fee = fee
+        .amount
+        .checked_multiply_ratio(owner_fee.numerator(), owner_fee.denominator())?;
+
+    let dec = Decimal::one() - owner_fee;
+    let remaining_fee_amount = fee
+        .amount
+        .checked_multiply_ratio(dec.numerator(), dec.denominator())?;
 
     if dev_fee != Uint128::zero() {
         let base_fee = CosmosMsg::Bank(BankMsg::Send {
@@ -786,7 +832,7 @@ fn burn_bundle(
     // println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
-            Cw721ExecuteMsg::Burn {
+            Cw721ExecuteMsg::<Empty, Empty, Empty>::Burn {
                 token_id: nft.token_id.to_string(),
             },
             nft.addr,
@@ -838,7 +884,7 @@ fn prepare_wasm_events(
         )?;
 
         // mint_msg
-        let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
+        let mint_msg: Cw721ExecuteMessage = Cw721ExecuteMessage::Mint {
             token_id: token_id.token_id.to_string(),
             owner: sender.to_string(),
             token_uri: Some(format!(
@@ -847,7 +893,7 @@ fn prepare_wasm_events(
                 token_id.token_id,
                 ".json"
             )),
-            extension: Empty {},
+            extension: None,
         };
 
         msgs.push(into_cosmos_msg(mint_msg, infused_col_addr.clone(), None)?);
@@ -928,10 +974,6 @@ fn check_bundles(
                             )?;
                             msgs.extend(fee_msgs);
                             infused_mint_count += count;
-                            // println!(
-                            //     "mint-count increment: anyOf-substitute: {:#?}",
-                            //     infused_mint_count
-                            // );
                         }
                     }
                 }
@@ -1123,7 +1165,7 @@ fn update_wavs_infusion_state(
     to_add: Vec<WavsBundle>,
 ) -> Result<Response, ContractError> {
     let key = WAVS_ADMIN.load(deps.storage)?;
-    if key != info.sender {
+    if key != info.sender.to_string() {
         return Err(ContractError::Admin(AdminError::NotAdmin {}));
     }
     // load infusion & assert there are only eligible collections
@@ -1303,6 +1345,16 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     Ok(execute.into())
 }
 
+pub fn query_infusion_genetics(deps: Deps, id: u64) -> StdResult<Vec<CompatibleTraits>> {
+    match INFUSION
+        .load(deps.storage, INFUSION_ID.load(deps.storage, id)?)?
+        .infusion_params
+        .params
+    {
+        Some(n) => Ok(n.compatible_traits),
+        None => Ok(vec![]),
+    }
+}
 pub fn query_retrieve_wavs_record(
     deps: Deps,
     addr: Option<Addr>,
@@ -1319,7 +1371,7 @@ pub fn query_retrieve_wavs_record(
             .map(|nft| {
                 let count = WAVS_TRACKED
                     .may_load(deps.storage, (&burn.clone(), nft.clone()))
-                    .unwrap_or_default();
+                    .unwrap_or(Some(0));
 
                 WavsRecordResponse {
                     addr: burn.to_string(),
@@ -1401,13 +1453,13 @@ pub fn is_nft_owner(
         let owner_response: OwnerOfResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: nft_address.to_string(),
-                msg: to_json_binary(&Cw721QueryMsg::OwnerOf {
+                msg: to_json_binary(&cw721_v18::Cw721QueryMsg::OwnerOf {
                     token_id: token_id.to_string(),
                     include_expired: None,
                 })?,
             }))?;
 
-        if owner_response.owner != sender {
+        if owner_response.owner != sender.to_string() {
             return Err(ContractError::SenderNotOwner {});
         }
     }
@@ -1422,7 +1474,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
     let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(hash);
     let mut result = checksum_hash.to_vec();
     result.extend_from_slice(SALT_POSTFIX);
-    Binary(result)
+    Binary::new(result)
 }
 
 pub fn random_token_list(
@@ -1593,11 +1645,11 @@ pub fn execute_shuffle(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let prev_version = cw2::get_contract_version(deps.storage)?;
-    if prev_version.contract != CONTRACT_NAME {
-        return Err(StdError::generic_err(
-            "Cannot upgrade to a different contract",
-        ));
-    }
+    // if prev_version.contract != CONTRACT_NAME {
+    //     return Err(StdError::generic_err(
+    //         "Cannot upgrade to a different contract",
+    //     ));
+    // }
 
     let res = Response::new();
     let version: Version = prev_version
@@ -1619,24 +1671,8 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
     }
 
     #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.3.0".to_string() {
-        crate::upgrades::v0_3_0::migrate_contract_owner_fee_type(deps.storage, &env, &msg)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-
-        crate::upgrades::v0_3_0::migrate_infusions_bundle_type(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.4.0".to_string() {
-        crate::upgrades::v0_4_0::patch_mint_count_v040(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
-
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.4.1".to_string() {
-        let data = crate::upgrades::v0_4_0::v0410_remove_mint_count_store(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-        crate::upgrades::v0_4_0::v0410_add_mint_count_store(deps.storage, env, data)
+    if prev_version.version < "0.6.0".to_string() {
+        crate::upgrades::v0_5_0::v050_patch_upgrade(deps.storage, env)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
     }
     // set new contract version
@@ -1653,10 +1689,12 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 
     use super::*;
     use std::str::FromStr;
+
+    use easy_addr::addr;
 
     // fn mint_sim(
     //     mut env: Env,
@@ -1755,15 +1793,20 @@ mod tests {
     #[test]
     fn test_form_feesplit_helper() {
         let owner_fee = Decimal::from_str("0.1").unwrap(); // 10% fee for owner
-        let owner = String::from("owner");
-        let payment_recipient = String::from("recipient");
+        let owner = addr!("owner");
+        let payment_recipient = addr!("recipient");
         let fee = Coin {
             denom: String::from("uthiol"),
             amount: Uint128::from(1000u128), //
         };
 
-        let result = form_feesplit_helper(owner_fee, owner, payment_recipient, fee)
-            .expect("Should not return error");
+        let result = form_feesplit_helper(
+            owner_fee,
+            owner.to_string(),
+            payment_recipient.to_string(),
+            fee,
+        )
+        .expect("Should not return error");
 
         // 2 msg: one for  devs and one for fee recipient
         assert_eq!(result.len(), 2);
@@ -1772,7 +1815,7 @@ mod tests {
         let dev_fee_msg = &result[0];
         match dev_fee_msg {
             CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
-                assert_eq!(to_address, "owner");
+                assert_eq!(to_address, &owner.to_string());
                 assert_eq!(amount[0].denom, "uthiol");
                 assert_eq!(amount[0].amount, Uint128::from(100u128));
             }
@@ -1783,7 +1826,7 @@ mod tests {
         let fee_msg = &result[1];
         match fee_msg {
             CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
-                assert_eq!(to_address, "recipient");
+                assert_eq!(to_address, &payment_recipient.to_string());
                 assert_eq!(amount[0].denom, "uthiol");
                 assert_eq!(amount[0].amount, Uint128::from(900u128));
             }
@@ -1811,75 +1854,76 @@ mod tests {
         // Passes
     }
 
-    // #[test]
-    // fn test_unique_token_ids_in_bundle() {
-    //     let mut binding = mock_dependencies();
-    //     let infuser = binding.api.addr_make("eretskeret");
-    //     let deps = binding.as_mut();
-    //     let info = mock_info("sender", &[]);
-    //     let mut env = mock_env();
-    //     let infused_collection_addr = Addr::unchecked("cosmos1abc");
-    //     let sender1 = Addr::unchecked("cosmosender1s1abc");
-    //     let sender2 = Addr::unchecked("sender2");
+    #[test]
+    fn test_unique_token_ids_in_bundle() {
+        let mut binding = mock_dependencies();
+        let infuser = binding.api.addr_make("eretskeret");
+        let sender = addr!("sender");
+        let deps = binding.as_mut();
+        let info = mock_info(sender, &[]);
+        let mut env = mock_env();
 
-    //     // Set up a small set of token IDs (1-10)
-    //     let token_ids =
-    //         random_token_list(&env, info.sender.clone(), (1..=10000).collect::<Vec<u32>>())
-    //             .unwrap();
-    //     MINTABLE_TOKEN_VECTORS
-    //         .save(deps.storage, 1, &token_ids)
-    //         .unwrap();
-    //     MINTABLE_NUM_TOKENS
-    //         .save(deps.storage, infused_collection_addr.to_string(), &10000)
-    //         .unwrap();
+        let infused_collection_addr = Addr::unchecked(addr!("cosmos1abc"));
+        let sender1 = Addr::unchecked(addr!("cosmosender1s1abc"));
+        let sender2 = Addr::unchecked(addr!("sender2"));
 
-    //     // Initialize mint count
-    //     MINT_COUNT.save(deps.storage, &0u64).unwrap();
+        // Set up a small set of token IDs (1-10)
+        let token_ids =
+            random_token_list(&env, info.sender.clone(), (1..=1000).collect::<Vec<u32>>()).unwrap();
+        MINTABLE_TOKEN_VECTORS
+            .save(deps.storage, 1, &token_ids)
+            .unwrap();
+        MINTABLE_NUM_TOKENS
+            .save(deps.storage, infused_collection_addr.to_string(), &1000)
+            .unwrap();
 
-    //     // Simulate multiple mints in the same bundle
+        // Initialize mint count
+        MINT_COUNT.save(deps.storage, &0u64).unwrap();
 
-    //     let mut selected_tokens = Vec::new();
+        // Simulate multiple mints in the same bundle
 
-    //     // Try to mint 5 tokens (half of our supply)
-    //     for i in 0..5000 {
-    //         env.block.height += 2;
-    //         let mut sender = sender1.clone();
-    //         if i % 5 == 0 {
-    //             sender = sender2.clone()
-    //         }
-    //         let token_mapping = random_mintable_token_mapping(
-    //             deps.storage,
-    //             env.clone(),
-    //             &sender,
-    //             1,
-    //             &infused_collection_addr,
-    //         )
-    //         .unwrap();
+        let mut selected_tokens = Vec::new();
 
-    //         // Make sure we don't get a duplicate token ID
-    //         assert!(
-    //             !selected_tokens.contains(&token_mapping.token_id),
-    //             "Duplicate token ID found: {}, iteration: {}",
-    //             token_mapping.token_id,
-    //             i
-    //         );
+        // Try to mint 5 tokens (half of our supply)
+        for i in 0..1000 {
+            env.block.height += 2;
+            let mut sender = sender1.clone();
+            if i % 3 == 0 {
+                sender = sender2.clone()
+            }
+            let token_mapping = random_mintable_token_mapping(
+                deps.storage,
+                env.clone(),
+                &sender,
+                1,
+                &infused_collection_addr,
+            )
+            .unwrap();
 
-    //         selected_tokens.push(token_mapping.token_id);
-    //     }
+            // Make sure we don't get a duplicate token ID
+            assert!(
+                !selected_tokens.contains(&token_mapping.token_id),
+                "Duplicate token ID found: {}, iteration: {}",
+                token_mapping.token_id,
+                i
+            );
 
-    //     // Ensure we got 5 unique tokens
-    //     assert_eq!(selected_tokens.len(), 5);
-    // }
+            selected_tokens.push(token_mapping.token_id);
+        }
+
+        // Ensure we got 100 unique tokens
+        assert_eq!(selected_tokens.len(), 1000);
+    }
 
     #[test]
     fn test_update_wavs_infusion_state() {
         let mut deps = mock_dependencies();
-        let admin = Addr::unchecked("admin");
-        let non_admin = Addr::unchecked("non_admin");
-        let infuser1 = Addr::unchecked("infuser1");
-        let infuser2 = Addr::unchecked("infuser2");
-        let nft_addr1 = Addr::unchecked("nft_addr1");
-        let nft_addr2 = Addr::unchecked("nft_addr2");
+        let admin = addr!("admin");
+        let non_admin = addr!("non_admin");
+        let infuser1 = addr!("infuser1");
+        let infuser2 = addr!("infuser2");
+        let nft_addr1 = addr!("nft_addr1");
+        let nft_addr2 = addr!("nft_addr2");
 
         // Set admin
         WAVS_ADMIN
@@ -1887,7 +1931,7 @@ mod tests {
             .unwrap();
 
         // Test with non-admin
-        let info = mock_info(non_admin.as_str(), &[]);
+        let info = mock_info(non_admin, &[]);
         let to_add = vec![WavsBundle {
             infuser: infuser1.to_string(),
             nft_addr: nft_addr1.to_string(),
@@ -1900,13 +1944,17 @@ mod tests {
         );
 
         // Test with admin
-        let info = mock_info(admin.as_str(), &[]);
+        let info = mock_info(admin, &[]);
         let result = update_wavs_infusion_state(deps.as_mut(), info, to_add.clone());
+        println!("{:#?}", result);
         assert!(result.is_ok());
 
         // Check if data is saved correctly
         let stored_count = WAVS_TRACKED
-            .load(deps.as_ref().storage, (&infuser1, nft_addr1.to_string()))
+            .load(
+                deps.as_ref().storage,
+                (&Addr::unchecked(infuser1), nft_addr1.to_string()),
+            )
             .unwrap();
         assert_eq!(stored_count, 3);
 
@@ -1923,18 +1971,24 @@ mod tests {
                 infused_ids: vec![1.to_string(), 2.to_string(), 3.to_string()],
             },
         ];
-        let info = mock_info(admin.as_str(), &[]);
+        let info = mock_info(admin, &[]);
         let result = update_wavs_infusion_state(deps.as_mut(), info, to_add.clone());
         assert!(result.is_ok());
 
         // Check if data is saved correctly
         let stored_count = WAVS_TRACKED
-            .load(deps.as_ref().storage, (&infuser1, nft_addr1.to_string()))
+            .load(
+                deps.as_ref().storage,
+                (&Addr::unchecked(infuser1), nft_addr1.to_string()),
+            )
             .unwrap();
         assert_eq!(stored_count, 5); // 3 + 2
 
         let stored_count = WAVS_TRACKED
-            .load(deps.as_ref().storage, (&infuser2, nft_addr2.to_string()))
+            .load(
+                deps.as_ref().storage,
+                (&Addr::unchecked(infuser2), nft_addr2.to_string()),
+            )
             .unwrap();
         assert_eq!(stored_count, 3);
     }
