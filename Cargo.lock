@@ -1126,7 +1126,6 @@ version = "0.6.0"
 dependencies = [
  "clap",
  "cosmwasm-schema 2.2.2",
- "cosmwasm-std 1.5.11",
  "cosmwasm-std 2.2.2",
  "cw-asset",
  "cw-controllers",

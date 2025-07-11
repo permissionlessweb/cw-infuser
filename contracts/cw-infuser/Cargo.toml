@@ -60,7 +60,6 @@ url                  = "2.2.2"
 cw721-v18 = { version = "0.18.0", package= "cw721" }
 cw-infuser-v050  = {package = "cw-infuser",  branch = "feat/dnas", git ="https://github.com/permissionlessweb/cw-infuser", ref = "c2a3081b2d446b860edf14909df809a307c416a1"    }
 cw-infusions-v050  = {package = "cw-infusions", branch = "feat/dnas",  git ="https://github.com/permissionlessweb/cw-infuser"   }
-cosmwasm-std-v154 = { version = "1.5.4", features = ["cosmwasm_1_4" ], package = "cosmwasm-std"   }
 
 shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
 rand_core       = { version = "0.6.4", default-features = false }

@@ -1,4 +1,3 @@
-use std::str::FromStr;
 
 use crate::error::{AnyOfErr, ContractError};
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -10,18 +9,19 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
     Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QuerierWrapper,
-    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Timestamp, Uint128,
+    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128,
     WasmMsg, WasmQuery,
 };
 use cosmwasm_std::{entry_point, Fraction};
 use cw2::set_contract_version;
-use cw721::msg::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
+use cw721::msg::{Cw721ExecuteMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
-use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
 
 use cw_infusions::bundles::{AnyOfCount, Bundle, BundleBlend, BundleType};
-use cw_infusions::nfts::{InfusedCollection, NFT};
+use cw_infusions::nfts::{
+    CollectionInfo, InfusedCollection, RoyaltyInfoResponse, SgInstantiateMsg, NFT,
+};
 use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionState};
 use cw_infusions::wavs::{WavsBundle, WavsMintCountResponse, WavsRecordResponse};
 
@@ -427,7 +427,7 @@ pub fn execute_create_infusion(
                 creator: Some(infusion_admin.clone()),
                 withdraw_address: Some(infusion_admin.clone()),
             })?,
-            true => to_json_binary(&Sg721InitMsg {
+            true => to_json_binary(&SgInstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
                 minter: env.contract.address.to_string(), // this contract
@@ -437,22 +437,9 @@ pub fn execute_create_infusion(
                         + &infusion.infused_collection.description,
                     image: infusion.infused_collection.image.clone(),
                     external_link: infusion.infused_collection.external_link.clone(),
-                    explicit_content: infusion.infused_collection.explicit_content.clone(),
-                    start_trading_time: match infusion.infused_collection.start_trading_time.clone()
-                    {
-                        Some(a) => Some(cosmwasm_std_v154::Timestamp::from_nanos(a.nanos())),
-                        None => todo!(),
-                    },
-                    royalty_info: match &infusion.infused_collection.royalty_info {
-                        Some(ri) => Some(sg721::RoyaltyInfoResponse {
-                            payment_address: ri.payment_address.clone(),
-                            share: cosmwasm_std_v154::Decimal::from_ratio(
-                                cosmwasm_std_v154::Uint128::new(ri.share.numerator().u128()),
-                                cosmwasm_std_v154::Uint128::new(ri.share.denominator().u128()),
-                            ),
-                        }),
-                        None => None,
-                    },
+                    explicit_content: infusion.infused_collection.explicit_content,
+                    start_trading_time: infusion.infused_collection.start_trading_time,
+                    royalty_info: infusion.infused_collection.royalty_info.clone(),
                 },
             })?,
             //     &SgInstantiateMsg {
@@ -596,9 +583,9 @@ fn validate_eligible_collection_list(
         let _res: cw721_v18::ContractInfoResponse = query
             .query_wasm_smart(col.addr.clone(), &cw721_v18::Cw721QueryMsg::ContractInfo {})
             .map_err(|_| {
-                return ContractError::AddrIsNotNFTCol {
+                ContractError::AddrIsNotNFTCol {
                     addr: col.addr.to_string(),
-                };
+                }
             })?;
 
         // // check if addr is cw721 collection
@@ -1661,11 +1648,11 @@ pub fn execute_shuffle(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let prev_version = cw2::get_contract_version(deps.storage)?;
-    if prev_version.contract != CONTRACT_NAME {
-        return Err(StdError::generic_err(
-            "Cannot upgrade to a different contract",
-        ));
-    }
+    // if prev_version.contract != CONTRACT_NAME {
+    //     return Err(StdError::generic_err(
+    //         "Cannot upgrade to a different contract",
+    //     ));
+    // }
 
     let res = Response::new();
     let version: Version = prev_version
@@ -1687,7 +1674,7 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
     }
 
     #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.0.5".to_string() {
+    if prev_version.version < "0.6.0".to_string() {
         crate::upgrades::v0_5_0::v050_patch_upgrade(deps.storage, env)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
     }
@@ -1947,7 +1934,7 @@ mod tests {
             .unwrap();
 
         // Test with non-admin
-        let info = mock_info(&non_admin.to_string(), &[]);
+        let info = mock_info(non_admin, &[]);
         let to_add = vec![WavsBundle {
             infuser: infuser1.to_string(),
             nft_addr: nft_addr1.to_string(),
@@ -1960,7 +1947,7 @@ mod tests {
         );
 
         // Test with admin
-        let info = mock_info(&admin.to_string(), &[]);
+        let info = mock_info(admin, &[]);
         let result = update_wavs_infusion_state(deps.as_mut(), info, to_add.clone());
         println!("{:#?}", result);
         assert!(result.is_ok());

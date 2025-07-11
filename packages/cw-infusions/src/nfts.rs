@@ -61,3 +61,4 @@ pub struct SgInstantiateMsg {
     pub minter: String,
     pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
 }
+
