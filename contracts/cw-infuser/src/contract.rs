@@ -1,27 +1,30 @@
 use crate::error::{AnyOfErr, ContractError};
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
+
 use crate::state::{
-    Bundle, BundleBlend, BundleType, Config, InfusedCollection, Infusion, InfusionParamState,
-    InfusionState, NFTCollection, TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION,
-    INFUSION_ID, INFUSION_INFO, MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_VECTORS, MINT_COUNT, NFT,
+    Bundle, BundleBlend, BundleType, CollectionInfo, Config, InfusedCollection, Infusion,
+    InfusionParamState, InfusionState, NFTCollection, RoyaltyInfoResponse, SgInstantiateMsg,
+    TokenPositionMapping, UpdatingConfig, CONFIG, INFUSION, INFUSION_ID, INFUSION_INFO,
+    MINTABLE_NUM_TOKENS, MINTABLE_TOKEN_VECTORS, MINT_COUNT, NFT,
 };
 use cosmwasm_schema::serde::Serialize;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QuerierWrapper,
+    Decimal, Deps, DepsMut, Empty, Env, Event, Fraction, HexBinary, MessageInfo, QuerierWrapper,
     QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
     WasmQuery,
 };
 use cw2::set_contract_version;
-use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
-use cw721_base::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
+use cw721::msg::{Cw721QueryMsg, OwnerOfResponse};
+// use cw721::msg::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
+use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
 use rand_core::{RngCore, SeedableRng};
 use rand_xoshiro::Xoshiro128PlusPlus;
 use semver::Version;
-use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
+// use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
 use sha2::{Digest, Sha256};
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
 use url::Url;
@@ -29,7 +32,7 @@ use url::Url;
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw-infuser";
+const CONTRACT_NAME: &str = "crates.io:sg-minter";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -94,7 +97,7 @@ pub fn instantiate(
             min_per_bundle: msg.min_per_bundle.unwrap_or(1),
             max_per_bundle: msg.max_per_bundle.unwrap_or(10u64),
             code_id: msg.cw721_code_id,
-            code_hash: cw721_checksum.checksum,
+            code_hash: HexBinary::from_hex(&cw721_checksum.checksum.to_hex())?,
             latest_infusion_id: 0,
             max_infusions: msg.max_infusions.unwrap_or(2u64),
             max_bundles: msg.max_bundles.unwrap_or(5),
@@ -324,7 +327,7 @@ pub fn execute_create_infusion(
         }
         // assert creation fees
         if let Some(creation_fee) = cfg.min_creation_fee.clone() {
-            if info.sender.to_string() == cfg.contract_owner {
+            if info.sender == cfg.contract_owner {
                 // skip over creation fees for admin
             } else {
                 if info.funds.iter().find(|&e| e == &creation_fee).is_some() {
@@ -400,9 +403,12 @@ pub fn execute_create_infusion(
             false => to_json_binary(&Cw721InstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
-                minter: env.contract.address.to_string(), // this contract
+                minter: Some(env.contract.address.to_string()),
+                collection_info_extension: None,
+                creator: Some(infusion_admin.clone()),
+                withdraw_address: Some(infusion_admin.clone()),
             })?,
-            true => to_json_binary(&Sg721InitMsg {
+            true => to_json_binary(&SgInstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
                 minter: env.contract.address.to_string(), // this contract
@@ -412,9 +418,15 @@ pub fn execute_create_infusion(
                         + &infusion.infused_collection.description,
                     image: infusion.infused_collection.image.clone(),
                     external_link: infusion.infused_collection.external_link.clone(),
-                    explicit_content: infusion.infused_collection.explicit_content.clone(),
-                    start_trading_time: infusion.infused_collection.start_trading_time.clone(),
-                    royalty_info: infusion.infused_collection.royalty_info.clone(),
+                    explicit_content: infusion.infused_collection.explicit_content,
+                    start_trading_time: None, //infusion.infused_collection.start_trading_time,
+                    royalty_info: match infusion.infused_collection.royalty_info.clone() {
+                        Some(r) => Some(RoyaltyInfoResponse {
+                            payment_address: r.payment_address,
+                            share: r.share,
+                        }),
+                        None => None,
+                    },
                 },
             })?,
         };
@@ -545,14 +557,15 @@ fn validate_eligible_collection_list(
         if unique.contains(&col.addr) {
             return Err(ContractError::DuplicateCollectionInInfusion);
         }
-        // check if addr is cw721 collection
-        let _res: cw721::ContractInfoResponse = query
-            .query_wasm_smart(col.addr.clone(), &cw721::Cw721QueryMsg::ContractInfo {})
-            .map_err(|_| {
-                return ContractError::AddrIsNotNFTCol {
-                    addr: col.addr.to_string(),
-                };
-            })?;
+
+        // // check if addr is cw721 collection
+        // let _res: cw721::ContractInfoResponse = query
+        //     .query_wasm_smart(col.addr.clone(), &cw721::msg::Cw721QueryMsg::GetAllInfo {})
+        //     .map_err(|_| {
+        //         return ContractError::AddrIsNotNFTCol {
+        //             addr: col.addr.to_string(),
+        //         };
+        //     })?;
 
         // checks # of nft required per bundle
         if col.addr.to_string().is_empty() {
@@ -628,9 +641,14 @@ fn form_feesplit_helper(
 ) -> Result<Vec<CosmosMsg>, ContractError> {
     let mut msgs = vec![];
     // split fees between contract owner and infusion owner
-    let dev_fee = fee.amount * owner_fee;
-    let remaining_fee_amount = fee.amount * (Decimal::one() - owner_fee);
+    let dev_fee = fee
+        .amount
+        .checked_multiply_ratio(owner_fee.numerator(), owner_fee.denominator())?;
 
+    let dec = Decimal::one() - owner_fee;
+    let remaining_fee_amount = fee
+        .amount
+        .checked_multiply_ratio(dec.numerator(), dec.denominator())?;
     if dev_fee != Uint128::zero() {
         let base_fee = CosmosMsg::Bank(BankMsg::Send {
             to_address: owner,
@@ -753,7 +771,7 @@ fn burn_bundle(
     // println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
-            Cw721ExecuteMsg::Burn {
+            Cw721ExecuteMessage::Burn {
                 token_id: nft.token_id.to_string(),
             },
             nft.addr,
@@ -808,7 +826,7 @@ fn burn_bundle(
         }
 
         // mint_msg
-        let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
+        let mint_msg: Cw721ExecuteMessage = Cw721ExecuteMessage::Mint {
             token_id: final_token_id.token_id.to_string(),
             owner: sender.to_string(),
             token_uri: Some(format!(
@@ -817,7 +835,7 @@ fn burn_bundle(
                 final_token_id.token_id.to_string(),
                 ".json".to_string()
             )),
-            extension: Empty {},
+            extension: Some(Empty {}),
         };
 
         let msg = into_cosmos_msg(
@@ -1255,13 +1273,13 @@ pub fn is_nft_owner(deps: Deps, sender: Addr, nfts: Vec<NFT>) -> Result<(), Cont
         let owner_response: OwnerOfResponse =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: nft_address.to_string(),
-                msg: to_json_binary(&Cw721QueryMsg::OwnerOf {
+                msg: to_json_binary(&Cw721QueryMsg::OwnerOf::<Empty, Empty, Empty> {
                     token_id: token_id.to_string(),
                     include_expired: None,
                 })?,
             }))?;
 
-        if owner_response.owner != sender {
+        if owner_response.owner != sender.to_string() {
             return Err(ContractError::SenderNotOwner {});
         }
     }
@@ -1276,7 +1294,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
     let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(hash);
     let mut result = checksum_hash.to_vec();
     result.extend_from_slice(SALT_POSTFIX);
-    Binary(result)
+    Binary::new(result)
 }
 
 pub fn random_token_list(

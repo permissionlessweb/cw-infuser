@@ -1,4 +1,4 @@
-workspace-optimize:
+wasm:
     #!/bin/bash
     if [[ $(uname -m) == 'arm64' ]] || [ $(uname -m) == 'aarch64' ]]; then docker run --rm -v "$(pwd)":/code \
             --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \

@@ -1,6 +1,6 @@
 [package]
 name = "cw-infuser"
-version = "0.4.3"
+version.workspace = true 
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2021"
 exclude = ["scripts"]
@@ -22,58 +22,43 @@ incremental = false
 overflow-checks = true
 
 [features]
-default = ["sg"]
-sg = ["sg-std", "sg721", "sg721-base"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.0
-"""
-optimize-arm = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer-arm64:0.16.0
-"""
 
 [dependencies]
-cosmwasm-schema = "1.5.11"
-cosmwasm-std = { version = "1.5.11", features = [
+cosmwasm-schema  = {workspace = true }
+cosmwasm-std = { workspace = true, features = [
   "cosmwasm_1_4",
   # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
-  # "cosmwasm_2_0",
+ "cosmwasm_2_0",
 ] }
-cw-asset = { version = "3.0.0" }
-cw-storage-plus = "1.2.0"
-cw2 = "1.1.2"
-cw-controllers = { version = "1.1.2" }
+cosmwasm-std-v150 = { package = "cosmwasm-std", version = "1.5.4", features = ["cosmwasm_1_4"] }
+cw-asset = "4.0.0"
+cw-storage-plus =  { workspace = true }
+cw2 =  { workspace = true }
+cw-controllers = "2.0.0"
+ 
+cw-orch =  { workspace = true }
 
-abstract-cw20 = "2.0.0"
-abstract-cw20-base = "2.0.0"
-cw-orch = { version = "0.22.2" }
-
-cw721 =  "0.18.0"
-cw721-base  = { version = "0.18.0", features = ["library"] }
-
-# Stargaze libs
-sg-std = {version= "^3.2", optional = true }
-sg721 = {version= "^3.3", optional = true }
-sg721-base = {version= "^3.3", optional = true }
+cw721 =  { workspace = true }
+cw721-base  = { workspace = true, features = ["library"] }
+# cw-infusions = {workspace = true }
 
 clap = { version = "4.5.23", features = ["derive"] }
 schemars = "0.8.16"
 sha2 = { version = "0.10.8", default-features = false }
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.58" }
 semver                      = "1"
+thiserror = { version = "1.0.58" }
+url                  = "2.2.2"
+
+cw-infuser-v040     = { package = "cw-infuser",   git = "https://github.com/permissionlessweb/cw-infuser", branch = "no-cw-check", ref = "5fcd806977f0b6be848a8585ce09c6c960c3d82b" }
 shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
 rand_core       = { version = "0.6.4", default-features = false }
 rand_xoshiro    = { version = "0.6.0", default-features = false }
-url                  = "2.2.2"
+nois                        = { version = "2.0.0" }
 
-## previous verion packages for migration
 [dev-dependencies]
-cw-multi-test = "1.2.0"
+cw-multi-test = "2.2.0"
+# easy-addr = { workspace = true }

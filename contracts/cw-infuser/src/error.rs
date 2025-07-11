@@ -1,6 +1,6 @@
 use std::fmt;
 
-use cosmwasm_std::{Coin, Instantiate2AddressError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, Coin, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
 
@@ -14,6 +14,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Admin(#[from] AdminError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
 
     #[error("Fee payment not accepted. Ensure you are sending the correct amount.")]
     FeeNotAccepted,

@@ -1,39 +1,38 @@
-use cosmwasm_std::{Env, Storage};
-use cw_infusions::state::{Infusion, InfusionParamState, InfusionState};
+use cosmwasm_std::{Addr, Env, Storage};
 
 use crate::{
-    state::{INFUSION, MINT_COUNT},
+    state::{InfusionParamState, InfusionState, INFUSION, MINT_COUNT},
     ContractError,
 };
 
-/// Downgrade
-pub fn v050_patch_downgrade(storage: &mut dyn Storage, env: Env) -> Result<(), ContractError> {
-    let infusions = cw_infuser_last::state::INFUSION.range(
-        storage,
-        None,
-        None,
-        cosmwasm_std::Order::Descending,
-    );
+/// Prep To Add Cosmic Wavs
+// pub fn v050_patch_downgrade(storage: &mut dyn Storage, env: Env) -> Result<(), ContractError> {
+//     let infusions = cw_infuser_v040::state::INFUSION.range(
+//         storage,
+//         None,
+//         None,
+//         cosmwasm_std::Order::Descending,
+//     );
 
-    for infusion in infusions {
-        let v040 = infusion?;
+//     for infusion in infusions {
+//         let v040 = infusion.unwrap();
 
-        let _updating = InfusionState {
-            payment_recipient: v040.1.payment_recipient,
-            enabled: todo!(),
-            owner: todo!(),
-            collections: todo!(),
-            infused_collection: todo!(),
-            infusion_params: InfusionParamState {
-                bundle_type: v0,
-                mint_fee:v040.1.infusion_params.mint_fee,
-                params: v040.1.infusion_params.params,
-                wavs_enabled: false,
-            },
-        };
-    }
-    Ok(())
-}
+//         let _updating = InfusionState {
+//             payment_recipient: Addr::unchecked(v040.1.payment_recipient),
+//             enabled: todo!(),
+//             owner: todo!(),
+//             collections: todo!(),
+//             infused_collection: todo!(),
+//             infusion_params: InfusionParamState {
+//                 bundle_type: match v040.1.infusion_params.bundle_type ,
+//                 mint_fee: v040.1.infusion_params.mint_fee,
+//                 params: v040.1.infusion_params.params,
+//                 // wavs_enabled: false,
+//             },
+//         };
+//     }
+//     Ok(())
+// }
 
 #[cfg(test)]
 mod test {
@@ -74,7 +73,7 @@ mod test {
         // save keys with their maps, incorrectly
         position = 1;
 
-        super::v050_patch_downgrade(mockdeps.storage, mockenv.clone())?;
+        // super::v050(mockdeps.storage, mockenv.clone())?;
 
         Ok(())
     }
