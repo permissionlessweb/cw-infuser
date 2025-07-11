@@ -1,5 +1,14 @@
 
 ## Current Infusion Minters
+
+<div align="center">
+
+[![preview](../../public/peaceful-nightsky.png)]()\
+*Art By [Jinxto](https://www.stargaze.zone/p/jinxto/collections), generated with go installed followed by running the following:\
+`cd art/go/ascii-image-converter && go build && ./ascii-image-converter ../../../public/peaceful-nightsky.png -C`*
+</div>
+
+
  `stargaze-1`:
 - stars1333zgwvcxe04apsg98mccpc2fg7ft5xwl9ewkey2fwgf70zghsrse5nglu
 - stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l
