@@ -59,6 +59,9 @@ pub enum ContractError {
     #[error("Bundle type AnyOfBlend has an incorrect setup.")]
     AnyOfBlendConfigError,
 
+    #[error("Max metadata array length is 4")]
+    MetadataArrayLengthError,
+
     #[error("Invalid base token URI (must be an IPFS URI)")]
     InvalidBaseTokenURI {},
 

@@ -1,11 +1,11 @@
 [workspace]
 members = [ 
   "contracts/cw-infuser",
-  "contracts/cw-irl",
+  #"contracts/cw-irl",
    "packages/*",
-   "scripts",
+    "scripts",
  # "contracts/cw721/*",
- "test-suite"
+ # "test-suite"
    ]
 resolver = "2"
 
@@ -13,7 +13,7 @@ resolver = "2"
 repository = "https://github.com/permissionlessweb/cw-infuser"
 edition = "2021"
 resolver = "2"
-version = "0.4.3"
+version = "0.6.0"
 authors = ["hard-nett <hardnettt@proton.me>"]
 
 
@@ -23,7 +23,7 @@ default = []
 [workspace.dependencies]
 cw-infuser = { path = "./contracts/cw-infuser" }
 cw-infusions = { path = "./packages/cw-infusions" }
-cw-infuser-scripts = { path = "./scripts",default-features = false  }
+# cw-infuser-scripts = { path = "./scripts",default-features = false  }
 
 cosmwasm-schema = "2.2.0"
 cosmwasm-std = { version = "2.2.0" }

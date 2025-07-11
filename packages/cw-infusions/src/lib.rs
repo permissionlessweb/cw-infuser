@@ -24,7 +24,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
 
 #[cosmwasm_schema::cw_serde]
 pub struct BurnParams {
-    pub compatible_traits: Option<CompatibleTraits>,
+    pub compatible_traits: Vec<CompatibleTraits>,
 }
 
 #[cosmwasm_schema::cw_serde]

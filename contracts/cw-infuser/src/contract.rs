@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::error::{AnyOfErr, ContractError};
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
@@ -8,22 +10,22 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
     Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QuerierWrapper,
-    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
-    WasmQuery,
+    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Timestamp, Uint128,
+    WasmMsg, WasmQuery,
 };
 use cosmwasm_std::{entry_point, Fraction};
 use cw2::set_contract_version;
 use cw721::msg::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 use cw_controllers::AdminError;
+use sg721::{CollectionInfo, InstantiateMsg as Sg721InitMsg, RoyaltyInfoResponse};
 
 use cw_infusions::bundles::{AnyOfCount, Bundle, BundleBlend, BundleType};
-use cw_infusions::nfts::{
-    CollectionInfo, InfusedCollection, RoyaltyInfoResponse, SgInstantiateMsg, NFT,
-};
+use cw_infusions::nfts::{InfusedCollection, NFT};
 use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionState};
 use cw_infusions::wavs::{WavsBundle, WavsMintCountResponse, WavsRecordResponse};
 
+use cw_infusions::CompatibleTraits;
 use nois::int_in_range;
 use rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro128PlusPlus;
@@ -37,7 +39,7 @@ use url::Url;
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw-infuser";
+const CONTRACT_NAME: &str = "crates.io:sg-minter";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -167,6 +169,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::WavsRecord { burner, nfts } => {
             to_json_binary(&query_retrieve_wavs_record(deps, burner, nfts)?)
         }
+        QueryMsg::InfusionGenetics { id } => to_json_binary(&query_infusion_genetics(deps, id)?),
     }
 }
 
@@ -335,6 +338,11 @@ pub fn execute_create_infusion(
         if infusion.description.is_some_and(|a| a.len() > 512) {
             return Err(ContractError::InfusionDescriptionLengthError {});
         }
+
+        if infusion.infusion_params.params.iter().len() > 4 {
+            return Err(ContractError::MetadataArrayLengthError);
+        }
+
         // assert creation fees
         if let Some(creation_fee) = cfg.min_creation_fee.clone() {
             if info.sender == cfg.contract_owner {
@@ -419,7 +427,7 @@ pub fn execute_create_infusion(
                 creator: Some(infusion_admin.clone()),
                 withdraw_address: Some(infusion_admin.clone()),
             })?,
-            true => to_json_binary(&SgInstantiateMsg {
+            true => to_json_binary(&Sg721InitMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
                 minter: env.contract.address.to_string(), // this contract
@@ -429,17 +437,46 @@ pub fn execute_create_infusion(
                         + &infusion.infused_collection.description,
                     image: infusion.infused_collection.image.clone(),
                     external_link: infusion.infused_collection.external_link.clone(),
-                    explicit_content: infusion.infused_collection.explicit_content,
-                    start_trading_time: None, //infusion.infused_collection.start_trading_time,
-                    royalty_info: match infusion.infused_collection.royalty_info.clone() {
-                        Some(r) => Some(RoyaltyInfoResponse {
-                            payment_address: r.payment_address,
-                            share: r.share,
+                    explicit_content: infusion.infused_collection.explicit_content.clone(),
+                    start_trading_time: match infusion.infused_collection.start_trading_time.clone()
+                    {
+                        Some(a) => Some(cosmwasm_std_v154::Timestamp::from_nanos(a.nanos())),
+                        None => todo!(),
+                    },
+                    royalty_info: match &infusion.infused_collection.royalty_info {
+                        Some(ri) => Some(sg721::RoyaltyInfoResponse {
+                            payment_address: ri.payment_address.clone(),
+                            share: cosmwasm_std_v154::Decimal::from_ratio(
+                                cosmwasm_std_v154::Uint128::new(ri.share.numerator().u128()),
+                                cosmwasm_std_v154::Uint128::new(ri.share.denominator().u128()),
+                            ),
                         }),
                         None => None,
                     },
                 },
             })?,
+            //     &SgInstantiateMsg {
+            //     name: infusion.infused_collection.name.clone(),
+            //     symbol: infusion.infused_collection.symbol.clone(),
+            //     minter: env.contract.address.to_string(), // this contract
+            //     collection_info: CollectionInfo::<RoyaltyInfoResponse> {
+            //         creator: infusion_admin.clone(),
+            //         description: "Infused Collection: ".to_owned()
+            //             + &infusion.infused_collection.description,
+            //         image: infusion.infused_collection.image.clone(),
+            //         external_link: infusion.infused_collection.external_link.clone(),
+            //         explicit_content: infusion.infused_collection.explicit_content,
+            //         start_trading_time: None, //infusion.infused_collection.start_trading_time,
+            //         royalty_info: match infusion.infused_collection.royalty_info.clone() {
+            //             Some(r) => Some(RoyaltyInfoResponse {
+            //                 payment_address: r.payment_address,
+            //                 share: r.share,
+            //             }),
+            //             None => None,
+            //         },
+            //     },
+            // }
+            // )?,
         };
 
         let init_infusion = WasmMsg::Instantiate2 {
@@ -555,17 +592,26 @@ fn validate_eligible_collection_list(
         if unique.contains(&col.addr) {
             return Err(ContractError::DuplicateCollectionInInfusion);
         }
-        // check if addr is cw721 collection
-        let _res: cw721::msg::CollectionInfoAndExtensionResponse<
-            Option<cw721::CollectionExtension<RoyaltyInfoResponse>>,
-        > = query
-            .query_wasm_smart(
-                col.addr.clone(),
-                &cw721_base::msg::QueryMsg::GetCollectionInfoAndExtension {},
-            )
-            .map_err(|_| ContractError::AddrIsNotNFTCol {
-                addr: col.addr.to_string(),
+
+        let _res: cw721_v18::ContractInfoResponse = query
+            .query_wasm_smart(col.addr.clone(), &cw721_v18::Cw721QueryMsg::ContractInfo {})
+            .map_err(|_| {
+                return ContractError::AddrIsNotNFTCol {
+                    addr: col.addr.to_string(),
+                };
             })?;
+
+        // // check if addr is cw721 collection
+        // let _res: cw721::msg::CollectionInfoAndExtensionResponse<
+        //     Option<cw721::CollectionExtension<RoyaltyInfoResponse>>,
+        // > = query
+        //     .query_wasm_smart(
+        //         col.addr.clone(),
+        //         &cw721_base::msg::QueryMsg::GetCollectionInfoAndExtension {},
+        //     )
+        //     .map_err(|_| ContractError::AddrIsNotNFTCol {
+        //         addr: col.addr.to_string(),
+        //     })?;
 
         // checks # of nft required per bundle
         if col.addr.to_string().is_empty() {
@@ -944,10 +990,6 @@ fn check_bundles(
                             )?;
                             msgs.extend(fee_msgs);
                             infused_mint_count += count;
-                            // println!(
-                            //     "mint-count increment: anyOf-substitute: {:#?}",
-                            //     infused_mint_count
-                            // );
                         }
                     }
                 }
@@ -1319,6 +1361,16 @@ pub fn into_cosmos_msg<M: Serialize, T: Into<String>>(
     Ok(execute.into())
 }
 
+pub fn query_infusion_genetics(deps: Deps, id: u64) -> StdResult<Vec<CompatibleTraits>> {
+    match INFUSION
+        .load(deps.storage, INFUSION_ID.load(deps.storage, id)?)?
+        .infusion_params
+        .params
+    {
+        Some(n) => Ok(n.compatible_traits),
+        None => Ok(vec![]),
+    }
+}
 pub fn query_retrieve_wavs_record(
     deps: Deps,
     addr: Option<Addr>,
@@ -1417,7 +1469,7 @@ pub fn is_nft_owner(
         let owner_response: OwnerOfResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: nft_address.to_string(),
-                msg: to_json_binary(&Cw721QueryMsg::OwnerOf::<Empty, Empty, Empty> {
+                msg: to_json_binary(&cw721_v18::Cw721QueryMsg::OwnerOf {
                     token_id: token_id.to_string(),
                     include_expired: None,
                 })?,
@@ -1635,24 +1687,8 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
     }
 
     #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.3.0".to_string() {
-        crate::upgrades::v0_3_0::migrate_contract_owner_fee_type(deps.storage, &env, &msg)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-
-        crate::upgrades::v0_3_0::migrate_infusions_bundle_type(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.4.0".to_string() {
-        crate::upgrades::v0_4_0::patch_mint_count_v040(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
-
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.4.1".to_string() {
-        let data = crate::upgrades::v0_4_0::v0410_remove_mint_count_store(deps.storage)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-        crate::upgrades::v0_4_0::v0410_add_mint_count_store(deps.storage, env, data)
+    if prev_version.version < "0.0.5".to_string() {
+        crate::upgrades::v0_5_0::v050_patch_upgrade(deps.storage, env)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
     }
     // set new contract version

@@ -5,6 +5,7 @@ use cw_infusions::{
     bundles::{Bundle, BundleType},
     state::{EligibleNFTCollection, Infusion, InfusionState},
     wavs::{WavsBundle, WavsRecordResponse},
+    CompatibleTraits,
 };
 
 #[cw_serde]
@@ -93,6 +94,9 @@ pub enum QueryMsg {
         collection_addr: Addr,
         infusion_id: u64,
     },
+    #[returns(Vec<CompatibleTraits>)]
+    InfusionGenetics { id: u64 },
+
     #[returns(Vec<WavsRecordResponse>)]
     WavsRecord {
         nfts: Vec<String>,
