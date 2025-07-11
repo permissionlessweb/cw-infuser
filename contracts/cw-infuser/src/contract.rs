@@ -1,4 +1,3 @@
-
 use crate::error::{AnyOfErr, ContractError};
 use crate::msg::{ExecuteMsg, InfusionsResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
@@ -9,8 +8,8 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
     coin, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg,
     Decimal, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QuerierWrapper,
-    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128,
-    WasmMsg, WasmQuery,
+    QueryRequest, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cosmwasm_std::{entry_point, Fraction};
 use cw2::set_contract_version;
@@ -582,10 +581,8 @@ fn validate_eligible_collection_list(
 
         let _res: cw721_v18::ContractInfoResponse = query
             .query_wasm_smart(col.addr.clone(), &cw721_v18::Cw721QueryMsg::ContractInfo {})
-            .map_err(|_| {
-                ContractError::AddrIsNotNFTCol {
-                    addr: col.addr.to_string(),
-                }
+            .map_err(|_| ContractError::AddrIsNotNFTCol {
+                addr: col.addr.to_string(),
             })?;
 
         // // check if addr is cw721 collection
