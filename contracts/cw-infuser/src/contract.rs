@@ -12,7 +12,8 @@ use cosmwasm_std::{
     SubMsg, Uint128, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
-use cw721::msg::OwnerOfResponse;
+
+use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 // use cw721_v18::Cw721ExecuteMsg;
 use cw_controllers::AdminError;
 
@@ -423,10 +424,10 @@ pub fn execute_create_infusion(
             false => to_json_binary(&Cw721InstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
-                minter: Some(env.contract.address.to_string()),
-                collection_info_extension: None,
-                creator: Some(infusion_admin.clone()),
-                withdraw_address: Some(infusion_admin.clone()),
+                minter: env.contract.address.to_string(),
+                // collection_info_extension: None,
+                // creator: Some(infusion_admin.clone()),
+                // withdraw_address: Some(infusion_admin.clone()),
             })?,
             true => to_json_binary(&SgInstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
@@ -837,7 +838,7 @@ fn burn_bundle(
     // println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
         msgs.push(into_cosmos_msg(
-            cw721_base::msg::ExecuteMsg::Burn {
+            cw721::Cw721ExecuteMsg::Burn {
                 token_id: nft.token_id.to_string(),
             },
             nft.addr,
@@ -889,7 +890,7 @@ fn prepare_wasm_events(
         )?;
 
         // mint_msg
-        let mint_msg: Cw721ExecuteMessage = Cw721ExecuteMessage::Mint {
+        let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
             token_id: token_id.token_id.to_string(),
             owner: sender.to_string(),
             token_uri: Some(format!(
@@ -898,7 +899,7 @@ fn prepare_wasm_events(
                 token_id.token_id,
                 ".json"
             )),
-            extension: None,
+            extension: Empty {},
         };
 
         msgs.push(into_cosmos_msg(mint_msg, infused_col_addr.clone(), None)?);
@@ -1439,7 +1440,7 @@ pub fn is_nft_owner(
         let owner_response: OwnerOfResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: nft_address.to_string(),
-                msg: to_json_binary(&cw721_base::msg::QueryMsg::OwnerOf {
+                msg: to_json_binary(&Cw721QueryMsg::OwnerOf {
                     token_id: token_id.to_string(),
                     include_expired: None,
                 })?,
@@ -1458,7 +1459,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64, sender: &[u
     hash.extend_from_slice(&height.to_be_bytes());
     hash.extend_from_slice(sender);
     let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(hash);
-    Binary::new(checksum_hash.to_vec())
+    Binary(checksum_hash.to_vec())
 }
 
 pub fn random_token_list(
@@ -1652,97 +1653,17 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
 
     #[allow(clippy::cmp_owned)]
     if prev_version.version < "0.6.0".to_string() {
-        v050_patch_upgrade(deps.storage).map_err(|e| StdError::generic_err(e.to_string()))?;
+        // v050_patch_upgrade(deps.storage).map_err(|e| StdError::generic_err(e.to_string()))?;
     }
 
     // set new contract version
     let event = Event::new("migrate")
-        // .add_attribute("from_name", prev_version.contract)
-        // .add_attribute("from_version", prev_version.version)
+        .add_attribute("from_name", prev_version.contract)
+        .add_attribute("from_version", prev_version.version)
         .add_attribute("to_name", CONTRACT_NAME)
         .add_attribute("to_version", CONTRACT_VERSION);
 
     Ok(res.add_event(event))
-}
-
-pub fn v050_patch_upgrade(storage: &mut dyn Storage) -> Result<(), ContractError> {
-    let infusions =
-        cw_infuser_v050::state::INFUSION.keys(storage, None, None, cosmwasm_std::Order::Descending);
-    let mut keys: Vec<((Addr, u64), InfusionState)> = vec![];
-
-    for infusion in infusions {
-        let key = infusion?;
-        let v040 = cw_infuser_v050::state::INFUSION.load(storage, key.clone())?;
-        keys.push((
-            key,
-            InfusionState {
-                payment_recipient: Addr::unchecked(v040.payment_recipient),
-                enabled: v040.enabled,
-                owner: v040.owner,
-                collections: v040
-                    .collections
-                    .iter()
-                    .map(|col| EligibleNFTCollection {
-                        addr: col.addr.clone(),
-                        min_req: col.min_req,
-                        max_req: col.max_req,
-                        payment_substitute: col.payment_substitute.clone(),
-                    })
-                    .collect(),
-                infused_collection: InfusedCollection {
-                    sg: v040.infused_collection.sg,
-                    admin: v040.infused_collection.admin,
-                    name: v040.infused_collection.name,
-                    description: v040.infused_collection.description,
-                    symbol: v040.infused_collection.symbol,
-                    base_uri: v040.infused_collection.base_uri,
-                    image: v040.infused_collection.image,
-                    num_tokens: v040.infused_collection.num_tokens,
-                    royalty_info: match v040.infused_collection.royalty_info {
-                        Some(ri) => Some(RoyaltyInfoResponse {
-                            payment_address: ri.payment_address,
-                            share: cosmwasm_std::Decimal::from_ratio(
-                                ri.share.numerator().u128(),
-                                ri.share.denominator().u128(),
-                            ),
-                        }),
-                        None => None,
-                    },
-                    start_trading_time: v040.infused_collection.start_trading_time,
-                    explicit_content: v040.infused_collection.explicit_content,
-                    external_link: v040.infused_collection.external_link,
-                    addr: v040.infused_collection.addr,
-                },
-                infusion_params: InfusionParamState {
-                    bundle_type: match v040.infusion_params.bundle_type {
-                        cw_infuser_v050::state::BundleType::AllOf {} => {
-                            cw_infusions::bundles::BundleType::AllOf {}
-                        }
-                        cw_infuser_v050::state::BundleType::AnyOf { addrs } => {
-                            cw_infusions::bundles::BundleType::AnyOf {
-                                addrs: addrs
-                                    .iter()
-                                    .map(|addr| Addr::unchecked(addr.to_string()))
-                                    .collect(),
-                            }
-                        }
-                        _ => panic!("none exists"),
-                    },
-                    mint_fee: match v040.infusion_params.mint_fee {
-                        Some(c) => Some(coin(c.amount.u128(), c.denom)),
-                        None => None,
-                    },
-                    params: None,
-                    wavs_enabled: false,
-                },
-            },
-        ));
-    }
-
-    for (key, value) in keys {
-        INFUSION.save(storage, key, &value)?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

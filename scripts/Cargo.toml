@@ -13,7 +13,7 @@ anyhow = "1.0.79"
 cosmwasm-std = { workspace = true }
 cw-infusion-minter = { path = "../contracts/cw-infuser" }
 cw-infusions = {  path = "../packages/cw-infusions" }
-cw-orch = { workspace = true, features = ["daemon"] }
+# cw-orch = { workspace = true, features = ["daemon"] }
 cw721 = { workspace = true }
 sg721 = "^3.3"
 sg721-base = "^3.3"

@@ -6,6 +6,86 @@ use cw_infusions::{
 
 use crate::ContractError;
 
+pub fn v050_patch_upgrade(storage: &mut dyn Storage) -> Result<(), ContractError> {
+    let infusions =
+        cw_infuser_v050::state::INFUSION.keys(storage, None, None, cosmwasm_std::Order::Descending);
+    let mut keys: Vec<((Addr, u64), InfusionState)> = vec![];
+
+    for infusion in infusions {
+        let key = infusion?;
+        let v040 = cw_infuser_v050::state::INFUSION.load(storage, key.clone())?;
+        keys.push((
+            key,
+            InfusionState {
+                payment_recipient: Addr::unchecked(v040.payment_recipient),
+                enabled: v040.enabled,
+                owner: v040.owner,
+                collections: v040
+                    .collections
+                    .iter()
+                    .map(|col| EligibleNFTCollection {
+                        addr: col.addr.clone(),
+                        min_req: col.min_req,
+                        max_req: col.max_req,
+                        payment_substitute: col.payment_substitute.clone(),
+                    })
+                    .collect(),
+                infused_collection: InfusedCollection {
+                    sg: v040.infused_collection.sg,
+                    admin: v040.infused_collection.admin,
+                    name: v040.infused_collection.name,
+                    description: v040.infused_collection.description,
+                    symbol: v040.infused_collection.symbol,
+                    base_uri: v040.infused_collection.base_uri,
+                    image: v040.infused_collection.image,
+                    num_tokens: v040.infused_collection.num_tokens,
+                    royalty_info: match v040.infused_collection.royalty_info {
+                        Some(ri) => Some(RoyaltyInfoResponse {
+                            payment_address: ri.payment_address,
+                            share: cosmwasm_std::Decimal::from_ratio(
+                                ri.share.numerator().u128(),
+                                ri.share.denominator().u128(),
+                            ),
+                        }),
+                        None => None,
+                    },
+                    start_trading_time: v040.infused_collection.start_trading_time,
+                    explicit_content: v040.infused_collection.explicit_content,
+                    external_link: v040.infused_collection.external_link,
+                    addr: v040.infused_collection.addr,
+                },
+                infusion_params: InfusionParamState {
+                    bundle_type: match v040.infusion_params.bundle_type {
+                        cw_infuser_v050::state::BundleType::AllOf {} => {
+                            cw_infusions::bundles::BundleType::AllOf {}
+                        }
+                        cw_infuser_v050::state::BundleType::AnyOf { addrs } => {
+                            cw_infusions::bundles::BundleType::AnyOf {
+                                addrs: addrs
+                                    .iter()
+                                    .map(|addr| Addr::unchecked(addr.to_string()))
+                                    .collect(),
+                            }
+                        }
+                        _ => panic!("none exists"),
+                    },
+                    mint_fee: match v040.infusion_params.mint_fee {
+                        Some(c) => Some(coin(c.amount.u128(), c.denom)),
+                        None => None,
+                    },
+                    params: None,
+                    wavs_enabled: false,
+                },
+            },
+        ));
+    }
+
+    for (key, value) in keys {
+        INFUSION.save(storage, key, &value)?;
+    }
+    Ok(())
+}
+
 // #[cfg(test)]
 // mod test {
 //     use crate::contract::random_token_list;

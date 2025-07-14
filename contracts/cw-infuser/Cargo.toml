@@ -26,14 +26,13 @@ overflow-checks = true
 library = []
 
 [dependencies]
-cw-controllers = "2.0.0"
+cw-controllers =  { workspace = true }
 cw2 =  { workspace = true }
 cosmwasm-schema  = {workspace = true }
 cw-storage-plus =  { workspace = true }
 cosmwasm-std = { workspace = true, features = [
   "cosmwasm_1_4",
-  # Enable this if you only deploy to chains that have CosmWasm 2.0 or higher
- "cosmwasm_2_0",
+  
 ] }
 
 # using for post cosmwasm v2 compabtility
@@ -52,7 +51,7 @@ semver                      = "1"
 thiserror = { version = "1.0.58" }
 url                  = "2.2.2"
 
-cw-infuser-v050 = { git = "https://github.com/permissionlessweb/cw-infuser", rev = "70bcdeeb33e2d6be0225ac7d0583395084d7737f", package = "cw-infuser", features = ["library"] }
+# cw-infuser-v050 = { git = "https://github.com/permissionlessweb/cw-infuser", rev = "70bcdeeb33e2d6be0225ac7d0583395084d7737f", package = "cw-infuser", features = ["library"] }
 # cosmwasm-std-v1511 = { version = "1.5.11", package = "cosmwasm-std", features = [] }
 
 shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
