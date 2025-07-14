@@ -1,6 +1,6 @@
 use std::fmt;
 
-use cosmwasm_std::{CheckedMultiplyRatioError, Coin, Instantiate2AddressError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, Coin, Coins, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
 
@@ -10,16 +10,13 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error("{0}")]
-    Asset(#[from] cw_asset::AssetError),
-
-    #[error("{0}")]
     Admin(#[from] AdminError),
 
     #[error("{0}")]
     CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
 
     #[error("Fee payment not accepted. Ensure you are sending the correct amount.")]
-    FeeNotAccepted,
+    FeeNotAccepted { have: Coin, want: Coin },
 
     #[error("{0}")]
     Instantiate2AddressError(#[from] Instantiate2AddressError),
@@ -41,17 +38,14 @@ pub enum ContractError {
         min_req: u64,
     },
 
-    #[error("Bundle Not Accepted. Have:{have}. Want: {want}")]
-    BundleNotAccepted { have: u64, want: u64 },
+    #[error("Bundle Not Accepted. Have:{have}. Want: {want}, Contract: {addr}")]
+    BundleNotAccepted { have: u64, want: u64, addr: String },
 
     #[error("Bundle Not Accepted. Burnt Record:{have}. Minimum Required: {need}")]
     WavsBundleNotAccepted { have: u64, need: u64 },
 
     #[error("Bundle cannot be empty.")]
     EmptyBundle,
-
-    #[error("Lets not burn a bundle without reason to. There already exist a record of burnt nfts that satisfies the min required for this collection, and you are trying to burn additional nfts that wouldn't satisfy bundle requirements")]
-    UselessBundleBurn,
 
     #[error("Bundle type AnyOf must only contain atleast 1 instance of any eligible collection")]
     AnyOfConfigError { err: AnyOfErr },
@@ -74,13 +68,14 @@ pub enum ContractError {
     #[error("BundleCollectionContractEmpty")]
     BundleCollectionContractEmpty {},
 
-    #[error("payment substitute is enabled for collection {col}, but did not recieve tokens or payment. Have: {havea}{haved}. Want: {wanta}{wantd}")]
+    #[error("PaySubNotProvided: {col}, want: {want}")]
+    PaySubNotProvided { col: String, want: Coin },
+
+    #[error("payment substitute is enabled for collection {col}, but did not recieve tokens or payment. Have: {have}. Want: {want}")]
     PaymentSubstituteNotProvided {
         col: String,
-        haved: String,
-        havea: String,
-        wantd: String,
-        wanta: String,
+        have: Coins,
+        want: Coin,
     },
 
     #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]

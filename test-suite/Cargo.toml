@@ -18,7 +18,7 @@ vanilla = []
 [dependencies]
 cw-infuser-scripts = { workspace = true }
 cw-infusions = { workspace = true }
-cw-infuser = { workspace = true }
+cw-infusion-minter = { workspace = true }
 
 cw2= { workspace = true }
 cw-orch = { workspace = true, features = ["daemon"] }

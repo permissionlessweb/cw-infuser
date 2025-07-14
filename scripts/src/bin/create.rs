@@ -1,5 +1,5 @@
 use clap::{arg, command, Parser};
-use cw_infuser::msg::ExecuteMsgFns;
+// use cw_infusion_minter::msg::ExecuteMsgFns;
 use cw_infuser_scripts::CwInfuser;
 use cw_infuser_scripts::ELGAFAR_1;
 use cw_infusions::bundles::BundleType;

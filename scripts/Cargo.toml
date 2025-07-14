@@ -11,7 +11,7 @@ clap = "4.5.23"
 env_logger = { version = "0.11.3", default-features = false }
 anyhow = "1.0.79"
 cosmwasm-std = { workspace = true }
-cw-infuser = { path = "../contracts/cw-infuser" }
+cw-infusion-minter = { path = "../contracts/cw-infuser" }
 cw-infusions = {  path = "../packages/cw-infusions" }
 cw-orch = { workspace = true, features = ["daemon"] }
 cw721 = { workspace = true }

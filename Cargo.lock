@@ -932,9 +932,9 @@ dependencies = [
 
 [[package]]
 name = "crc32fast"
-version = "1.4.2"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
 ]
@@ -1094,15 +1094,15 @@ dependencies = [
 
 [[package]]
 name = "cw-infuser"
-version = "0.4.3"
-source = "git+https://github.com/permissionlessweb/cw-infuser?branch=feat%2Fdnas#af379d6003ac8af4930de271f79fef793b818b36"
+version = "0.5.0"
+source = "git+https://github.com/permissionlessweb/cw-infuser?rev=70bcdeeb33e2d6be0225ac7d0583395084d7737f#70bcdeeb33e2d6be0225ac7d0583395084d7737f"
 dependencies = [
  "clap",
  "cosmwasm-schema 2.2.2",
+ "cosmwasm-std 1.5.11",
  "cosmwasm-std 2.2.2",
  "cw-asset",
  "cw-controllers",
- "cw-infusions 0.4.3",
  "cw-orch",
  "cw-storage-plus 2.0.0",
  "cw2 2.0.0",
@@ -1114,39 +1114,6 @@ dependencies = [
  "schemars",
  "semver",
  "serde",
- "sha2 0.10.9",
- "shuffle",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
-name = "cw-infuser"
-version = "0.6.0"
-dependencies = [
- "clap",
- "cosmwasm-schema 2.2.2",
- "cosmwasm-std 2.2.2",
- "cw-asset",
- "cw-controllers",
- "cw-infuser 0.4.3",
- "cw-infusions 0.4.3",
- "cw-infusions 0.6.0",
- "cw-multi-test",
- "cw-orch",
- "cw-storage-plus 2.0.0",
- "cw2 2.0.0",
- "cw721 0.18.0",
- "cw721 0.20.0",
- "cw721-base 0.20.0",
- "easy-addr",
- "nois",
- "rand_core 0.6.4",
- "rand_xoshiro",
- "schemars",
- "semver",
- "serde",
- "sg721",
  "sha2 0.10.9",
  "shuffle",
  "thiserror 1.0.69",
@@ -1160,8 +1127,8 @@ dependencies = [
  "anyhow",
  "clap",
  "cosmwasm-std 2.2.2",
- "cw-infuser 0.6.0",
- "cw-infusions 0.6.0",
+ "cw-infusion-minter",
+ "cw-infusions",
  "cw-orch",
  "cw721 0.20.0",
  "dotenv",
@@ -1171,19 +1138,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-infusions"
-version = "0.4.3"
-source = "git+https://github.com/permissionlessweb/cw-infuser?branch=feat%2Fdnas#af379d6003ac8af4930de271f79fef793b818b36"
+name = "cw-infusion-minter"
+version = "0.7.0"
 dependencies = [
- "base64 0.22.1",
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
+ "cw-controllers",
+ "cw-infuser",
+ "cw-infusions",
+ "cw-multi-test",
+ "cw-storage-plus 2.0.0",
+ "cw2 2.0.0",
+ "cw721 0.20.0",
+ "cw721-base 0.20.0",
+ "nois",
+ "rand_xoshiro",
+ "schemars",
+ "semver",
+ "serde",
  "sha2 0.10.9",
+ "shuffle",
+ "thiserror 1.0.69",
+ "url",
 ]
 
 [[package]]
 name = "cw-infusions"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
  "cosmwasm-schema 2.2.2",
@@ -1796,7 +1777,7 @@ checksum = "1c7a8fb8a9fbf66c1f703fe16184d10ca0ee9d23be5b4436400408ba54a95005"
 
 [[package]]
 name = "easy-addr"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cosmwasm-std 2.2.2",
  "proc-macro2",
@@ -4171,6 +4152,30 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "test-suite"
+version = "0.1.0"
+dependencies = [
+ "abstract-cw-multi-test",
+ "anyhow",
+ "cosmwasm-schema 2.2.2",
+ "cosmwasm-std 2.2.2",
+ "cw-infuser-scripts",
+ "cw-infusion-minter",
+ "cw-infusions",
+ "cw-multi-test",
+ "cw-orch",
+ "cw-storage-plus 2.0.0",
+ "cw-utils 2.0.0",
+ "cw2 2.0.0",
+ "cw721 0.20.0",
+ "cw721-base 0.20.0",
+ "hex",
+ "rand",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
