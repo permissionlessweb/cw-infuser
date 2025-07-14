@@ -89,11 +89,6 @@ pub enum QueryMsg {
     /// TODO: optimize pagination
     #[returns(InfusionsResponse)]
     Infusions { addr: Addr, index: u64 },
-    #[returns(bool)]
-    IsInBundle {
-        collection_addr: Addr,
-        infusion_id: u64,
-    },
     #[returns(Vec<CompatibleTraits>)]
     InfusionGenetics { id: u64 },
 

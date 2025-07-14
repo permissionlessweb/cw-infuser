@@ -163,10 +163,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::InfusionById { id } => to_json_binary(&query_infusion_by_id(deps, id)?),
         QueryMsg::Infusions { addr, index } => to_json_binary(&query_infusions(deps, addr, index)?),
-        QueryMsg::IsInBundle {
-            collection_addr,
-            infusion_id,
-        } => to_json_binary(&query_if_is_in_bundle(deps, collection_addr, infusion_id)?),
         QueryMsg::WavsRecord { burner, nfts } => {
             to_json_binary(&query_retrieve_wavs_record(deps, burner, nfts)?)
         }
@@ -174,13 +170,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        INFUSION_COLLECTION_INIT_MSG_ID => Ok(Response::new()),
-        _ => Err(ContractError::Unauthorized {}),
-    }
-}
+// #[cfg_attr(not(feature = "library"), entry_point)]
+// pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+//     match msg.id {
+//         INFUSION_COLLECTION_INIT_MSG_ID => Ok(Response::new()),
+//         _ => Err(ContractError::Unauthorized {}),
+//     }
+// }
 
 /// Update the infused collec
 fn update_infusion_eligible_collections(
@@ -1630,7 +1626,7 @@ pub fn execute_shuffle(
 }
 
 // //  source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/vending-minter/src/contract.rs#L1371
-// #[cfg_attr(not(feature = "library"), entry_point)]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let prev_version = cw2::get_contract_version(deps.storage)?;
     // if prev_version.contract != CONTRACT_NAME {
@@ -1666,7 +1662,6 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
         .add_attribute("to_name", CONTRACT_NAME)
         .add_attribute("to_version", CONTRACT_VERSION);
 
-    //     // TODO: MIGRATE u64 to Decimals in config
     Ok(res.add_event(event))
 }
 

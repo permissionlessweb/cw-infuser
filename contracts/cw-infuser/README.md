@@ -9,9 +9,15 @@
 </div>
 
 
- `stargaze-1`:
+`stargaze-1`:
 - stars1333zgwvcxe04apsg98mccpc2fg7ft5xwl9ewkey2fwgf70zghsrse5nglu
 - stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l
+
+``` sh
+# v2.0.0 cosmwasm: 679
+# build commit:  7b25b445ef7d0e3476971b74923632c21f67d6fb
+deea56b38e0c666c565b6215c6f9fc35cc93e4d1d9a65f809fe576a9a132b1e7  cw_infusion_minter.wasm
+```
 
 ## Additional Info 
 
