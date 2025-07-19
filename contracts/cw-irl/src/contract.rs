@@ -15,7 +15,7 @@ pub const EVENT_ID: Item<String> = Item::new("eid");
 
 // version info for migration info
 const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
-const CONTRACT_NAME: &str = "crates.io:cw-infuser";
+const CONTRACT_NAME: &str = "crates.io:cw-irl";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn handle_mint_tickets(

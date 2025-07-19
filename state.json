@@ -1,0 +1,15 @@
+{
+    "stargaze-1": {
+        "code_ids": {
+            "cw_infusion_minter": 681
+        },
+        "default": {
+            "cw_infusion_minter": "stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l"
+        }
+    },
+    "juno-1": {},
+    "phoenix-1": {},
+    "terra-4": {},
+    "neutron-1": {},
+    "omniflix-1": {}
+}

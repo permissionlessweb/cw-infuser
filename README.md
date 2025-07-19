@@ -9,6 +9,15 @@
 ## Introduction
 Cw-Infusion is a nft minter for burning to mint tokens in very programmable ways. Bundles, or the collection of tokens one intends to infuse,are formed and burned in exchange for a new token from the infused collection.
 
+
+## Documentation: [Cw-Infusion Docs (Link)](https://permissionless.money/docs/infusions)
+Documentation & Guides for the infuser can be found [here](https://permissionless.money/docs/infusions).
+
+## Deployment Verification
+```sh
+# todo:  verify specific version checksum matches with current codehash
+```
+
 ## Tests
 ```sh
 # integration tests
@@ -17,9 +26,5 @@ cargo test --package test-suite --lib -- infuser::test::init --show-output
 cargo test
 ```
 
-## Verification
-```sh
-# todo:  verify specific version checksum matches with current codehash
-```
 
 ## [License](https://github.com/permissionlessweb/cw-infuser/blob/main/LICENSE)

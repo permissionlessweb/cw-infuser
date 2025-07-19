@@ -8,17 +8,17 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
     coin, entry_point, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary,
     Coin, Coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Event, Fraction, HexBinary,
-    MessageInfo, QuerierWrapper, QueryRequest, Reply, Response, StdError, StdResult, Storage,
-    SubMsg, Uint128, WasmMsg, WasmQuery,
+    MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128,
+    WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 
-use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
+use cw721::{Cw721QueryMsg, OwnerOfResponse};
 // use cw721_v18::Cw721ExecuteMsg;
 use cw_controllers::AdminError;
 
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
-use cw_infusions::state::InfusionParamState;
+
 use cw_infusions::{
     bundles::{AnyOfCount, Bundle, BundleBlend, BundleType},
     nfts::{CollectionInfo, InfusedCollection, RoyaltyInfoResponse, SgInstantiateMsg, NFT},
@@ -37,8 +37,6 @@ use semver::Version;
 
 use sha2::{Digest, Sha256};
 use url::Url;
-
-const INFUSION_COLLECTION_INIT_MSG_ID: u64 = 21;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sg-minter";
@@ -319,7 +317,7 @@ pub fn execute_create_infusion(
     infusions: Vec<Infusion>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
-    let mut msgs: Vec<SubMsg> = Vec::new();
+    let mut msgs = Vec::new();
     let mut fee_msgs: Vec<CosmosMsg<Empty>> = Vec::new();
     let mut attrs = vec![];
 
@@ -468,7 +466,7 @@ pub fn execute_create_infusion(
             // )?,
         };
 
-        let init_infusion = WasmMsg::Instantiate2 {
+        let init_infusion_msg = WasmMsg::Instantiate2 {
             admin: Some(infusion_admin.clone()),
             code_id: cfg.code_id,
             msg: init_msg,
@@ -478,9 +476,6 @@ pub fn execute_create_infusion(
                 + &env.block.height.to_string(),
             salt: salt1.clone(),
         };
-
-        let infusion_collection_submsg =
-            SubMsg::<Empty>::reply_on_success(init_infusion, INFUSION_COLLECTION_INIT_MSG_ID);
 
         let token_ids = random_token_list(
             &env,
@@ -521,12 +516,12 @@ pub fn execute_create_infusion(
 
         // map with vector of infusion ids registered for a given NFT collection  addr:
 
-        msgs.push(infusion_collection_submsg);
+        msgs.push(init_infusion_msg);
         attrs.push(Attribute::new("infusion-id", infusion_id.to_string()));
     }
 
     Ok(Response::new()
-        .add_submessages(msgs)
+        .add_messages(msgs)
         .add_messages(fee_msgs)
         .add_attributes(attrs))
 }

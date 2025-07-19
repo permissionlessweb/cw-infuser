@@ -1,5 +1,5 @@
 use cw_infusion_minter::{
-    contract::{execute, instantiate, migrate, query, reply},
+    contract::{execute, instantiate, migrate, query},
     msg::*,
 };
 use cw_orch::prelude::*;
@@ -16,10 +16,6 @@ impl<Chain: CwEnv> Uploadable for CwInfuser<Chain> {
     }
     /// Returns a CosmWasm contract wrapper
     fn wrapper() -> Box<dyn MockContract<Empty>> {
-        Box::new(
-            ContractWrapper::new_with_empty(execute, instantiate, query)
-                .with_reply(reply)
-                .with_migrate(migrate),
-        )
+        Box::new(ContractWrapper::new_with_empty(execute, instantiate, query).with_migrate(migrate))
     }
 }
