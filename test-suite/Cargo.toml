@@ -27,7 +27,7 @@ cosmwasm-schema = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw721 = { workspace = true }
 cw721-base = { workspace = true }
-cw-utils    = { workspace = true }
+cw-utils = "1.0.3"
 
 anyhow = { workspace = true }
 serde = { workspace = true }
@@ -43,5 +43,5 @@ hex = "0.4.3"
 [dev-dependencies]
 rand = "0.8.5"
 cw-multi-test = "2.4.0"
-abstract-cw-multi-test = { version = "2.2.4" }
+abstract-cw-multi-test = { version = "1.0.1" }
 

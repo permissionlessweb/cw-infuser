@@ -6,7 +6,7 @@ members = [
    "packages/cw-infusions",
   "scripts",
  # "contracts/cw721/*",
- # "test-suite"
+   "test-suite"
    ]
 resolver = "2"
 

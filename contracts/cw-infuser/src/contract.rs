@@ -7,9 +7,9 @@ use crate::state::{
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
     coin, entry_point, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary,
-    Coin, Coins, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Event, Fraction, HexBinary,
-    MessageInfo, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128,
-    WasmMsg, WasmQuery,
+    Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Event, Fraction, HexBinary, MessageInfo,
+    QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cw2::set_contract_version;
 
@@ -746,7 +746,7 @@ fn execute_infuse_bundle(
                 });
             if let Some(e) = fee_error {
                 return Err(e);
-            } else {
+            } else if funds.len() > 0 {
                 let fee_msgs = form_feesplit_helper(
                     cfg.owner_fee,
                     cfg.contract_owner.to_string(),
@@ -762,8 +762,6 @@ fn execute_infuse_bundle(
     if bundle.is_empty() {
         if infusion.infusion_params.wavs_enabled {
             let burn = check_bundles(deps.storage, &cfg, &infusion, &sender, vec![], &funds)?;
-            println!("burn: {:#?}", burn);
-
             if burn.0.is_empty() {
                 return Err(ContractError::EmptyBundle);
             }
@@ -946,11 +944,14 @@ fn check_bundles(
             wavs_overflow = wmch.remaining;
         }
 
+        // println!("funds_sent before: {:#?}", funds_sent);
         if elig_len != eli.min_req {
             if let Some(ps) = &eli.payment_substitute {
                 let (len, remaining_funds) =
                     check_fee_substitute(btype, &eli.addr, ps, &funds_sent)?;
+
                 funds_sent = remaining_funds;
+                // println!("funds_sent after: {:#?}", funds_sent);
 
                 match btype {
                     1 => {
@@ -1111,6 +1112,19 @@ fn check_bundles(
         }
     }
 
+    match btype {
+        1 => {
+            if infused_mint_count == 0 {
+                infused_mint_count = 1;
+            }
+        }
+        _ => {
+            if infused_mint_count == 0 {
+                return Err(ContractError::InvalidAnyOfBundle {});
+            }
+        }
+    }
+
     if btype == 1 && infused_mint_count == 0 {
         infused_mint_count = 1;
     }
@@ -1197,7 +1211,7 @@ fn check_anyof_bundle_helper(
     wavs_mint_count: u64,
 ) -> Result<u64, ContractError> {
     let mut mc = 0u64;
-    let mut error = ContractError::UnTriggered;
+    // let mut error = ContractError::UnTriggered;
     // println!("elig_count: {:#?}", elig_count);
     // println!("anyof: {:#?}", anyof_list);
     // println!("sent: {:#?}", sent);
@@ -1212,19 +1226,16 @@ fn check_anyof_bundle_helper(
                 if any == elig.nft.addr {
                     // check for accurate fee substitute amount
                     if let Some(fps) = &elig.nft.payment_substitute {
-                        // println!("fee substitute");
-                        let res = sent.iter().find(|coin| coin.denom == fps.denom);
-                        if let Some(fee) = res {
-                            if fee.amount != fps.amount {
+                        let sent = sent.iter().find(|coin| coin.denom == fps.denom);
+                        if let Some(pay) = sent {
+                            if pay.amount != fps.amount {
                                 if !fee_substituted.contains(&any.to_string()) {
-                                    error = ContractError::PaymentSubstituteNotProvided {
-                                        col: elig.nft.addr.to_string(),
-                                        have: Coins::from(coin(
-                                            fee.amount.u128(),
-                                            fee.denom.clone(),
-                                        )),
-                                        want: fps.clone(),
-                                    };
+                                    // error = ContractError::PaymentSubstituteNotProvided {
+                                    //     col: elig.nft.addr.to_string(),
+                                    //     have: coin(pay.amount.u128(), pay.denom.clone()),
+                                    //     want: fps.clone(),
+                                    // };
+                                    mc += wavs_mint_count;
                                     continue;
                                 } else {
                                     mc += wavs_mint_count + 1;
@@ -1251,9 +1262,9 @@ fn check_anyof_bundle_helper(
         //  todo:anyofBlendLogic
         return Err(ContractError::UnImplemented);
     }
-    if error.to_string() != ContractError::UnTriggered.to_string() {
-        return Err(error);
-    };
+    // if error.to_string() != ContractError::UnTriggered.to_string() {
+    //     return Err(error);
+    // };
 
     Ok(mc)
 }
@@ -1293,7 +1304,7 @@ fn check_fee_substitute(
                     }
                 }
                 return Err(ContractError::PaymentSubstituteNotProvided {
-                    have: have.clone().into(),
+                    have: coin(have.amount.into(), ps.denom.to_string()),
                     want: ps.clone(),
                     col: elig_addr.to_string(),
                 });

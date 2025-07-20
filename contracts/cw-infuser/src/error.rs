@@ -1,6 +1,6 @@
 use std::fmt;
 
-use cosmwasm_std::{CheckedMultiplyRatioError, Coin, Coins, Instantiate2AddressError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, Coin, Instantiate2AddressError, StdError};
 use cw_controllers::AdminError;
 use thiserror::Error;
 
@@ -59,6 +59,9 @@ pub enum ContractError {
     #[error("Invalid base token URI (must be an IPFS URI)")]
     InvalidBaseTokenURI {},
 
+    #[error("InvalidAnyOfBundle")]
+    InvalidAnyOfBundle {},
+
     #[error("Token id: {token_id} already sold")]
     TokenIdAlreadySold { token_id: u32 },
 
@@ -72,11 +75,7 @@ pub enum ContractError {
     PaySubNotProvided { col: String, want: Coin },
 
     #[error("payment substitute is enabled for collection {col}, but did not recieve tokens or payment. Have: {have}. Want: {want}")]
-    PaymentSubstituteNotProvided {
-        col: String,
-        have: Coins,
-        want: Coin,
-    },
+    PaymentSubstituteNotProvided { col: String, have: Coin, want: Coin },
 
     #[error("Too many NFT collections being set for infusion. Have: {have}.  Max: {max}")]
     TooManyCollectionsInInfusion { have: u64, max: u64 },
