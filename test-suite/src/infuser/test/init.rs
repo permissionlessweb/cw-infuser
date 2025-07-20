@@ -1354,8 +1354,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
         token_id: 14,
     }]);
 
-    // ERROR: good FEESUB, bad amount on anyOf
-
+    // 1x correct amount nft1, good static fee, incorrect feesub nft2
     let mut infusion_res = app
         .call_as(&env.admin)
         .execute(
