@@ -2279,7 +2279,12 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
     };
 
     let err = app
-        .update_infusion_bundle_type(bundle_type, infusion_id)
+        .update_infusions_eligible_collections_or_bundle_type(
+            bundle_type,
+            infusion_id,
+            vec![],
+            vec![],
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -2294,7 +2299,12 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
         addrs: vec![env.nfts[1].clone()],
     };
 
-    app.update_infusion_bundle_type(bundle_type, infusion_id)?;
+    app.update_infusions_eligible_collections_or_bundle_type(
+        bundle_type,
+        infusion_id,
+        vec![],
+        vec![],
+    )?;
 
     Ok(())
 }
@@ -2322,10 +2332,11 @@ fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
     env.infusion.collections[1].max_req = Some(3);
     env.infusion.collections[1].min_req = 2;
     env.infusion.collections[1].payment_substitute = Some(coin(100, "ubtsg"));
-    app.update_infusions_eligible_collections(
+    app.update_infusions_eligible_collections_or_bundle_type(
+        env.infusion.infusion_params.bundle_type,
         infusion_id,
         vec![env.infusion.collections[1].clone()],
-        vec![env.infusion.collections[0].clone()],
+        vec![env.infusion.collections[0].clone().addr],
     )?;
 
     let infusion = app.infusion_by_id(infusion_id)?;

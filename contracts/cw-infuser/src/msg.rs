@@ -55,19 +55,17 @@ pub enum ExecuteMsg {
     UpdateConfig {
         config: UpdatingConfig,
     },
-    UpdateInfusionsEligibleCollections {
+    UpdateInfusionsEligibleCollectionsOrBundleType {
         id: u64,
         to_add: Vec<EligibleNFTCollection>,
-        to_remove: Vec<EligibleNFTCollection>,
+        to_remove: Vec<Addr>,
+        bundle_type: BundleType,
     },
     UpdateInfusionMintFee {
         id: u64,
         mint_fee: Option<Coin>,
     },
-    UpdateInfusionBundleType {
-        id: u64,
-        bundle_type: BundleType,
-    },
+
     Shuffle {
         id: u64,
     },

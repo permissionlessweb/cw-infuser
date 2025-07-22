@@ -137,17 +137,16 @@ pub fn execute(
         ExecuteMsg::UpdateInfusionBaseUri { id, base_uri } => {
             update_infused_base_uri(deps, info, id, base_uri)
         }
-        ExecuteMsg::UpdateInfusionsEligibleCollections {
+        ExecuteMsg::UpdateInfusionsEligibleCollectionsOrBundleType {
             id,
             to_add,
             to_remove,
-        } => update_infusion_eligible_collections(deps, info, id, to_add, to_remove),
+            bundle_type,
+        } => update_infusion_eligible_collections(deps, info, id, to_add, to_remove, &bundle_type),
         ExecuteMsg::UpdateInfusionMintFee { id, mint_fee } => {
             update_infusion_mint_fee(deps, info, id, mint_fee)
         }
-        ExecuteMsg::UpdateInfusionBundleType { id, bundle_type } => {
-            update_infusion_bundle_type(deps, info, id, bundle_type)
-        }
+
         ExecuteMsg::Shuffle { id } => execute_shuffle(deps, env, info, id),
         ExecuteMsg::WavsEntryPoint { infusions } => {
             update_wavs_infusion_state(deps, info, infusions)
@@ -183,7 +182,8 @@ fn update_infusion_eligible_collections(
     msg: MessageInfo,
     id: u64,
     to_add: Vec<EligibleNFTCollection>,
-    to_remove: Vec<EligibleNFTCollection>,
+    to_remove: Vec<Addr>,
+    bt: &BundleType,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     let key = INFUSION_ID.load(deps.storage, id)?;
@@ -196,24 +196,44 @@ fn update_infusion_eligible_collections(
     for nft in to_remove {
         // Iterate through the collections to find and remove the NFT
         for i in 0..infusion.collections.len() {
-            if infusion.collections[i] == nft {
+            if infusion.collections[i].addr == nft {
                 infusion.collections.remove(i);
                 break;
             }
         }
     }
     // ensure new eligible collection params
-    let collections = validate_eligible_collection_list(
-        deps.storage,
-        // deps.querier,
-        &cfg,
-        &infusion.infusion_params.bundle_type,
-        &infusion.collections,
-        &to_add,
-        true,
-        id,
-    )?;
-    infusion.collections = collections;
+    if to_add.len() > 0 {
+        let collections = validate_eligible_collection_list(
+            deps.storage,
+            // deps.querier,
+            &cfg,
+            &infusion.infusion_params.bundle_type,
+            &infusion.collections,
+            &to_add,
+            true,
+            id,
+        )?;
+        infusion.collections = collections;
+    }
+
+    match &bt {
+        BundleType::AllOf {} => {}
+        BundleType::AnyOf { addrs } => {
+            let mut unique = vec![];
+            for col in infusion.collections.iter() {
+                unique.push(col.addr.clone());
+            }
+            for addr in addrs {
+                if !unique.contains(addr) {
+                    return Err(ContractError::AnyOfConfigError {
+                        err: AnyOfErr::Uneligible,
+                    });
+                }
+            }
+        }
+        BundleType::AnyOfBlend { blends: _ } => return Err(ContractError::UnImplemented),
+    }
 
     INFUSION.save(deps.storage, key, &infusion)?;
     Ok(Response::new())
@@ -233,42 +253,6 @@ fn update_infused_base_uri(
     }
     infusion.infused_collection.base_uri = base_uri;
     INFUSION.save(deps.storage, key, &infusion)?;
-    Ok(Response::new())
-}
-
-/// Update the mint fee for an infusion
-fn update_infusion_bundle_type(
-    deps: DepsMut,
-    msg: MessageInfo,
-    id: u64,
-    bt: BundleType,
-) -> Result<Response, ContractError> {
-    let key = INFUSION_ID.load(deps.storage, id)?;
-    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
-    if infusion.owner != msg.sender {
-        return Err(ContractError::Admin(AdminError::NotAdmin {}));
-    }
-    match &bt {
-        BundleType::AllOf {} => {}
-        BundleType::AnyOf { addrs } => {
-            let mut unique = vec![];
-            for col in infusion.collections.iter() {
-                unique.push(col.addr.clone());
-            }
-            for addr in addrs {
-                if !unique.contains(addr) {
-                    return Err(ContractError::AnyOfConfigError {
-                        err: AnyOfErr::Uneligible,
-                    });
-                }
-            }
-        }
-        BundleType::AnyOfBlend { blends: _ } => return Err(ContractError::UnImplemented),
-    }
-
-    infusion.infusion_params.bundle_type = bt;
-    INFUSION.save(deps.storage, key, &infusion)?;
-
     Ok(Response::new())
 }
 
@@ -1673,19 +1657,19 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
     // }
 
     let res = Response::new();
-    let version: Version = prev_version
-        .version
-        .parse()
-        .map_err(|_| StdError::generic_err("Invalid current contract version"))?;
-    let new_version: Version = CONTRACT_VERSION
-        .parse()
-        .map_err(|_| StdError::generic_err("Invalid new contract version"))?;
+    // let version: Version = prev_version
+    //     .version
+    //     .parse()
+    //     .map_err(|_| StdError::generic_err("Invalid current contract version"))?;
+    // let new_version: Version = CONTRACT_VERSION
+    //     .parse()
+    //     .map_err(|_| StdError::generic_err("Invalid new contract version"))?;
 
-    if version > new_version {
-        return Err(StdError::generic_err(
-            "Cannot upgrade to a previous contract version",
-        ));
-    }
+    // if version > new_version {
+    //     return Err(StdError::generic_err(
+    //         "Cannot upgrade to a previous contract version",
+    //     ));
+    // }
 
     #[allow(clippy::cmp_owned)]
     if prev_version.version < "0.6.0".to_string() {
