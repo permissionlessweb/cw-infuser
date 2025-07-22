@@ -2,8 +2,9 @@
  
  <div align="center">
 
-[![preview](/public/gallery.png)]()\
-*Art By [Henley Bealle](https://www.henleybeall.com/), post-processed with an [ascii-image-converter](./art/generators/ascii-image-converter/README).*
+[![Psycoactive Entities](/public/gallery.png)]()\
+*Psycoactive Entities, Acryllic & posca pens on wood,2019.*\
+*By [Henley Bealle](https://www.henleybeall.com/), post-processed with an [ascii-image-converter](./art/generators/ascii-image-converter/README).*
 </div>
 
 ## Introduction
@@ -26,6 +27,9 @@ cargo test --package test-suite --lib -- infuser::test::init --show-output
 # unit tests
 cargo test
 ```
+## Scripts 
+Checkout our [scripts here](./scripts/README) for CLI deployment & interaction.
+
 
 
 ## [License](https://github.com/permissionlessweb/cw-infuser/blob/main/LICENSE)

@@ -27,6 +27,9 @@ pub enum ContractError {
     #[error("Cannot specify the same contract address more than once")]
     DuplicateCollectionInInfusion,
 
+    #[error("Cannot currently set identical fee sub tokens for eligible collections: {token}")]
+    DuplicateFeeSubToken { token: String },
+
     #[error("NftIsNotEligible: {col}")]
     NftIsNotEligible { col: String },
 
@@ -71,8 +74,8 @@ pub enum ContractError {
     #[error("BundleCollectionContractEmpty")]
     BundleCollectionContractEmpty {},
 
-    #[error("PaySubNotProvided: {col}, want: {want}")]
-    PaySubNotProvided { col: String, want: Coin },
+    #[error("FeeSubNotProvided: {col}, want: {want}")]
+    FeeSubNotProvided { col: String, want: Coin },
 
     #[error("payment substitute is enabled for collection {col}, but did not recieve tokens or payment. Have: {have}. Want: {want}")]
     PaymentSubstituteNotProvided { col: String, have: Coin, want: Coin },
