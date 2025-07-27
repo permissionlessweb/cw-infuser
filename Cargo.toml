@@ -14,7 +14,7 @@ resolver = "2"
 repository = "https://github.com/permissionlessweb/cw-infuser"
 edition = "2021"
 resolver = "2"
-version = "0.7.1"
+version = "0.7.3"
 authors = ["hard-nett <hardnettt@proton.me>"]
 
 

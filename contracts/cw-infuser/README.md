@@ -49,6 +49,7 @@ A minimum fee required to infuse may be set on the contract level, requiring all
 - support for depositing nfts (used to ommit nfts approval tx requirement)
 - immuatbility support (cannot update baseuri, ...)
 - add bundle recipies: configure what types of bundles can be made:
+- community oriented: only holders of collections may set them as eligible to be burnt
   <!-- - allOf: requires the minimum for all eligible collections -->
   <!-- - anyOf: any of 1 of the eligible collections -->
   - anyOfBlend: select which elgible collections may be set to have blended requirements.

@@ -1,5 +1,5 @@
 use abstract_cw_multi_test::Contract;
-use cosmwasm_std::{coin, coins, Decimal, Event, HexBinary, Uint128};
+use cosmwasm_std::{coin, coins, Decimal, Event, Fraction, HexBinary, Uint128};
 use cw_infusion_minter::{
     msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
     state::Config,
@@ -1647,6 +1647,7 @@ fn test_anyof_mix() -> anyhow::Result<()> {
         )?
         .event_attr_values("wasm", "action");
     // 2 nft burnt, 3 minted
+    println!("infuse_res: {:#?}", infuse_res);
     assert_eq!(infuse_res.len(), 5);
     assert_eq!(infuse_res[0], "burn");
     assert_eq!(infuse_res[1], "burn");
@@ -1910,8 +1911,7 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
         ]),
     )?;
 
-    let infusion = app.infusion_by_id(infusion_id)?;
-    println!("{:#?}", infusion);
+    println!("{:#?}", app.infusion_by_id(infusion_id)?);
 
     // check with multiple collections
     env.infusion.infused_collection.addr = None;
@@ -1940,8 +1940,7 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
     )?
     .u128() as u64;
 
-    let infusion = app.infusion_by_id(infusion_id)?;
-    println!("{:#?}", infusion);
+    println!("{:#?}", app.infusion_by_id(infusion_id)?);
 
     // NO NFTS, NO FEESUB
     assert_eq!(
@@ -2044,14 +2043,27 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
 #[test]
 fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     // setup infuser with admin fees
+    let nft2_feesub = coin(
+        200u128,
+        "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
+    );
+
     let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
-    let nft1 = env.nfts[0].clone();
-    let nft2 = env.nfts[1].clone();
-    env.infusion.infusion_params.bundle_type = BundleType::AnyOf {
-        addrs: vec![nft1.clone(), nft2.clone()],
-    };
 
+    let payment_recipient = env.chain.addr_make("payment_recipient");
+    let spender = env.chain.addr_make_with_balance(
+        "spain",
+        vec![
+            coin(1000u128, "ustars"),
+            coin(
+                1000u128,
+                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
+            ),
+        ],
+    )?;
+    println!("payment_recipient: {:#?}", payment_recipient.to_string());
+    println!("spender: {:#?}", spender.to_string());
     env.chain.add_balance(
         &env.admin,
         vec![
@@ -2063,14 +2075,17 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
         ],
     )?;
 
-    // update substitute payment for infusion being created to 200ustars
-    env.infusion.collections[1].payment_substitute = Some(coin(
-        200u128,
-        "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
-    ));
+    env.infusion.payment_recipient = Some(payment_recipient.clone());
+
+    let nft1 = env.nfts[0].clone();
+    let nft2 = env.nfts[1].clone();
+    env.infusion.collections[1].payment_substitute = Some(nft2_feesub.clone());
+    env.infusion.infusion_params.bundle_type = BundleType::AnyOf {
+        addrs: vec![nft1.clone(), nft2.clone()],
+    };
 
     // good infusion creation
-    let infusion_id = Uint128::from_str(
+    let mut infusion_id = Uint128::from_str(
         &app.execute(
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
@@ -2083,7 +2098,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
 
     let mut bundle = Bundle { nfts: vec![] };
 
-    // 0 bundles
+    // // 0 bundles
     assert_eq!(
         app.call_as(&env.admin)
             .execute(
@@ -2131,7 +2146,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
             Some(&[coin(100, "ustars")]),
         )?
         .event_attr_values("wasm", "action");
-    // one nft burnt, one minterd
+    // one nft burnt, one minted
     assert_eq!(infuse_res.len(), 2);
     assert_eq!(infuse_res[0], "burn");
     assert_eq!(infuse_res[1], "mint");
@@ -2153,9 +2168,6 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     assert_eq!(infuse_res.len(), 2);
     assert_eq!(infuse_res[0], "burn");
     assert_eq!(infuse_res[1], "mint");
-
-    let infusion = app.infusion_by_id(infusion_id)?;
-    println!("{:#?}", infusion);
 
     // ensure correct payment substitute
     bundle.nfts[0].token_id += 1;
@@ -2181,6 +2193,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     assert_eq!(infuse_res[1], "mint");
     assert_eq!(infuse_res[1], "mint");
 
+    // set owner
     // check with multiple collections
     env.infusion.infused_collection.addr = None;
     env.infusion.collections[0].payment_substitute = Some(coin(200u128, "ustars"));
@@ -2193,7 +2206,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     env.chain.wait_blocks(2)?;
 
     // good infusion creation
-    let infusion_id = Uint128::from_str(
+    infusion_id = Uint128::from_str(
         &app.execute(
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
@@ -2204,18 +2217,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     )?
     .u128() as u64;
 
-    let spender = env.chain.addr_make_with_balance(
-        "spain",
-        vec![
-            coin(1000u128, "ustars"),
-            coin(
-                1000u128,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
-            ),
-        ],
-    )?;
-
-    // NO NFTS, NO FEESUB
+    // // NO NFTS, NO FEESUB
     assert_eq!(
         app.call_as(&spender)
             .execute(
@@ -2245,6 +2247,66 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     assert_eq!(infuse_res.len(), 1);
     assert_eq!(infuse_res[0], "mint");
 
+    // assert pay sub goes to correct destination
+    let inf = app.infusion_by_id(infusion_id)?;
+    let cfg = app.config()?;
+    println!("{:#?}", cfg);
+    println!("{:#?}", inf);
+    // println!("{:#?}", res);
+
+    let bal_be4_owner = env.chain.query_balance(&cfg.contract_owner, "ustars")?;
+    let bal_b4_pay_recipient = env.chain.query_balance(&payment_recipient, "ustars")?;
+
+    // 270 should go to payment recipient, 30 should go to contract owner
+    let res = app.call_as(&spender).execute(
+        &ExecuteMsg::Infuse {
+            id: infusion_id,
+            bundle: vec![Bundle { nfts: vec![] }],
+        },
+        Some(&[coin(300, "ustars")]),
+    )?;
+    println!("{:#?}", res);
+    env.chain.wait_blocks(2)?;
+
+    let bal_aft_owner = env.chain.query_balance(&cfg.contract_owner, "ustars")?;
+    let bal_aft_pay_recipient = env.chain.query_balance(&payment_recipient, "ustars")?;
+
+    println!(
+        "bal_be4_owner {:#?}: {:#?}",
+        bal_be4_owner.to_string(),
+        cfg.contract_owner.to_string()
+    );
+    println!(
+        "bal_aft_owner {:#?}: {:#?}",
+        bal_aft_owner.to_string(),
+        cfg.contract_owner.to_string()
+    );
+    println!(
+        "bal_b4_pay_recipient {:#?}: {:#?}",
+        bal_b4_pay_recipient.to_string(),
+        payment_recipient.to_string()
+    );
+    println!(
+        "bal_aft_pay_recipient {:#?}: {:#?}",
+        bal_aft_pay_recipient.to_string(),
+        payment_recipient.to_string()
+    );
+
+    let pay = inf.collections[0]
+        .payment_substitute
+        .clone()
+        .unwrap()
+        .amount
+        .checked_add(inf.infusion_params.mint_fee.unwrap().amount)?;
+    let admin_cut = pay.multiply_ratio(cfg.owner_fee.numerator(), cfg.owner_fee.denominator());
+    println!("pay: {:#?}", pay);
+    println!("admin_cut: {:#?}", admin_cut);
+    assert_eq!(bal_aft_owner, bal_be4_owner.checked_add(admin_cut)?);
+    assert_eq!(
+        bal_aft_pay_recipient,
+        bal_b4_pay_recipient.checked_add(pay.checked_sub(admin_cut)?)?
+    );
+    // bal_b4_pay_recipient.checked_add();
     Ok(())
 }
 
@@ -2685,6 +2747,18 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
 
 #[test]
 fn test_mintout_collection() -> anyhow::Result<()> {
+    Ok(())
+}
+
+#[test]
+fn test_anyof_feesub_payment_destination() -> anyhow::Result<()> {
+    // 2 collections + static fee. both feesub, one different denom than static fee
+
+    Ok(())
+}
+
+#[test]
+fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
     Ok(())
 }
 
