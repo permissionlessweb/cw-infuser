@@ -53,7 +53,6 @@ pub struct CollectionInfo<T> {
     pub royalty_info: Option<T>,
 }
 
-
 #[cosmwasm_schema::cw_serde]
 pub struct SgInstantiateMsg {
     pub name: String,
@@ -61,4 +60,3 @@ pub struct SgInstantiateMsg {
     pub minter: String,
     pub collection_info: CollectionInfo<RoyaltyInfoResponse>,
 }
-
