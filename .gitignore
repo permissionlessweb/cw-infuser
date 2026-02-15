@@ -17,3 +17,6 @@ artifacts
 *.iml
 .idea
 .env
+
+# art
+art/generators/output

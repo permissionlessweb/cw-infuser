@@ -3,6 +3,20 @@ use cosmwasm_std::{Addr, Coin};
 use crate::{bundles::BundleType, nfts::InfusedCollection, BurnParams};
 
 #[cosmwasm_schema::cw_serde]
+pub struct UpdateInfusion {
+    /// Owner of the infusion.
+    /// Optional description of this infusion
+    pub infusion_description: Option<String>,
+    pub owner: Option<Addr>,
+    pub payment_recipient: Option<Addr>,
+    pub infused_collection_state: Option<String>
+    // / NFT collections eligible for a specific infusion
+    // pub collections: Vec<EligibleNFTCollection>,
+    // / Parameters of a specific infusion
+    // pub infusion_params: Option<InfusionParamState>,
+}
+
+#[cosmwasm_schema::cw_serde]
 pub struct Infusion {
     /// Optional description of this infusion
     pub description: Option<String>,

@@ -6,14 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+blake3 = "1.8.3"
 anyhow = "1.0.79"
 dotenv = "0.15.0"
-clap = "4.5.23"
+clap = { version = "4.5.23", features = ["derive"] }
 env_logger = { version = "0.11.3", default-features = false }
 cosmwasm-std = { workspace = true }
 cw-infusion-minter = { path = "../contracts/cw-infuser" }
+cw721-svg = { path = "../contracts/cw721/cw721-svg" }
 cw-infusions = {  path = "../packages/cw-infusions" }
+whitelist-mtree = { workspace = true }
+cw-svg = {  path = "../packages/cw-svg" }
 cw-orch = { workspace = true, features = ["daemon"] }
 cw721 = { workspace = true }
-sg721 = "^3.3"
-sg721-base = "^3.3"
+cw721-base = "^0.18.0"
+rand = { version = "0.8.5", features = ["std_rng"] }
+serde_json = "1.0"
+serde = { workspace = true }
+rs_merkle = { version = "1.4.1", default-features = false }

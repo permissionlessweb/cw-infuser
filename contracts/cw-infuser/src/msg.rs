@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_infusions::{
     bundles::{Bundle, BundleType},
-    state::{EligibleNFTCollection, Infusion, InfusionState},
+    state::{EligibleNFTCollection, Infusion, InfusionState, UpdateInfusion},
     wavs::{WavsBundle, WavsRecordResponse},
     CompatibleTraits,
 };
@@ -65,7 +65,10 @@ pub enum ExecuteMsg {
         id: u64,
         mint_fee: Option<Coin>,
     },
-
+    UpdateInfusionParams {
+        id: u64,
+        params: UpdateInfusion,
+    },
     Shuffle {
         id: u64,
     },

@@ -1,56 +1,54 @@
 [workspace]
-members = [ 
-  "contracts/cw-infuser",
-  #"contracts/cw-irl",
-   "packages/easy-addr",
-   "packages/cw-infusions",
-  "scripts",
- # "contracts/cw721/*",
-   "test-suite"
-   ]
+members = [
+    "contracts/cw-infuser",
+    "contracts/cw721/*",
+    "contracts/whitelist/*",
+    "packages/cw-infusions",
+    "packages/cw-svg",
+    "packages/easy-addr",
+    "scripts",
+    "test-suite",
+]
 resolver = "2"
 
 [workspace.package]
 repository = "https://github.com/permissionlessweb/cw-infuser"
 edition = "2021"
 resolver = "2"
+homepage = "https://permissionless.money"
 version = "0.7.3"
 authors = ["hard-nett <hardnettt@proton.me>"]
-
+license = "MIT"
 
 [workspace.features]
 default = []
 
 [workspace.dependencies]
-cw-infusion-minter = { path = "./contracts/cw-infuser" }
-cw-infusions = { path = "./packages/cw-infusions" }
-cw-infuser-scripts = { path = "./scripts", default-features = false  }
- 
-cosmwasm-schema = "1.5.11"
-cosmwasm-std = { version = "1.5.11", features = ["cosmwasm_1_4"] }
-cw-storage-plus = "1.2.0"
-cw2 = "1.1.2"
-
-# cw-ownable = "2.1.0"
-cw-controllers = { version = "1.1.2" }
-
-# v2.0.0 cosmwasm
-# cw721 = { library =  "cw721", git = "https://github.com/public-awesome/cw-nfts", ref = "a5abe476c1028b2563f995adab184b86e3fc03ff" }
-# cw721-base = {  git = "https://github.com/public-awesome/cw-nfts", ref = "a5abe476c1028b2563f995adab184b86e3fc03ff",features = ["library"] }
-
-# orchestration libraryr
-cw-orch = { version = "0.24.1" }
-
-cw721 =  "0.18.0"
-cw721-base  = { version = "0.18.0", features = ["library"] }
-
 
 anyhow = "1.0.79"
+blake3 = "1.8.3"
+cosmwasm-schema = "1.5.11"
+cosmwasm-std = { version = "1.5.11", features = ["cosmwasm_1_4"] }
+# cw-ownable = "2.1.0"
+cw-controllers = { version = "1.1.2" }
+cw-infuser-scripts = { path = "./scripts", default-features = false }
+cw-infusion-minter = { path = "./contracts/cw-infuser" }
+cw-infusions = { path = "./packages/cw-infusions" }
+# orchestration libraryr
+cw-orch = { version = "0.24.1" }
+cw-storage-plus = "1.2.0"
+cw-utils = "2.0.0"
+cw2 = "1.1.2"
+cw721 =  "0.18.0"
+cw721-base  = { version = "0.18.0", features = ["library"] }
+schemars = "0.8.16"
+semver                      = "1"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
 sha2                 = { version = "0.10.2", default-features = false }
-schemars = "0.8.16"
+thiserror = { version = "1.0.58" }
+url                  = "2.2.2"
+whitelist-mtree = { path = "./contracts/whitelist/whitelist-merkletree" }
 # easy-addr = { path = "packages/easy-addr" }
-# sg721 = {  version = "3.15.0" }
 
 [profile.release]
 rpath = false

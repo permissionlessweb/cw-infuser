@@ -1,3 +1,4 @@
+#!/bin/sh
 # compile 
 cd cw-infuser && cargo wasm 
 # move wasm 

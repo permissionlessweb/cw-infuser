@@ -1,3 +1,4 @@
+#!/bin/sh
 wasm:
     #!/bin/bash
     if [[ $(uname -m) == 'arm64' ]] || [ $(uname -m) == 'aarch64' ]]; then docker run --rm -v "$(pwd)":/code \
@@ -11,10 +12,14 @@ wasm:
             --platform linux/amd64 \
             cosmwasm/optimizer:0.16.1; fi
 
-schema:
+schema-codegen:
     #!/bin/bash
-    sh scripts/schema-and-codegen.sh
+    sh scripts/sh/schema-and-codegen.sh
 
 deploy: 
     #!/bin/bash
     cargo run --bin deploy
+
+
+create-merkle:
+    @cargo run --bin merkle -- -i $1 --proofs >> $2

@@ -19,40 +19,53 @@ void mandelbrot(int base, double zoom, double center_r, double center_i, int max
     double step_r = width / cols;
     double step_i = height / rows;
 
-    size_t bufsize = (size_t)rows * ((size_t)cols + 1) + 1;
+    size_t bufsize = (size_t)rows * ((size_t)cols * 20) + 1; // Rough estimate for color codes
     char *buf = malloc(bufsize);
     if (!buf) return;
     size_t pos = 0;
 
     for (int y = 0; y < rows; y++) {
         double ci = max_i - (y + 0.5) * step_i;
+        int last_color = -1;
+
         for (int x = 0; x < cols; x++) {
             double cr = min_r + (x + 0.5) * step_r;
-            double zr = 0.0;
-            double zi = 0.0;
+            double zr = 0.0, zi = 0.0;
             int iter;
 
-            // Escape loop
             for (iter = 0; iter < max_iter; iter++) {
                 double zrsq = zr * zr;
                 double zisq = zi * zi;
-                if (zrsq + zisq > 4.0) break; // Escapes!
+                if (zrsq + zisq > 4.0) break;
                 double temp = zrsq - zisq + cr;
                 zi = 2.0 * zr * zi + ci;
                 zr = temp;
             }
 
-            // Render: inside → blank, outside → shaded ASCII
+            int color;
             if (iter == max_iter) {
-                buf[pos++] = ' ';           // Inside set: empty (or use '.' for dot fill)
+                color = 0; // Black for inside
             } else {
-                buf[pos++] = base + (iter % 95); // Outside: shaded
+                int t = iter % 24;
+                // Map iteration to a smooth 256-color palette (blue -> purple -> red)
+                color = 16 + (t * 10) % 240;
             }
+
+            // Only emit color code if changed
+            if (color != last_color) {
+                pos += sprintf(buf + pos, "\033[38;5;%dm", color);
+                last_color = color;
+            }
+
+            buf[pos++] = (iter == max_iter) ? ' ' : (base + (iter % 95));
         }
-        buf[pos++] = '\n';
+
+        // Reset color at end of line
+        pos += sprintf(buf + pos, "\033[0m\n");
     }
+
     buf[pos] = '\0';
-    printf("\033[H%s", buf);  // ANSI escape to move cursor + print buffer
+    printf("\033[H%s", buf);  // Move cursor to top-left and draw
     fflush(stdout);
     free(buf);
 }
@@ -63,14 +76,12 @@ int main() {
     // =============================================
     double center_r = 0.2825852632545845;
     double center_i = 0.011953425728572489057;
-
     int frame = 0;
+
     while (1) {
         double zoom = pow(1.02, frame);
         int max_iter = 26 + frame / 3;
-
         mandelbrot(32, zoom, center_r, center_i, max_iter);
-
         usleep(50000); // ~20 FPS
         frame++;
     }

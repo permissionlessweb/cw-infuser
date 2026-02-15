@@ -19,6 +19,8 @@ vanilla = []
 cw-infuser-scripts = { workspace = true }
 cw-infusions = { workspace = true }
 cw-infusion-minter = { workspace = true }
+cw721-svg = { path = "../contracts/cw721/cw721-svg", features = ["library"] }
+cw-svg = { path = "../packages/cw-svg" }
 
 cw2= { workspace = true }
 cw-orch = { workspace = true, features = ["daemon"] }
@@ -34,7 +36,7 @@ serde = { workspace = true }
 schemars= { workspace = true }
 
 #  For gating
-hex = "0.4.3"
+whitelist-mtree = { path = "../contracts/whitelist/whitelist-merkletree", features = ["library"] }
  
 
 # v020infuse = {  branch = "v020-migrate",package="cw-infuser",git = "https://github.com/permissionlessweb/cw-infuser"}
@@ -44,4 +46,5 @@ hex = "0.4.3"
 rand = "0.8.5"
 cw-multi-test = "2.4.0"
 abstract-cw-multi-test = { version = "1.0.1" }
+rs_merkle = { version = "1.4.1", default-features = false }
 

@@ -19,6 +19,7 @@ use cw_controllers::AdminError;
 
 use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
 
+use cw_infusions::state::UpdateInfusion;
 use cw_infusions::{
     bundles::{AnyOfCount, Bundle, BundleBlend, BundleType},
     nfts::{CollectionInfo, InfusedCollection, RoyaltyInfoResponse, SgInstantiateMsg, NFT},
@@ -34,7 +35,6 @@ use rand_xoshiro::Xoshiro128PlusPlus;
 use shuffle::{fy::FisherYates, shuffler::Shuffler};
 
 use semver::Version;
-
 use sha2::{Digest, Sha256};
 use url::Url;
 
@@ -135,10 +135,12 @@ pub fn execute(
         ExecuteMsg::UpdateInfusionMintFee { id, mint_fee } => {
             update_infusion_mint_fee(deps, info, id, mint_fee)
         }
-
         ExecuteMsg::Shuffle { id } => execute_shuffle(deps, env, info, id),
         ExecuteMsg::WavsEntryPoint { infusions } => {
             update_wavs_infusion_state(deps, info, infusions)
+        }
+        ExecuteMsg::UpdateInfusionParams { id, params } => {
+            update_infusion_params(deps, info, id, params)
         }
     }
 }
@@ -875,7 +877,6 @@ fn check_bundles(
     let btype: i32 = bundle_type.strain();
     let wavs_enabled = infusion.infusion_params.wavs_enabled;
 
-
     let mut check_bundle_msgs = Vec::new();
 
     let mut total_bundle_map: Vec<AnyOfCount> = Vec::with_capacity(iclen);
@@ -1141,6 +1142,32 @@ fn wavs_mint_count_helper(
     }
 }
 
+/// Update the infused collection
+fn update_infusion_params(
+    deps: DepsMut,
+    info: MessageInfo,
+    infusion_id: u64,
+    params: UpdateInfusion,
+) -> Result<Response, ContractError> {
+    let key = INFUSION_ID.load(deps.storage, infusion_id)?;
+    let mut infusion = INFUSION.load(deps.storage, key.clone())?;
+    if info.sender != infusion.owner {
+        return Err(ContractError::Unauthorized);
+    }
+    if let Some(descr) = params.infusion_description {
+        infusion.infused_collection.description = descr;
+    }
+    if let Some(owner) = params.owner {
+        infusion.owner = owner;
+    }
+    if let Some(pr) = params.payment_recipient {
+        infusion.payment_recipient = pr;
+    }
+
+    INFUSION.save(deps.storage, key, &infusion)?;
+
+    Ok(Response::new())
+}
 /// Update the infused collection
 fn update_wavs_infusion_state(
     deps: DepsMut,

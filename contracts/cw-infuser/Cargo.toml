@@ -40,13 +40,9 @@ cw721 =  { workspace = true }
 cw721-base  = { workspace = true, features = ["library"] }
 # < v2 ccosmwasm sg721 support
 # cw721-v18 = { version = "0.18.0", package= "cw721" }
-
 cw-infusions = {workspace = true }
 cw-orch =  { workspace = true }
-
-schemars = "0.8.16"
 sha2 = { version = "0.10.8", default-features = false }
-serde = { version = "1.0.197", default-features = false, features = ["derive"] }
 semver                      = "1"
 thiserror = { version = "1.0.58" }
 url                  = "2.2.2"
