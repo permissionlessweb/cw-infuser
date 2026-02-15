@@ -34,27 +34,18 @@ cosmwasm-std = { workspace = true, features = [
   "cosmwasm_1_4",
   
 ] }
-
-# using for post cosmwasm v2 compabtility
 cw721 =  { workspace = true }
 cw721-base  = { workspace = true, features = ["library"] }
-# < v2 ccosmwasm sg721 support
-# cw721-v18 = { version = "0.18.0", package= "cw721" }
 cw-infusions = {workspace = true }
 cw-orch =  { workspace = true }
 sha2 = { version = "0.10.8", default-features = false }
 semver                      = "1"
 thiserror = { version = "1.0.58" }
 url                  = "2.2.2"
-
-# cw-infuser-v050 = { git = "https://github.com/permissionlessweb/cw-infuser", rev = "70bcdeeb33e2d6be0225ac7d0583395084d7737f", package = "cw-infuser", features = ["library"] }
-# cosmwasm-std-v1511 = { version = "1.5.11", package = "cosmwasm-std", features = [] }
-
 shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
-# rand_core       = { version = "0.6.4", default-features = false }
 rand_xoshiro    = { version = "0.6.0", default-features = false }
 nois            = { version = "2.0.0" }
 
  
 [dev-dependencies]
-cw-multi-test = "2.2.0"
+cw-multi-test = "1.2.0"

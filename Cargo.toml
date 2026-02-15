@@ -29,15 +29,13 @@ anyhow = "1.0.79"
 blake3 = "1.8.3"
 cosmwasm-schema = "1.5.11"
 cosmwasm-std = { version = "1.5.11", features = ["cosmwasm_1_4"] }
-# cw-ownable = "2.1.0"
 cw-controllers = { version = "1.1.2" }
 cw-infuser-scripts = { path = "./scripts", default-features = false }
 cw-infusion-minter = { path = "./contracts/cw-infuser" }
 cw-infusions = { path = "./packages/cw-infusions" }
-# orchestration libraryr
 cw-orch = { version = "0.24.1" }
 cw-storage-plus = "1.2.0"
-cw-utils = "2.0.0"
+cw-utils = "1.0.3"
 cw2 = "1.1.2"
 cw721 =  "0.18.0"
 cw721-base  = { version = "0.18.0", features = ["library"] }
@@ -48,7 +46,6 @@ sha2                 = { version = "0.10.2", default-features = false }
 thiserror = { version = "1.0.58" }
 url                  = "2.2.2"
 whitelist-mtree = { path = "./contracts/whitelist/whitelist-merkletree" }
-# easy-addr = { path = "packages/easy-addr" }
 
 [profile.release]
 rpath = false

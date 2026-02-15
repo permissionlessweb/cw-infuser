@@ -44,7 +44,7 @@ whitelist-mtree = { path = "../contracts/whitelist/whitelist-merkletree", featur
 
 [dev-dependencies]
 rand = "0.8.5"
-cw-multi-test = "2.4.0"
+cw-multi-test = "1.2.0"
 abstract-cw-multi-test = { version = "1.0.1" }
 rs_merkle = { version = "1.4.1", default-features = false }
 
