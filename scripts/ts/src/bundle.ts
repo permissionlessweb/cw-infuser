@@ -10,13 +10,10 @@ import * as _2 from "./CwInfuser.message-composer";
 import * as _3 from "./Cw721Svg.types";
 import * as _4 from "./Cw721Svg.client";
 import * as _5 from "./Cw721Svg.message-composer";
-import * as _6 from "./CwInfuserFactory.types";
-import * as _7 from "./CwInfuserFactory.client";
-import * as _8 from "./CwInfuserFactory.message-composer";
-import * as _9 from "./WhitelistMerkletree.types";
-import * as _10 from "./WhitelistMerkletree.client";
-import * as _11 from "./WhitelistMerkletree.message-composer";
-import * as _12 from "./baseClient";
+import * as _6 from "./WhitelistMerkletree.types";
+import * as _7 from "./WhitelistMerkletree.client";
+import * as _8 from "./WhitelistMerkletree.message-composer";
+import * as _9 from "./baseClient";
 export namespace contracts {
   export const CwInfuser = {
     ..._0,
@@ -28,17 +25,12 @@ export namespace contracts {
     ..._4,
     ..._5
   };
-  export const CwInfuserFactory = {
+  export const WhitelistMerkletree = {
     ..._6,
     ..._7,
     ..._8
   };
-  export const WhitelistMerkletree = {
-    ..._9,
-    ..._10,
-    ..._11
-  };
   export const baseClient = {
-    ..._12
+    ..._9
   };
 }

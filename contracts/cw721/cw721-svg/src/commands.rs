@@ -1,6 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{
-    HasMemberResponse, MintConfig, PriceTier, SvgMetadata, TemplateSlot, TokenParam, VariableDef, VariableKind, WhitelistHasMemberMsg
+    HasMemberResponse, MintConfig, PriceTier, SvgMetadata, TemplateSlot, TokenParam, VariableDef,
+    VariableKind, WhitelistHasMemberMsg,
 };
 use crate::state::{
     MINTER_ADDRS, MINT_CONFIG, SVG_TEMPLATE, TEMPLATE_SLOTS, VARIABLES, WHITELIST, WL_MINTER_ADDRS,

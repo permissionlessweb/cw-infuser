@@ -41,7 +41,6 @@ pub struct RoyaltyInfoResponse {
     pub share: Decimal,
 }
 
-
 #[cosmwasm_schema::cw_serde]
 pub struct CollectionInfo<T> {
     pub creator: String,

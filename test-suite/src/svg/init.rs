@@ -1809,15 +1809,15 @@ fn test_svg_placeholder_query() -> anyhow::Result<()> {
 fn test_svg_placeholder_different_seeds_vary() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    let resp1: SvgTokenUriResponse = suite
-        .svg
-        .query(&QueryMsg::SvgPlaceholder { seed: Some("seed1".to_string()) })?;
-    let resp2: SvgTokenUriResponse = suite
-        .svg
-        .query(&QueryMsg::SvgPlaceholder { seed: Some("seed2".to_string()) })?;
-    let resp3: SvgTokenUriResponse = suite
-        .svg
-        .query(&QueryMsg::SvgPlaceholder { seed: Some("seed1".to_string()) })?;
+    let resp1: SvgTokenUriResponse = suite.svg.query(&QueryMsg::SvgPlaceholder {
+        seed: Some("seed1".to_string()),
+    })?;
+    let resp2: SvgTokenUriResponse = suite.svg.query(&QueryMsg::SvgPlaceholder {
+        seed: Some("seed2".to_string()),
+    })?;
+    let resp3: SvgTokenUriResponse = suite.svg.query(&QueryMsg::SvgPlaceholder {
+        seed: Some("seed1".to_string()),
+    })?;
 
     // Same seed produces same result
     assert_eq!(resp1.svg, resp3.svg, "Same seed should produce same SVG");

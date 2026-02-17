@@ -22,13 +22,13 @@ const CONTRACTS = [
     globalName: 'Cw721Svg',
     outName: 'cw721-svg',
   },
-  {
-    name: 'CwInfuserFactory',
-    dir: '../../contracts/cw-infuser-factory/schema',
-    entryFiles: ['CwInfuserFactory.types.ts', 'CwInfuserFactory.client.ts', 'CwInfuserFactory.message-composer.ts'],
-    globalName: 'CwInfuserFactory',
-    outName: 'cw-infuser-factory',
-  },
+  // {
+  //   name: 'CwInfuserFactory',
+  //   dir: '../../contracts/cw-infuser/schema',
+  //   entryFiles: ['CwInfuserFactory.types.ts', 'CwInfuserFactory.client.ts', 'CwInfuserFactory.message-composer.ts'],
+  //   globalName: 'CwInfuserFactory',
+  //   outName: 'cw-infuser-factory',
+  // },
   {
     name: 'WhitelistMerkletree',
     dir: '../../contracts/whitelist/whitelist-merkletree/schema',

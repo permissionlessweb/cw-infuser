@@ -25,6 +25,7 @@ export interface InstantiateMsg {
   seed: Binary;
   svg_template: string;
   symbol: string;
+  template_slots: TemplateSlot[];
   total: number;
   variables: VariableDef[];
   whitelist?: string | null;
@@ -37,6 +38,11 @@ export interface Coin {
   amount: Uint128;
   denom: string;
   [k: string]: unknown;
+}
+export interface TemplateSlot {
+  end: number;
+  start: number;
+  var_idx: number;
 }
 export interface VariableDef {
   kind: VariableKind;
@@ -159,6 +165,10 @@ export type QueryMsg = {
     token_id: string;
   };
 } | {
+  svg_placeholder: {
+    seed?: string | null;
+  };
+} | {
   config: {};
 } | {
   svg_template: {};
@@ -245,10 +255,10 @@ export interface OwnershipForString {
   pending_expiry?: Expiration | null;
   pending_owner?: string | null;
 }
-export interface SvgTemplateResponse {
-  template: string;
-}
 export interface SvgTokenUriResponse {
   svg: string;
+}
+export interface SvgTemplateResponse {
+  template: string;
 }
 export type NullableAddr = Addr | null;

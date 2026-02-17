@@ -6,7 +6,7 @@
 
 import { ICosmWasmClient, ISigningCosmWasmClient } from "./baseClient";
 import { StdFee } from "@interchainjs/types";
-import { Uint128, Binary, VariableKind, InstantiateMsg, PriceTier, Coin, VariableDef, ExecuteMsg, Expiration, Timestamp, Uint64, Action, QueryMsg, AllNftInfoResponseForSvgMetadata, OwnerOfResponse, Approval, NftInfoResponseForSvgMetadata, SvgMetadata, TokenParam, OperatorsResponse, TokensResponse, ApprovalResponse, ApprovalsResponse, Addr, ConfigResponse, MintConfig, ContractInfoResponse, MintCountResponse, OwnershipForAddr, NumTokensResponse, OwnershipForString, SvgTemplateResponse, SvgTokenUriResponse, NullableAddr } from "./Cw721Svg.types";
+import { Uint128, Binary, VariableKind, InstantiateMsg, PriceTier, Coin, TemplateSlot, VariableDef, ExecuteMsg, Expiration, Timestamp, Uint64, Action, QueryMsg, AllNftInfoResponseForSvgMetadata, OwnerOfResponse, Approval, NftInfoResponseForSvgMetadata, SvgMetadata, TokenParam, OperatorsResponse, TokensResponse, ApprovalResponse, ApprovalsResponse, Addr, ConfigResponse, MintConfig, ContractInfoResponse, MintCountResponse, OwnershipForAddr, NumTokensResponse, OwnershipForString, SvgTokenUriResponse, SvgTemplateResponse, NullableAddr } from "./Cw721Svg.types";
 export interface Cw721SvgReadOnlyInterface {
   contractAddress: string;
   ownerOf: ({
@@ -79,6 +79,11 @@ export interface Cw721SvgReadOnlyInterface {
   }: {
     tokenId: string;
   }) => Promise<SvgTokenUriResponse>;
+  svgPlaceholder: ({
+    seed
+  }: {
+    seed?: string;
+  }) => Promise<SvgTokenUriResponse>;
   config: () => Promise<ConfigResponse>;
   svgTemplate: () => Promise<SvgTemplateResponse>;
   whitelist: () => Promise<NullableAddr>;
@@ -112,6 +117,7 @@ export class Cw721SvgQueryClient implements Cw721SvgReadOnlyInterface {
     this.allTokens = this.allTokens.bind(this);
     this.minter = this.minter.bind(this);
     this.svgTokenUri = this.svgTokenUri.bind(this);
+    this.svgPlaceholder = this.svgPlaceholder.bind(this);
     this.config = this.config.bind(this);
     this.svgTemplate = this.svgTemplate.bind(this);
     this.whitelist = this.whitelist.bind(this);
@@ -263,6 +269,17 @@ export class Cw721SvgQueryClient implements Cw721SvgReadOnlyInterface {
     return this.client.queryContractSmart(this.contractAddress, {
       svg_token_uri: {
         token_id: tokenId
+      }
+    });
+  };
+  svgPlaceholder = async ({
+    seed
+  }: {
+    seed?: string;
+  }): Promise<SvgTokenUriResponse> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      svg_placeholder: {
+        seed
       }
     });
   };

@@ -179,7 +179,7 @@ pub struct MintCountResponse {
 }
 
 #[cw_ownable::cw_ownable_query]
-#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))] 
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))]
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {

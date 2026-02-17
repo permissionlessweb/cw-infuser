@@ -213,19 +213,34 @@ mod tests {
         // leaf index 1
         let user = mock_info("stars130dxx3nr2ste4fwsum57k3en60wqd76m9pvpsy", &[]);
         let proof = tree.proof(&[1]);
-        let res = query_has_member(deps.as_ref(), user.sender.to_string(), proof.proof_hashes_hex()).unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            user.sender.to_string(),
+            proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(res.has_member);
 
         // leaf index 3
         let user = mock_info("stars16epdu6c7h8apxrnuu06yzfxflrede0mtu4qqz4", &[]);
         let proof = tree.proof(&[3]);
-        let res = query_has_member(deps.as_ref(), user.sender.to_string(), proof.proof_hashes_hex()).unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            user.sender.to_string(),
+            proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(res.has_member);
 
         // mismatched proof: use proof for index 1 against address at index 0
         let user = mock_info("stars1ye63jpm474yfrq02nyplrspyw75y82tptsls9t", &[]);
         let wrong_proof = tree.proof(&[1]);
-        let res = query_has_member(deps.as_ref(), user.sender.to_string(), wrong_proof.proof_hashes_hex()).unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            user.sender.to_string(),
+            wrong_proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(!res.has_member);
 
         // invalid proof

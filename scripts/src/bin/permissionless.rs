@@ -188,10 +188,7 @@ pub fn main() -> anyhow::Result<()> {
             ],
             payment_address: None,
             whitelist: None,
-            template_slots: cw_svg::compute_template_slots(
-                FRACTAL_SVG_TEMPLATE,
-                &variable_defs,
-            ),
+            template_slots: cw_svg::compute_template_slots(FRACTAL_SVG_TEMPLATE, &variable_defs),
         },
         Some(&chain.sender().address()),
         None,

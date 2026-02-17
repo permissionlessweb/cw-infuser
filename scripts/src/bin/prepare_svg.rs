@@ -16,7 +16,10 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 
 #[derive(Parser, Debug)]
-#[command(version, about = "Prepare a cw721-svg InstantiateMsg JSON from an SVG template")]
+#[command(
+    version,
+    about = "Prepare a cw721-svg InstantiateMsg JSON from an SVG template"
+)]
 struct Args {
     /// Path to the SVG template file containing ${varname} placeholders
     #[arg(long)]

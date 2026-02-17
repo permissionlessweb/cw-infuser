@@ -6,7 +6,7 @@
 
 import { ICosmWasmClient, ISigningCosmWasmClient } from "./baseClient";
 import { StdFee } from "@interchainjs/types";
-import { Timestamp, Uint64, Uint128, InstantiateMsg, Coin, ExecuteMsg, QueryMsg, CosmosMsgForEmpty, BankMsg, Binary, IbcMsg, WasmMsg, GovMsg, VoteOption, Decimal, Empty, IbcTimeout, IbcTimeoutBlock, WeightedVoteOption, AdminListResponse, CanExecuteResponse, ConfigResponse, HasEndedResponse, HasMemberResponse, HasStartedResponse, IsActiveResponse, MerkleRootResponse, MerkleTreeURIResponse } from "./WhitelistMerkletree.types";
+import { Timestamp, Uint64, Uint128, InstantiateMsg, Coin, ExecuteMsg, QueryMsg, CosmosMsgForEmpty, BankMsg, WasmMsg, Binary, Empty, AdminListResponse, CanExecuteResponse, ConfigResponse, HasEndedResponse, HasMemberResponse, HasStartedResponse, IsActiveResponse, MerkleRootResponse, MerkleTreeURIResponse } from "./WhitelistMerkletree.types";
 export interface WhitelistMerkletreeReadOnlyInterface {
   contractAddress: string;
   hasStarted: () => Promise<HasStartedResponse>;

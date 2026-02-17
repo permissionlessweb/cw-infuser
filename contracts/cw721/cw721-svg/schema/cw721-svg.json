@@ -12,6 +12,7 @@
       "seed",
       "svg_template",
       "symbol",
+      "template_slots",
       "total",
       "variables"
     ],
@@ -63,6 +64,13 @@
       },
       "symbol": {
         "type": "string"
+      },
+      "template_slots": {
+        "description": "Pre-computed placeholder positions in the SVG template. Each slot maps a `${varname}` occurrence to its byte offsets and variable index.",
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/TemplateSlot"
+        }
       },
       "total": {
         "type": "integer",
@@ -124,6 +132,32 @@
             "description": "This tier applies while mint_count < until_count",
             "type": "integer",
             "format": "uint64",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false
+      },
+      "TemplateSlot": {
+        "type": "object",
+        "required": [
+          "end",
+          "start",
+          "var_idx"
+        ],
+        "properties": {
+          "end": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "start": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "var_idx": {
+            "type": "integer",
+            "format": "uint16",
             "minimum": 0.0
           }
         },
@@ -884,6 +918,28 @@
             "properties": {
               "token_id": {
                 "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Returns a preview SVG with random placeholder values filled in.",
+        "type": "object",
+        "required": [
+          "svg_placeholder"
+        ],
+        "properties": {
+          "svg_placeholder": {
+            "type": "object",
+            "properties": {
+              "seed": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "additionalProperties": false
@@ -2054,6 +2110,20 @@
           "type": "string"
         }
       }
+    },
+    "svg_placeholder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SvgTokenUriResponse",
+      "type": "object",
+      "required": [
+        "svg"
+      ],
+      "properties": {
+        "svg": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "svg_template": {
       "$schema": "http://json-schema.org/draft-07/schema#",

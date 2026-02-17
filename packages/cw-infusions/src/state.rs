@@ -9,11 +9,10 @@ pub struct UpdateInfusion {
     pub infusion_description: Option<String>,
     pub owner: Option<Addr>,
     pub payment_recipient: Option<Addr>,
-    pub infused_collection_state: Option<String>
-    // / NFT collections eligible for a specific infusion
-    // pub collections: Vec<EligibleNFTCollection>,
-    // / Parameters of a specific infusion
-    // pub infusion_params: Option<InfusionParamState>,
+    pub infused_collection_state: Option<String>, // / NFT collections eligible for a specific infusion
+                                                  // pub collections: Vec<EligibleNFTCollection>,
+                                                  // / Parameters of a specific infusion
+                                                  // pub infusion_params: Option<InfusionParamState>,
 }
 
 #[cosmwasm_schema::cw_serde]

@@ -27,8 +27,9 @@ pub fn load_svg_init_msg(path: &str) -> anyhow::Result<SvgInitMsg> {
         }
     }
 
-    let msg: SvgInitMsg = serde_json::from_value(value)
-        .map_err(|e| anyhow::anyhow!("failed to deserialize InstantiateMsg from {}: {}", path, e))?;
+    let msg: SvgInitMsg = serde_json::from_value(value).map_err(|e| {
+        anyhow::anyhow!("failed to deserialize InstantiateMsg from {}: {}", path, e)
+    })?;
 
     Ok(msg)
 }

@@ -74,14 +74,15 @@ fn parse_input(path: &str, with_allocations: bool) -> Result<Vec<ParsedEntry>> {
             if with_allocations {
                 let parts: Vec<&str> = line.splitn(2, ',').collect();
                 if parts.len() != 2 {
-                    anyhow::bail!(
-                        "Expected 'address,allocation' format but got: {}",
-                        line
-                    );
+                    anyhow::bail!("Expected 'address,allocation' format but got: {}", line);
                 }
                 let address = parts[0].trim().to_string();
                 let allocation: u32 = parts[1].trim().parse().map_err(|_| {
-                    anyhow::anyhow!("Invalid allocation '{}' for address {}", parts[1].trim(), address)
+                    anyhow::anyhow!(
+                        "Invalid allocation '{}' for address {}",
+                        parts[1].trim(),
+                        address
+                    )
                 })?;
                 let leaf = format!("{}{}", address, allocation);
                 Ok(ParsedEntry {
