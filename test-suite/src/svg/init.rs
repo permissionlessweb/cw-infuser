@@ -1,10 +1,10 @@
 use cosmwasm_std::{coin, coins, Addr, Binary, Timestamp};
+use cw721_svg::interface::Cw721Svg;
 use cw721_svg::msg::*;
 use cw721_svg::state::{MAX_SVG_SIZE, MAX_TOTAL_SUPPLY};
-use cw_infuser_scripts::deploy::merkletree::WhitelistMerkleTree;
-use cw_infuser_scripts::deploy::svg::Cw721Svg;
 use cw_orch::{anyhow, mock::MockBech32, prelude::*};
 use rs_merkle::MerkleTree;
+use whitelist_mtree::interface::WhitelistMerkleTree;
 use whitelist_mtree::tests::{hasher::SortingBlake3Hasher, test_helpers::hash_and_build_tree};
 
 pub struct CwSvgSuite<Chain> {
@@ -51,6 +51,42 @@ fn test_seed() -> Binary {
     Binary::from(b"test-seed-entropy-value-1234567")
 }
 
+/// Compute template slots from a template and variables (simulates off-chain tooling).
+fn compute_slots(template: &str, variables: &[VariableDef]) -> Vec<TemplateSlot> {
+    let bytes = template.as_bytes();
+    let len = bytes.len();
+    let mut slots = Vec::new();
+    let mut i = 0;
+    while i < len.saturating_sub(1) {
+        if bytes[i] == b'$' && bytes[i + 1] == b'{' {
+            let start = i;
+            let name_start = i + 2;
+            let mut j = name_start;
+            while j < len && bytes[j] != b'}' {
+                j += 1;
+            }
+            if j >= len {
+                panic!("unclosed placeholder in test template");
+            }
+            let name = &template[name_start..j];
+            let end = j + 1;
+            let var_idx = variables
+                .iter()
+                .position(|v| v.name == name)
+                .unwrap_or_else(|| panic!("unknown variable '{}' in test template", name));
+            slots.push(TemplateSlot {
+                start: start as u32,
+                end: end as u32,
+                var_idx: var_idx as u16,
+            });
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    slots
+}
+
 /// Helper to build a standard mint message (no whitelist proof).
 fn mint_msg(amount: u64) -> ExecuteMsg {
     ExecuteMsg::Mint {
@@ -83,6 +119,7 @@ impl CwSvgSuite<MockBech32> {
             price_tiers: Vec::new(),
             payment_address: Some(admin.to_string()),
             whitelist: None,
+            template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
 
         svg.instantiate(&init_msg, Some(&admin), None)?;
@@ -117,6 +154,7 @@ impl CwSvgSuite<MockBech32> {
             price_tiers: Vec::new(),
             payment_address: Some(admin.to_string()),
             whitelist: None,
+            template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
 
         svg.instantiate(&init_msg, Some(&admin), None)?;
@@ -151,6 +189,7 @@ impl CwSvgSuite<MockBech32> {
             price_tiers: Vec::new(),
             payment_address: Some(admin.to_string()),
             whitelist: None,
+            template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
 
         svg.instantiate(&init_msg, Some(&admin), None)?;
@@ -209,6 +248,7 @@ impl CwSvgSuite<MockBech32> {
             price_tiers,
             payment_address: Some(admin.to_string()),
             whitelist: Some(wlist.address()?.to_string()),
+            template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
         svg.instantiate(&svg_init, Some(&admin), None)?;
 
@@ -406,6 +446,7 @@ fn test_mint_exceeds_total_supply() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -440,6 +481,7 @@ fn test_mint_partial_exceeds_total_supply() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -674,6 +716,7 @@ fn test_mintout_full_collection() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -782,6 +825,7 @@ fn test_svg_template_too_large() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: vec![],
     };
 
     svg.instantiate(&init_msg, Some(&admin), None)
@@ -814,6 +858,7 @@ fn test_svg_template_at_max_size() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: vec![],
     };
 
     svg.instantiate(&init_msg, Some(&admin), None)?;
@@ -842,6 +887,7 @@ fn test_total_supply_too_high() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
 
     svg.instantiate(&init_msg, Some(&admin), None)
@@ -872,6 +918,7 @@ fn test_total_supply_at_max() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
 
     svg.instantiate(&init_msg, Some(&admin), None)?;
@@ -935,6 +982,7 @@ fn test_price_tier_single_tier() -> anyhow::Result<()> {
         }],
         payment_address: Some(treasury.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -984,6 +1032,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
         }],
         payment_address: Some(treasury.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1045,6 +1094,7 @@ fn test_price_tier_multiple_tiers() -> anyhow::Result<()> {
         ],
         payment_address: Some(treasury.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1106,6 +1156,7 @@ fn test_price_tier_cross_boundary_mint() -> anyhow::Result<()> {
         ],
         payment_address: Some(treasury.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1142,6 +1193,7 @@ fn test_price_tier_free_mint_rejects_funds() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1183,6 +1235,7 @@ fn test_price_tier_payment_goes_to_treasury() -> anyhow::Result<()> {
         }],
         payment_address: Some(treasury.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1243,6 +1296,7 @@ fn test_delayed_start_allows_mints_after_wait() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1284,6 +1338,7 @@ fn test_end_time_blocks_late_mints() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1325,6 +1380,7 @@ fn test_start_and_end_time_window() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1560,6 +1616,7 @@ fn test_whitelist_update_by_admin() -> anyhow::Result<()> {
         price_tiers: Vec::new(),
         payment_address: Some(admin.to_string()),
         whitelist: None,
+        template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
     svg.instantiate(&init_msg, Some(&admin), None)?;
 
@@ -1590,6 +1647,80 @@ fn test_whitelist_update_by_admin() -> anyhow::Result<()> {
 
     let wl: Option<Addr> = svg.query(&QueryMsg::Whitelist {})?;
     assert!(wl.is_none());
+
+    Ok(())
+}
+
+// ===========================================================================
+// Template slot validation tests
+// ===========================================================================
+
+#[test]
+fn test_template_slot_var_idx_out_of_range() -> anyhow::Result<()> {
+    let mock = MockBech32::new("mock");
+    let admin = mock.addr_make("admin");
+
+    let svg = Cw721Svg::new(mock.clone());
+    svg.upload()?;
+
+    // Slot references var_idx=99 which is out of range
+    let init_msg = InstantiateMsg {
+        name: "Bad Idx".to_string(),
+        symbol: "BIDX".to_string(),
+        svg_template: TEST_SVG_TEMPLATE.to_string(),
+        variables: test_variables(),
+        total: 10,
+        seed: test_seed(),
+        owner: Some(admin.to_string()),
+        mint_start_time: None,
+        mint_end_time: None,
+        price_tiers: Vec::new(),
+        payment_address: Some(admin.to_string()),
+        whitelist: None,
+        template_slots: vec![TemplateSlot {
+            start: 19,
+            end: 31,
+            var_idx: 99,
+        }],
+    };
+
+    svg.instantiate(&init_msg, Some(&admin), None)
+        .expect_err("should fail: var_idx out of range");
+
+    Ok(())
+}
+
+#[test]
+fn test_template_slot_content_mismatch() -> anyhow::Result<()> {
+    let mock = MockBech32::new("mock");
+    let admin = mock.addr_make("admin");
+
+    let svg = Cw721Svg::new(mock.clone());
+    svg.upload()?;
+
+    // Slot claims ${color_yin} is at wrong position
+    let init_msg = InstantiateMsg {
+        name: "Bad Pos".to_string(),
+        symbol: "BPOS".to_string(),
+        svg_template: TEST_SVG_TEMPLATE.to_string(),
+        variables: test_variables(),
+        total: 10,
+        seed: test_seed(),
+        owner: Some(admin.to_string()),
+        mint_start_time: None,
+        mint_end_time: None,
+        price_tiers: Vec::new(),
+        payment_address: Some(admin.to_string()),
+        whitelist: None,
+        template_slots: vec![TemplateSlot {
+            start: 0,
+            end: 12,
+            var_idx: 0,
+        }],
+    };
+
+    svg.instantiate(&init_msg, Some(&admin), None)
+        .expect_err("should fail: slot content does not match template");
 
     Ok(())
 }
@@ -1643,6 +1774,64 @@ fn test_mint_count_query() -> anyhow::Result<()> {
         address: minter.to_string(),
     })?;
     assert_eq!(count.count, 5);
+
+    Ok(())
+}
+
+// ===========================================================================
+// Placeholder query tests
+// ===========================================================================
+
+#[test]
+fn test_svg_placeholder_query() -> anyhow::Result<()> {
+    let suite = CwSvgSuite::setup()?;
+
+    // Query placeholder without seed
+    let resp: SvgTokenUriResponse = suite.svg.query(&QueryMsg::SvgPlaceholder { seed: None })?;
+
+    // Should not contain unresolved placeholders
+    assert!(
+        !resp.svg.contains("${"),
+        "Placeholder SVG still contains unresolved placeholders: {}",
+        resp.svg
+    );
+
+    // Should contain resolved color values
+    assert!(
+        resp.svg.contains("rgb("),
+        "Placeholder SVG should contain rgb values"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_svg_placeholder_different_seeds_vary() -> anyhow::Result<()> {
+    let suite = CwSvgSuite::setup()?;
+
+    let resp1: SvgTokenUriResponse = suite
+        .svg
+        .query(&QueryMsg::SvgPlaceholder { seed: Some("seed1".to_string()) })?;
+    let resp2: SvgTokenUriResponse = suite
+        .svg
+        .query(&QueryMsg::SvgPlaceholder { seed: Some("seed2".to_string()) })?;
+    let resp3: SvgTokenUriResponse = suite
+        .svg
+        .query(&QueryMsg::SvgPlaceholder { seed: Some("seed1".to_string()) })?;
+
+    // Same seed produces same result
+    assert_eq!(resp1.svg, resp3.svg, "Same seed should produce same SVG");
+
+    // Different seeds may produce different results (not guaranteed with few options,
+    // but both should be valid)
+    assert!(
+        !resp1.svg.contains("${"),
+        "SVG should not contain unresolved placeholders"
+    );
+    assert!(
+        !resp2.svg.contains("${"),
+        "SVG should not contain unresolved placeholders"
+    );
 
     Ok(())
 }

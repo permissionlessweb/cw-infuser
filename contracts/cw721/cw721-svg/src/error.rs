@@ -55,4 +55,7 @@ pub enum ContractError {
 
     #[error("Invalid variable definition: {reason}")]
     InvalidVariableDef { reason: String },
+
+    #[error("Invalid template placeholder: {reason}")]
+    InvalidTemplatePlaceholder { reason: String },
 }

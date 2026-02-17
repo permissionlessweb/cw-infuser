@@ -3,10 +3,12 @@ mod error;
 pub mod msg;
 pub mod state;
 
-pub use crate::error::ContractError;
-pub use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+#[cfg(feature = "interface")]
+pub mod interface;
 
+pub use crate::error::ContractError;
 use crate::msg::SvgMetadata;
+pub use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::Empty;
 
 const CONTRACT_NAME: &str = "crates.io:cw721-svg";
@@ -21,7 +23,8 @@ pub mod entry {
         ConfigResponse, MintConfig, SvgTemplateResponse, SvgTokenUriResponse, VariableKind,
     };
     use crate::state::{
-        MAX_SVG_SIZE, MAX_TOTAL_SUPPLY, MINT_CONFIG, SVG_TEMPLATE, VARIABLES, WHITELIST,
+        MAX_SVG_SIZE, MAX_TOTAL_SUPPLY, MINT_CONFIG, SVG_TEMPLATE, TEMPLATE_SLOTS, VARIABLES,
+        WHITELIST,
     };
     use cosmwasm_std::{
         entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
@@ -106,7 +109,10 @@ pub mod entry {
                 VariableKind::Options(opts) => {
                     if opts.is_empty() {
                         return Err(ContractError::InvalidVariableDef {
-                            reason: format!("variable '{}': options list must not be empty", var.name),
+                            reason: format!(
+                                "variable '{}': options list must not be empty",
+                                var.name
+                            ),
                         });
                     }
                 }
@@ -123,18 +129,16 @@ pub mod entry {
                             ),
                         });
                     }
-                    let min_scaled =
-                        parse_decimal_scaled(min, *precision).map_err(|e| {
-                            ContractError::InvalidVariableDef {
-                                reason: format!("variable '{}' min: {}", var.name, e),
-                            }
-                        })?;
-                    let max_scaled =
-                        parse_decimal_scaled(max, *precision).map_err(|e| {
-                            ContractError::InvalidVariableDef {
-                                reason: format!("variable '{}' max: {}", var.name, e),
-                            }
-                        })?;
+                    let min_scaled = parse_decimal_scaled(min, *precision).map_err(|e| {
+                        ContractError::InvalidVariableDef {
+                            reason: format!("variable '{}' min: {}", var.name, e),
+                        }
+                    })?;
+                    let max_scaled = parse_decimal_scaled(max, *precision).map_err(|e| {
+                        ContractError::InvalidVariableDef {
+                            reason: format!("variable '{}' max: {}", var.name, e),
+                        }
+                    })?;
                     if min_scaled > max_scaled {
                         return Err(ContractError::InvalidVariableDef {
                             reason: format!(
@@ -148,8 +152,11 @@ pub mod entry {
         }
 
         cw_ownable::initialize_owner(deps.storage, deps.api, Some(&owner))?;
+
+        validate_template_slots(&msg.svg_template, &msg.variables, &msg.template_slots)?;
         SVG_TEMPLATE.save(deps.storage, &msg.svg_template)?;
         VARIABLES.save(deps.storage, &msg.variables)?;
+        TEMPLATE_SLOTS.save(deps.storage, &msg.template_slots)?;
 
         Ok(Response::new()
             .add_attribute("action", "instantiate")
@@ -245,6 +252,11 @@ pub mod entry {
         match msg {
             QueryMsg::SvgTokenUri { token_id } => {
                 let svg = query_svg_token_uri(deps, token_id)
+                    .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+                to_json_binary(&SvgTokenUriResponse { svg })
+            }
+            QueryMsg::SvgPlaceholder { seed } => {
+                let svg = query_svg_placeholder(deps, seed)
                     .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
                 to_json_binary(&SvgTokenUriResponse { svg })
             }

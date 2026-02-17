@@ -1,10 +1,9 @@
 use crate::error::ContractError;
 use crate::msg::{
-    HasMemberResponse, MintConfig, PriceTier, SvgMetadata, TokenParam, VariableDef, VariableKind,
-    WhitelistHasMemberMsg,
+    HasMemberResponse, MintConfig, PriceTier, SvgMetadata, TemplateSlot, TokenParam, VariableDef, VariableKind, WhitelistHasMemberMsg
 };
 use crate::state::{
-    MINTER_ADDRS, MINT_CONFIG, SVG_TEMPLATE, VARIABLES, WHITELIST, WL_MINTER_ADDRS,
+    MINTER_ADDRS, MINT_CONFIG, SVG_TEMPLATE, TEMPLATE_SLOTS, VARIABLES, WHITELIST, WL_MINTER_ADDRS,
 };
 use crate::Cw721SvgContract;
 use cosmwasm_std::{
@@ -437,17 +436,58 @@ pub fn query_svg_token_uri(
     token_id: String,
 ) -> Result<String, ContractError> {
     let template = SVG_TEMPLATE.load(deps.storage)?;
+    let slots = TEMPLATE_SLOTS.load(deps.storage)?;
     let token = Cw721SvgContract::default()
         .tokens
         .load(deps.storage, &token_id)?;
 
-    let mut svg = template;
-    for param in &token.extension.params {
-        let placeholder = format!("${{{}}}", param.name);
-        svg = svg.replace(&placeholder, &param.value);
-    }
+    let mut result = String::with_capacity(template.len());
+    let mut cursor = 0usize;
 
-    Ok(svg)
+    for slot in &slots {
+        let start = slot.start as usize;
+        let end = slot.end as usize;
+        result.push_str(&template[cursor..start]);
+        result.push_str(&token.extension.params[slot.var_idx as usize].value);
+        cursor = end;
+    }
+    result.push_str(&template[cursor..]);
+
+    Ok(result)
+}
+
+pub fn query_svg_placeholder(
+    deps: cosmwasm_std::Deps,
+    seed: Option<String>,
+) -> Result<String, ContractError> {
+    let template = SVG_TEMPLATE.load(deps.storage)?;
+    let slots = TEMPLATE_SLOTS.load(deps.storage)?;
+    let variables = VARIABLES.load(deps.storage)?;
+
+    let seed_bytes = seed.unwrap_or_else(|| "placeholder".to_string());
+    let mut hasher = Sha256::new();
+    hasher.update(seed_bytes.as_bytes());
+    let token_seed = hasher.finalize();
+
+    let params: Vec<TokenParam> = variables
+        .iter()
+        .enumerate()
+        .map(|(var_idx, var_def)| resolve_variable(&token_seed, var_idx, var_def))
+        .collect();
+
+    let mut result = String::with_capacity(template.len());
+    let mut cursor = 0usize;
+
+    for slot in &slots {
+        let start = slot.start as usize;
+        let end = slot.end as usize;
+        result.push_str(&template[cursor..start]);
+        result.push_str(&params[slot.var_idx as usize].value);
+        cursor = end;
+    }
+    result.push_str(&template[cursor..]);
+
+    Ok(result)
 }
 
 pub fn query_config(deps: cosmwasm_std::Deps) -> Result<crate::msg::MintConfig, ContractError> {
@@ -456,6 +496,65 @@ pub fn query_config(deps: cosmwasm_std::Deps) -> Result<crate::msg::MintConfig, 
 
 pub fn query_svg_template(deps: cosmwasm_std::Deps) -> Result<String, ContractError> {
     Ok(SVG_TEMPLATE.load(deps.storage)?)
+}
+
+pub fn validate_template_slots(
+    template: &str,
+    variables: &[crate::msg::VariableDef],
+    slots: &[TemplateSlot],
+) -> Result<(), ContractError> {
+    let tpl_len = template.len() as u32;
+    let var_count = variables.len() as u16;
+    let mut prev_end: u32 = 0;
+
+    for (i, slot) in slots.iter().enumerate() {
+        // Bounds check
+        if slot.start >= slot.end || slot.end > tpl_len {
+            return Err(ContractError::InvalidTemplatePlaceholder {
+                reason: format!(
+                    "slot {} out of bounds: start={}, end={}, template_len={}",
+                    i, slot.start, slot.end, tpl_len
+                ),
+            });
+        }
+
+        // Slots must be sorted and non-overlapping
+        if slot.start < prev_end {
+            return Err(ContractError::InvalidTemplatePlaceholder {
+                reason: format!(
+                    "slot {} overlaps or is out of order: start={} < prev_end={}",
+                    i, slot.start, prev_end
+                ),
+            });
+        }
+        prev_end = slot.end;
+
+        // var_idx must reference a valid variable
+        if slot.var_idx >= var_count {
+            return Err(ContractError::InvalidTemplatePlaceholder {
+                reason: format!(
+                    "slot {} var_idx {} out of range (only {} variables)",
+                    i, slot.var_idx, var_count
+                ),
+            });
+        }
+
+        // Verify the template actually contains ${varname} at this position
+        let start = slot.start as usize;
+        let end = slot.end as usize;
+        let expected = format!("${{{}}}", variables[slot.var_idx as usize].name);
+        let actual = &template[start..end];
+        if actual != expected {
+            return Err(ContractError::InvalidTemplatePlaceholder {
+                reason: format!(
+                    "slot {} mismatch at [{}, {}): expected '{}', found '{}'",
+                    i, start, end, expected, actual
+                ),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 pub fn execute_update_whitelist(

@@ -20,11 +20,10 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 
-
 use semver::Version;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:whitelist-merkletree";
+pub const WLIST_MERKLETREE: &str = "crates.io:whitelist-merkletree";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // contract governance params
@@ -40,7 +39,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     verify_merkle_root(&msg.merkle_root)?;
     verify_tree_uri(&msg.merkle_tree_uri)?;
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    set_contract_version(deps.storage, WLIST_MERKLETREE, CONTRACT_VERSION)?;
 
     if msg.start_time > msg.end_time {
         return Err(ContractError::InvalidStartTime(
@@ -87,7 +86,7 @@ pub fn instantiate(
 
     attrs.push(("action", "update_merkle_tree"));
     attrs.push(("merkle_root", &msg.merkle_root));
-    attrs.push(("contract_name", CONTRACT_NAME));
+    attrs.push(("contract_name", WLIST_MERKLETREE));
     attrs.push(("contract_version", CONTRACT_VERSION));
     if !tree_url.is_empty() {
         attrs.push(("merkle_tree_uri", &tree_url));
@@ -253,7 +252,10 @@ pub fn query_has_member(
         |accum_hash_slice, new_proof_hashstring| {
             valid_hash_string(&new_proof_hashstring)?;
 
-            let mut hash_bytes = [*accum_hash_slice.as_bytes(), *string_to_hash(&new_proof_hashstring)?.as_bytes()];
+            let mut hash_bytes = [
+                *accum_hash_slice.as_bytes(),
+                *string_to_hash(&new_proof_hashstring)?.as_bytes(),
+            ];
             hash_bytes.sort_unstable();
             Result::<blake3::Hash, StdError>::Ok(blake3::hash(&hash_bytes.concat()))
         },
@@ -298,7 +300,7 @@ pub fn query_merkle_tree_uri(deps: Deps) -> StdResult<MerkleTreeURIResponse> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let current_version = cw2::get_contract_version(deps.storage)?;
-    if current_version.contract != CONTRACT_NAME {
+    if current_version.contract != WLIST_MERKLETREE {
         return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
     }
     let version: Version = current_version
@@ -318,11 +320,11 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
     }
 
     // set new contract version
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    set_contract_version(deps.storage, WLIST_MERKLETREE, CONTRACT_VERSION)?;
     let event = Event::new("migrate")
         .add_attribute("from_name", current_version.contract)
         .add_attribute("from_version", current_version.version)
-        .add_attribute("to_name", CONTRACT_NAME)
+        .add_attribute("to_name", WLIST_MERKLETREE)
         .add_attribute("to_version", CONTRACT_VERSION);
     Ok(Response::new().add_event(event))
 }

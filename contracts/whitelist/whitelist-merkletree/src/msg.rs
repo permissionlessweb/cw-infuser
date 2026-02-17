@@ -22,8 +22,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[cfg(feature = "interface")]
-#[derive(cw_orch::ExecuteFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))]
 pub enum ExecuteMsg {
     UpdateStartTime(Timestamp),
     UpdateEndTime(Timestamp),
@@ -39,8 +38,7 @@ pub struct AdminListResponse {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-#[cfg(feature = "interface")]
-#[derive(cw_orch::QueryFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))]
 pub enum QueryMsg {
     #[returns(HasStartedResponse)]
     HasStarted {},

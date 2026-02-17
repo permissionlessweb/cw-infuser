@@ -32,6 +32,13 @@ pub struct TokenParam {
 }
 
 #[cw_serde]
+pub struct TemplateSlot {
+    pub start: u32,
+    pub end: u32,
+    pub var_idx: u16,
+}
+
+#[cw_serde]
 #[derive(Default)]
 pub struct SvgMetadata {
     pub params: Vec<TokenParam>,
@@ -80,6 +87,9 @@ pub struct InstantiateMsg {
     pub payment_address: Option<String>,
     /// Optional merkle whitelist contract address. Whitelisted minters bypass fees.
     pub whitelist: Option<String>,
+    /// Pre-computed placeholder positions in the SVG template.
+    /// Each slot maps a `${varname}` occurrence to its byte offsets and variable index.
+    pub template_slots: Vec<TemplateSlot>,
 }
 
 /// Query message for the merkle whitelist contract.
@@ -99,7 +109,7 @@ pub struct HasMemberResponse {
 }
 
 #[cw_serde]
-#[derive(cw_orch::ExecuteFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))]
 pub enum ExecuteMsg {
     Mint {
         amount: u64,
@@ -169,8 +179,9 @@ pub struct MintCountResponse {
 }
 
 #[cw_ownable::cw_ownable_query]
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))] 
 #[cw_serde]
-#[derive(QueryResponses, cw_orch::QueryFns)]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(OwnerOfResponse)]
     OwnerOf {
@@ -221,6 +232,9 @@ pub enum QueryMsg {
     Minter {},
     #[returns(SvgTokenUriResponse)]
     SvgTokenUri { token_id: String },
+    /// Returns a preview SVG with random placeholder values filled in.
+    #[returns(SvgTokenUriResponse)]
+    SvgPlaceholder { seed: Option<String> },
     #[returns(ConfigResponse)]
     Config {},
     #[returns(SvgTemplateResponse)]

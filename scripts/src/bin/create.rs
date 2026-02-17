@@ -1,6 +1,6 @@
 use clap::{arg, command, Parser};
 // use cw_infusion_minter::msg::ExecuteMsgFns;
-use cw_infuser_scripts::CwInfuser;
+use cw_infusion_minter::interface::CwInfuser;
 use cw_infusions::bundles::BundleType;
 use cw_infusions::nfts::InfusedCollection;
 use cw_infusions::state::{EligibleNFTCollection, Infusion, InfusionParamState};

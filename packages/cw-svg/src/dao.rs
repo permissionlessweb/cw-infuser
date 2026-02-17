@@ -1,3 +1,4 @@
+use crate::compute_template_slots;
 use cosmwasm_std::Binary;
 use cw721_svg::msg::{InstantiateMsg, VariableDef, VariableKind};
 
@@ -47,5 +48,6 @@ pub fn dao_instantiate_msg(
         price_tiers: vec![],
         payment_address: None,
         whitelist: None,
+        template_slots: compute_template_slots(YIN_YANG_SVG_TEMPLATE, &dao_variables()),
     }
 }

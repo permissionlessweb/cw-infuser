@@ -1025,6 +1025,7 @@ dependencies = [
  "rs_merkle",
  "serde",
  "serde_json",
+ "shlex",
  "whitelist-mtree",
 ]
 

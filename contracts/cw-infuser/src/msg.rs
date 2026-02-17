@@ -33,7 +33,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(cw_orch::ExecuteFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))] 
 pub enum ExecuteMsg {
     CreateInfusion {
         infusions: Vec<Infusion>,
@@ -75,7 +75,8 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
-#[derive(QueryResponses, cw_orch::QueryFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))] 
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Config)]
     Config {},

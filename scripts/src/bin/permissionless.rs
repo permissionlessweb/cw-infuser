@@ -1,8 +1,9 @@
 use clap::Parser;
 use cosmwasm_std::coin;
+use cw721_svg::interface::Cw721Svg;
 use cw721_svg::msg::{VariableDef, VariableKind};
-use cw_infuser_scripts::deploy::svg::Cw721Svg;
 use cw_infuser_scripts::MOROCCO_1;
+// use cw_infuser_scripts::MOROCCO_1;
 use cw_orch::daemon::{Daemon, TxSender};
 use cw_orch::prelude::CwOrchInstantiate;
 use cw_svg::{InstantiateMsg, PriceTier};
@@ -165,7 +166,7 @@ pub fn main() -> anyhow::Result<()> {
             name: "Permissionless Fractals".into(),
             symbol: "FRACTAL".into(),
             svg_template: FRACTAL_SVG_TEMPLATE.to_string(),
-            variables: variable_defs,
+            variables: variable_defs.clone(),
             total: args.supply,
             seed: blake3::hash(&args.seed.to_le_bytes()).as_bytes().into(),
             owner: Some(chain.sender().address().to_string()),
@@ -187,6 +188,10 @@ pub fn main() -> anyhow::Result<()> {
             ],
             payment_address: None,
             whitelist: None,
+            template_slots: cw_svg::compute_template_slots(
+                FRACTAL_SVG_TEMPLATE,
+                &variable_defs,
+            ),
         },
         Some(&chain.sender().address()),
         None,

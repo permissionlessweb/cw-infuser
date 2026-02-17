@@ -1,6 +1,6 @@
 use clap::Parser;
 use cosmwasm_std::Decimal;
-use cw_infuser_scripts::CwInfuser;
+use cw_infusion_minter::interface::CwInfuser;
 use cw_infusion_minter::msg::InstantiateMsg;
 use cw_orch::prelude::*;
 

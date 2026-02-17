@@ -18,10 +18,9 @@ vanilla = []
 [dependencies]
 cw-infuser-scripts = { workspace = true }
 cw-infusions = { workspace = true }
-cw-infusion-minter = { workspace = true }
-cw721-svg = { path = "../contracts/cw721/cw721-svg", features = ["library"] }
+cw-infusion-minter = { workspace = true,features = ["interface"] }
+cw721-svg = { path = "../contracts/cw721/cw721-svg", features = ["library","interface"] }
 cw-svg = { path = "../packages/cw-svg" }
-
 cw2= { workspace = true }
 cw-orch = { workspace = true, features = ["daemon"] }
 cosmwasm-std = { workspace = true }
@@ -30,17 +29,10 @@ cw-storage-plus = { workspace = true }
 cw721 = { workspace = true }
 cw721-base = { workspace = true }
 cw-utils = "1.0.3"
-
 anyhow = { workspace = true }
 serde = { workspace = true }
 schemars= { workspace = true }
-
-#  For gating
-whitelist-mtree = { path = "../contracts/whitelist/whitelist-merkletree", features = ["library"] }
- 
-
-# v020infuse = {  branch = "v020-migrate",package="cw-infuser",git = "https://github.com/permissionlessweb/cw-infuser"}
-# v020scripts =  {  branch = "v020-migrate",package="scripts",git = "https://github.com/permissionlessweb/cw-infuser"}
+whitelist-mtree = { path = "../contracts/whitelist/whitelist-merkletree", features = ["library", "interface"] }
 
 [dev-dependencies]
 rand = "0.8.5"

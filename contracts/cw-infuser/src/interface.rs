@@ -1,4 +1,4 @@
-use cw_infusion_minter::{
+use crate::{
     contract::{execute, instantiate, migrate, query},
     msg::*,
 };

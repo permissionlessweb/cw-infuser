@@ -21,6 +21,7 @@ overflow-checks = true
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+interface = ["cw-orch"]
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -30,7 +31,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-cw-orch =  { workspace = true }
+cw-orch =  { workspace = true, optional = true }
 cw721 = { workspace = true }
 whitelist-mtree = { workspace = true, features = ["library"] }
 cw721-base = { workspace = true, features = ["library"] }
