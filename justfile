@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 wasm:
     #!/bin/bash
     if [[ $(uname -m) == 'arm64' ]] || [ $(uname -m) == 'aarch64' ]]; then docker run --rm -v "$(pwd)":/code \
@@ -23,3 +23,6 @@ deploy:
 
 create-merkle:
     @cargo run --bin merkle -- -i $1 --proofs >> $2
+
+coverage: 
+    @cargo carpulin -p test-suite >> carp.json # ignore the test-suite & scripts from code-coverage
