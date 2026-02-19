@@ -1,38 +1,5 @@
-use cosmwasm_std::Binary;
-use cw_orch::environment::{ChainInfo, ChainKind, NetworkInfo};
-use cw_svg::InstantiateMsg as SvgInitMsg;
-
 pub mod suite;
-
-/// Load a cw721-svg InstantiateMsg from a JSON file.
-///
-/// The `seed` field can be either:
-///   - A base64 string (standard Binary encoding)
-///   - A plain UTF-8 string (will be blake3-hashed into 32 bytes)
-pub fn load_svg_init_msg(path: &str) -> anyhow::Result<SvgInitMsg> {
-    let contents = std::fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("failed to read {}: {}", path, e))?;
-
-    let mut value: serde_json::Value = serde_json::from_str(&contents)
-        .map_err(|e| anyhow::anyhow!("failed to parse JSON from {}: {}", path, e))?;
-
-    // If `seed` is a string but not valid base64, hash it and replace with base64
-    if let Some(seed_val) = value.get("seed") {
-        if let Some(seed_str) = seed_val.as_str() {
-            if Binary::from_base64(seed_str).is_err() {
-                let hashed = blake3::hash(seed_str.as_bytes());
-                let b64 = Binary::from(hashed.as_bytes().as_slice()).to_base64();
-                value["seed"] = serde_json::Value::String(b64);
-            }
-        }
-    }
-
-    let msg: SvgInitMsg = serde_json::from_value(value).map_err(|e| {
-        anyhow::anyhow!("failed to deserialize InstantiateMsg from {}: {}", path, e)
-    })?;
-
-    Ok(msg)
-}
+use cw_orch::environment::{ChainInfo, ChainKind, NetworkInfo};
 
 pub const TERPNET: NetworkInfo = NetworkInfo {
     chain_name: "terp network",

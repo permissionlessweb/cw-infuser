@@ -9,7 +9,7 @@
 ///   3. Outputs a complete InstantiateMsg JSON ready for on-chain instantiation
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use cw721_svg::msg::{InstantiateMsg, PriceTier, TemplateSlot, VariableDef, VariableKind};
+use cw721_svg::msg::{InstantiateMsg, PriceTier, RgbRange, TemplateSlot, VariableDef, VariableKind};
 use serde_json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -36,6 +36,15 @@ struct Args {
     /// Total supply
     #[arg(long)]
     total: Option<u64>,
+
+    /// Seed string (will be blake3-hashed). If omitted, prompted interactively.
+    #[arg(long)]
+    seed: Option<String>,
+
+    /// Path to a JSON file containing variable definitions (skips interactive prompts).
+    /// Format: [{"name":"color_yin","kind":{"options":["red","blue"]}}]
+    #[arg(long)]
+    vars_json: Option<String>,
 
     /// Output file (defaults to stdout)
     #[arg(long, short)]
@@ -101,9 +110,11 @@ fn prompt(msg: &str) -> String {
 fn define_variable(name: &str, occurrence_count: usize) -> Result<VariableDef> {
     println!();
     println!("━━━ Variable: ${{{name}}} ({occurrence_count} occurrence(s)) ━━━");
-    println!("  [1] Options  — pick from a list of values");
-    println!("  [2] Range    — random decimal in [min, max]");
-    let choice = prompt("  Type (1 or 2): ");
+    println!("  [1] Options      — pick from a list of values");
+    println!("  [2] Range        — random decimal in [min, max]");
+    println!("  [3] Rgb          — random rgb(R,G,B) color");
+    println!("  [4] Rgb Styled   — random shade within defined color ranges");
+    let choice = prompt("  Type (1, 2, 3, or 4): ");
 
     let kind = match choice.as_str() {
         "1" => {
@@ -136,7 +147,37 @@ fn define_variable(name: &str, occurrence_count: usize) -> Result<VariableDef> {
                 precision,
             }
         }
-        _ => return Err(anyhow!("Invalid choice '{}', expected 1 or 2", choice)),
+        "3" => VariableKind::Rgb,
+        "4" => {
+            println!("  Define color ranges. Each range constrains R, G, B channels.");
+            println!("  Enter ranges one at a time. Empty r_min to finish.");
+            let mut ranges = Vec::new();
+            loop {
+                println!("  --- Range {} ---", ranges.len() + 1);
+                let r_min = prompt("    r_min (0-255, empty to finish): ");
+                if r_min.is_empty() {
+                    break;
+                }
+                let r_max = prompt("    r_max (0-255): ");
+                let g_min = prompt("    g_min (0-255): ");
+                let g_max = prompt("    g_max (0-255): ");
+                let b_min = prompt("    b_min (0-255): ");
+                let b_max = prompt("    b_max (0-255): ");
+                ranges.push(RgbRange {
+                    r_min: r_min.parse().context("invalid r_min")?,
+                    r_max: r_max.parse().context("invalid r_max")?,
+                    g_min: g_min.parse().context("invalid g_min")?,
+                    g_max: g_max.parse().context("invalid g_max")?,
+                    b_min: b_min.parse().context("invalid b_min")?,
+                    b_max: b_max.parse().context("invalid b_max")?,
+                });
+            }
+            if ranges.is_empty() {
+                return Err(anyhow!("Rgb Styled requires at least one range for '{}'", name));
+            }
+            VariableKind::RgbStyled(ranges)
+        }
+        _ => return Err(anyhow!("Invalid choice '{}', expected 1, 2, 3, or 4", choice)),
     };
 
     Ok(VariableDef {
@@ -173,18 +214,36 @@ pub fn main() -> Result<()> {
         }
     }
 
-    // 3. Define each variable interactively
-    let mut variables = Vec::new();
-    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
-    for ph in &placeholders {
-        *counts.entry(&ph.name).or_default() += 1;
-    }
-
-    for name in &var_names {
-        let count = *counts.get(name.as_str()).unwrap_or(&0);
-        let var_def = define_variable(name, count)?;
-        variables.push(var_def);
-    }
+    // 3. Define variables (from JSON file or interactively)
+    let variables: Vec<VariableDef> = if let Some(vars_path) = &args.vars_json {
+        let vars_str = fs::read_to_string(vars_path)
+            .with_context(|| format!("Failed to read vars JSON: {}", vars_path))?;
+        let vars: Vec<VariableDef> = serde_json::from_str(&vars_str)
+            .with_context(|| format!("Failed to parse vars JSON from {}", vars_path))?;
+        // Verify all template variables are defined
+        for name in &var_names {
+            if !vars.iter().any(|v| v.name == *name) {
+                return Err(anyhow!(
+                    "Template variable '{}' not found in vars JSON",
+                    name
+                ));
+            }
+        }
+        println!("Loaded {} variable definition(s) from {}", vars.len(), vars_path);
+        vars
+    } else {
+        let mut vars = Vec::new();
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for ph in &placeholders {
+            *counts.entry(&ph.name).or_default() += 1;
+        }
+        for name in &var_names {
+            let count = *counts.get(name.as_str()).unwrap_or(&0);
+            let var_def = define_variable(name, count)?;
+            vars.push(var_def);
+        }
+        vars
+    };
 
     // 4. Build template_slots
     let var_index: BTreeMap<&str, u16> = var_names
@@ -213,7 +272,9 @@ pub fn main() -> Result<()> {
         }
     };
 
-    let seed_input = prompt("Seed (any string, will be hashed): ");
+    let seed_input = args
+        .seed
+        .unwrap_or_else(|| prompt("Seed (any string, will be hashed): "));
     let seed_bytes = blake3::hash(seed_input.as_bytes());
     let seed = cosmwasm_std::Binary::from(seed_bytes.as_bytes().as_slice());
 

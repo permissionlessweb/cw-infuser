@@ -156,6 +156,7 @@ pub fn main() -> anyhow::Result<()> {
             VariableKind::Options(opts) => {
                 println!("  ${{{}}}: {} pre-generated options", vd.name, opts.len());
             }
+            VariableKind::Rgb => println!("RGB"),
         }
     }
 

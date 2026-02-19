@@ -6,7 +6,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use cw_infuser_scripts::load_svg_init_msg;
+use cw_infuser_scripts::suite::svg::load_svg_init_msg;
 use cw_infuser_scripts::suite::{CwSvgSuite, CwSvgSuiteDeployData};
 use cw_infuser_scripts::{LOCAL_TERP, MOROCCO_1};
 use cw_orch::daemon::DaemonBuilder;

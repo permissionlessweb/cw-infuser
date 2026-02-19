@@ -1835,3 +1835,254 @@ fn test_svg_placeholder_different_seeds_vary() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// ===========================================================================
+// Rgb variable kind tests
+// ===========================================================================
+
+#[test]
+fn test_rgb_variable_kind() -> anyhow::Result<()> {
+    let mock = MockBech32::new("mock");
+    let admin = mock.addr_make("admin");
+
+    let svg = Cw721Svg::new(mock.clone());
+    svg.upload()?;
+
+    let template = "<svg><rect fill='${bg}'/></svg>";
+    let variables = vec![VariableDef {
+        name: "bg".to_string(),
+        kind: VariableKind::Rgb,
+    }];
+
+    let init_msg = InstantiateMsg {
+        name: "Rgb Test".to_string(),
+        symbol: "RGB".to_string(),
+        svg_template: template.to_string(),
+        variables: variables.clone(),
+        total: 10,
+        seed: test_seed(),
+        owner: Some(admin.to_string()),
+        mint_start_time: None,
+        mint_end_time: None,
+        price_tiers: Vec::new(),
+        payment_address: Some(admin.to_string()),
+        whitelist: None,
+        template_slots: compute_slots(template, &variables),
+    };
+    svg.instantiate(&init_msg, Some(&admin), None)?;
+
+    // Mint a token
+    svg.execute(&mint_msg(1), None)?;
+
+    // Query the SVG
+    let resp: SvgTokenUriResponse = svg.query(&QueryMsg::SvgTokenUri {
+        token_id: "0".to_string(),
+    })?;
+
+    // Should contain rgb(N,N,N) and no unresolved placeholders
+    assert!(
+        !resp.svg.contains("${"),
+        "SVG still contains unresolved placeholders: {}",
+        resp.svg
+    );
+    assert!(
+        resp.svg.contains("rgb("),
+        "SVG should contain an rgb() value: {}",
+        resp.svg
+    );
+
+    // Verify the param stored on the token is a valid rgb string
+    let nft_info: cw721::NftInfoResponse<SvgMetadata> = svg.query(&QueryMsg::NftInfo {
+        token_id: "0".to_string(),
+    })?;
+    let bg_value = &nft_info.extension.params[0].value;
+    assert!(
+        bg_value.starts_with("rgb(") && bg_value.ends_with(')'),
+        "Expected rgb(...) format, got: {}",
+        bg_value
+    );
+
+    Ok(())
+}
+
+// ===========================================================================
+// Rgb Styled variable kind tests
+// ===========================================================================
+
+#[test]
+fn test_rgb_styled_variable_kind() -> anyhow::Result<()> {
+    let mock = MockBech32::new("mock");
+    let admin = mock.addr_make("admin");
+
+    let svg = Cw721Svg::new(mock.clone());
+    svg.upload()?;
+
+    let template = "<svg><rect fill='${accent}'/></svg>";
+    let variables = vec![VariableDef {
+        name: "accent".to_string(),
+        kind: VariableKind::RgbStyled(vec![
+            // Warm reds
+            RgbRange {
+                r_min: 180,
+                r_max: 255,
+                g_min: 0,
+                g_max: 80,
+                b_min: 0,
+                b_max: 60,
+            },
+            // Cool blues
+            RgbRange {
+                r_min: 0,
+                r_max: 60,
+                g_min: 50,
+                g_max: 150,
+                b_min: 180,
+                b_max: 255,
+            },
+        ]),
+    }];
+
+    let init_msg = InstantiateMsg {
+        name: "Styled Rgb Test".to_string(),
+        symbol: "SRGB".to_string(),
+        svg_template: template.to_string(),
+        variables: variables.clone(),
+        total: 50,
+        seed: test_seed(),
+        owner: Some(admin.to_string()),
+        mint_start_time: None,
+        mint_end_time: None,
+        price_tiers: Vec::new(),
+        payment_address: Some(admin.to_string()),
+        whitelist: None,
+        template_slots: compute_slots(template, &variables),
+    };
+    svg.instantiate(&init_msg, Some(&admin), None)?;
+
+    // Mint several tokens
+    svg.execute(&mint_msg(10), None)?;
+
+    for i in 0..10 {
+        let resp: SvgTokenUriResponse = svg.query(&QueryMsg::SvgTokenUri {
+            token_id: i.to_string(),
+        })?;
+
+        assert!(
+            !resp.svg.contains("${"),
+            "Token {} SVG has unresolved placeholders: {}",
+            i,
+            resp.svg
+        );
+        assert!(
+            resp.svg.contains("rgb("),
+            "Token {} SVG should contain rgb(): {}",
+            i,
+            resp.svg
+        );
+
+        // Parse the rgb values and verify they fall within one of the defined ranges
+        let nft_info: cw721::NftInfoResponse<SvgMetadata> = svg.query(&QueryMsg::NftInfo {
+            token_id: i.to_string(),
+        })?;
+        let val = &nft_info.extension.params[0].value;
+        let inner = val
+            .strip_prefix("rgb(")
+            .unwrap()
+            .strip_suffix(')')
+            .unwrap();
+        let parts: Vec<u8> = inner.split(',').map(|s| s.parse().unwrap()).collect();
+        let (r, g, b) = (parts[0], parts[1], parts[2]);
+
+        let in_warm = r >= 180 && g <= 80 && b <= 60;
+        let in_cool = r <= 60 && (50..=150).contains(&g) && b >= 180;
+        assert!(
+            in_warm || in_cool,
+            "Token {} rgb({},{},{}) not in any defined range",
+            i,
+            r,
+            g,
+            b
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_rgb_styled_empty_ranges_rejected() -> anyhow::Result<()> {
+    let mock = MockBech32::new("mock");
+    let admin = mock.addr_make("admin");
+
+    let svg = Cw721Svg::new(mock.clone());
+    svg.upload()?;
+
+    let template = "<svg><rect fill='${c}'/></svg>";
+    let variables = vec![VariableDef {
+        name: "c".to_string(),
+        kind: VariableKind::RgbStyled(vec![]),
+    }];
+
+    let init_msg = InstantiateMsg {
+        name: "Empty Ranges".to_string(),
+        symbol: "EMPTY".to_string(),
+        svg_template: template.to_string(),
+        variables: variables.clone(),
+        total: 10,
+        seed: test_seed(),
+        owner: Some(admin.to_string()),
+        mint_start_time: None,
+        mint_end_time: None,
+        price_tiers: Vec::new(),
+        payment_address: Some(admin.to_string()),
+        whitelist: None,
+        template_slots: compute_slots(template, &variables),
+    };
+
+    svg.instantiate(&init_msg, Some(&admin), None)
+        .expect_err("should fail: empty ranges list");
+
+    Ok(())
+}
+
+#[test]
+fn test_rgb_styled_min_gt_max_rejected() -> anyhow::Result<()> {
+    let mock = MockBech32::new("mock");
+    let admin = mock.addr_make("admin");
+
+    let svg = Cw721Svg::new(mock.clone());
+    svg.upload()?;
+
+    let template = "<svg><rect fill='${c}'/></svg>";
+    let variables = vec![VariableDef {
+        name: "c".to_string(),
+        kind: VariableKind::RgbStyled(vec![RgbRange {
+            r_min: 255,
+            r_max: 100, // min > max
+            g_min: 0,
+            g_max: 255,
+            b_min: 0,
+            b_max: 255,
+        }]),
+    }];
+
+    let init_msg = InstantiateMsg {
+        name: "Bad Range".to_string(),
+        symbol: "BAD".to_string(),
+        svg_template: template.to_string(),
+        variables: variables.clone(),
+        total: 10,
+        seed: test_seed(),
+        owner: Some(admin.to_string()),
+        mint_start_time: None,
+        mint_end_time: None,
+        price_tiers: Vec::new(),
+        payment_address: Some(admin.to_string()),
+        whitelist: None,
+        template_slots: compute_slots(template, &variables),
+    };
+
+    svg.instantiate(&init_msg, Some(&admin), None)
+        .expect_err("should fail: r_min > r_max");
+
+    Ok(())
+}
