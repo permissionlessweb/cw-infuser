@@ -7,6 +7,16 @@ use cw721::{
 use cw_ownable::Ownership;
 
 #[cw_serde]
+pub struct RgbRange {
+    pub r_min: u8,
+    pub r_max: u8,
+    pub g_min: u8,
+    pub g_max: u8,
+    pub b_min: u8,
+    pub b_max: u8,
+}
+
+#[cw_serde]
 pub enum VariableKind {
     /// Pick from a list of string values
     Options(Vec<String>),
@@ -17,6 +27,12 @@ pub enum VariableKind {
         max: String,
         precision: u32,
     },
+    /// Generate a random `rgb(R,G,B)` color string.
+    /// Each channel is independently random in 0–255.
+    Rgb,
+    /// Pick a random range from the list, then generate a random shade within it.
+    /// Each channel is constrained to [min, max] of the selected range.
+    RgbStyled(Vec<RgbRange>),
 }
 
 #[cw_serde]
@@ -248,3 +264,6 @@ pub enum QueryMsg {
     #[returns(MintCountResponse)]
     WlMintCount { address: String },
 }
+
+#[cw_serde]
+pub struct MigrateMsg {}

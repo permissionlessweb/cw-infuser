@@ -20,15 +20,16 @@ pub mod entry {
     use super::*;
     use crate::commands::*;
     use crate::msg::{
-        ConfigResponse, MintConfig, SvgTemplateResponse, SvgTokenUriResponse, VariableKind,
+        ConfigResponse, MigrateMsg, MintConfig, SvgTemplateResponse, SvgTokenUriResponse,
+        VariableKind,
     };
     use crate::state::{
         MAX_SVG_SIZE, MAX_TOTAL_SUPPLY, MINT_CONFIG, SVG_TEMPLATE, TEMPLATE_SLOTS, VARIABLES,
         WHITELIST,
     };
     use cosmwasm_std::{
-        entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-        Timestamp,
+        entry_point, to_json_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
+        StdResult, Timestamp,
     };
     use cw721_base::msg::InstantiateMsg as Cw721InstantiateMsg;
 
@@ -146,6 +147,30 @@ pub mod entry {
                                 var.name, min, max
                             ),
                         });
+                    }
+                }
+                VariableKind::Rgb => {}
+                VariableKind::RgbStyled(ranges) => {
+                    if ranges.is_empty() {
+                        return Err(ContractError::InvalidVariableDef {
+                            reason: format!(
+                                "variable '{}': rgb_styled ranges list must not be empty",
+                                var.name
+                            ),
+                        });
+                    }
+                    for (i, range) in ranges.iter().enumerate() {
+                        if range.r_min > range.r_max
+                            || range.g_min > range.g_max
+                            || range.b_min > range.b_max
+                        {
+                            return Err(ContractError::InvalidVariableDef {
+                                reason: format!(
+                                    "variable '{}': range {} has min > max for a channel",
+                                    var.name, i
+                                ),
+                            });
+                        }
                     }
                 }
             }
@@ -379,5 +404,16 @@ pub mod entry {
                 to_json_binary(&crate::msg::MintCountResponse { address, count })
             }
         }
+    }
+    #[cfg_attr(not(feature = "library"), entry_point)]
+    pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+        let prev_version = cw2::get_contract_version(deps.storage)?;
+        let res = Response::new();
+        let event = Event::new("migrate")
+            .add_attribute("from_name", prev_version.contract)
+            .add_attribute("from_version", prev_version.version)
+            .add_attribute("to_name", CONTRACT_NAME)
+            .add_attribute("to_version", CONTRACT_VERSION);
+        Ok(res.add_event(event))
     }
 }

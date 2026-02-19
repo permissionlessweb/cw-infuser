@@ -266,6 +266,15 @@ fn derive_entropy(token_seed: &[u8], var_idx: usize) -> u64 {
     u64::from_le_bytes(hash[0..8].try_into().unwrap())
 }
 
+/// Map a byte into a [min, max] range (inclusive).
+fn channel_in_range(byte: u8, min: u8, max: u8) -> u8 {
+    if min == max {
+        return min;
+    }
+    let span = (max - min) as u16 + 1;
+    min + (byte as u16 % span) as u8
+}
+
 /// Resolve a single variable definition into a TokenParam using entropy.
 fn resolve_variable(token_seed: &[u8], var_idx: usize, var_def: &VariableDef) -> TokenParam {
     let entropy = derive_entropy(token_seed, var_idx);
@@ -285,6 +294,20 @@ fn resolve_variable(token_seed: &[u8], var_idx: usize, var_def: &VariableDef) ->
             let max_scaled = parse_decimal_scaled(max, *precision).unwrap();
             let scaled = value_from_range(entropy, min_scaled, max_scaled);
             format_decimal(scaled, *precision)
+        }
+        VariableKind::Rgb => {
+            let bytes = entropy.to_le_bytes();
+            format!("rgb({},{},{})", bytes[0], bytes[1], bytes[2])
+        }
+        VariableKind::RgbStyled(ranges) => {
+            let bytes = entropy.to_le_bytes();
+            // Use upper bytes to select range, lower bytes for channel values
+            let range_idx = (bytes[3] as usize) % ranges.len();
+            let range = &ranges[range_idx];
+            let r = channel_in_range(bytes[0], range.r_min, range.r_max);
+            let g = channel_in_range(bytes[1], range.g_min, range.g_max);
+            let b = channel_in_range(bytes[2], range.b_min, range.b_max);
+            format!("rgb({},{},{})", r, g, b)
         }
     };
 
