@@ -1,0 +1,58 @@
+{
+  "version": "1",
+  "collection": "cosmos-atom",
+  "description": "Living atom logo with deep cosmic palette. Three electrons/protons orbit the central nucleus at independent majestic speeds along circular paths (perfect visual match to their original placement). Orbital trails use a soft diagonal gradient for depth. All original geometry and proportions preserved — pure elegant motion.",
+
+  "palette_groups": [
+    {
+      "id": "cosmic-bg",
+      "note": "Deep space indigo/black tones",
+      "anchor": "color-bg-outer",
+      "members": ["color-bg-outer", "color-bg-inner"],
+      "ranges": [
+        { "r_min": 22, "r_max": 55, "g_min": 24, "g_max": 52, "b_min": 60, "b_max": 85 }
+      ]
+    },
+    {
+      "id": "orbital-trails",
+      "note": "Metallic slate-blue gradient for the stylized orbital paths",
+      "anchor": "color-orbit-base",
+      "members": ["color-orbit-base", "color-orbit-highlight"],
+      "ranges": [
+        { "r_min": 95, "r_max": 145, "g_min": 105, "g_max": 155, "b_min": 135, "b_max": 190 }
+      ]
+    },
+    {
+      "id": "nucleus-accent",
+      "note": "Bright core and electron glow — cool metallic silver/cyan",
+      "anchor": "color-nucleus",
+      "members": ["color-nucleus", "color-electron"],
+      "ranges": [
+        { "r_min": 175, "r_max": 230, "g_min": 180, "g_max": 235, "b_min": 195, "b_max": 250 }
+      ]
+    }
+  ],
+
+  "motion_groups": [
+    {
+      "id": "electron-orbits",
+      "note": "Independent very-slow orbital periods for the three electrons (longer = more majestic)",
+      "members": ["drift-electron-a", "drift-electron-b", "drift-electron-c"],
+      "min": "12.0",
+      "max": "48.0",
+      "precision": 1
+    }
+  ],
+
+  "vars": [
+    { "name": "color-bg-outer",      "kind": { "rgb_styled": [{ "r_min": 25, "r_max": 55, "g_min": 25, "g_max": 55, "b_min": 65, "b_max": 90 }] }},
+    { "name": "color-bg-inner",      "kind": { "rgb_styled": [{ "r_min": 20, "r_max": 45, "g_min": 22, "g_max": 48, "b_min": 50, "b_max": 75 }] }},
+    { "name": "color-orbit-base",    "kind": { "rgb_styled": [{ "r_min": 95,  "r_max": 135, "g_min": 105, "g_max": 145, "b_min": 135, "b_max": 175 }] }},
+    { "name": "color-orbit-highlight","kind": { "rgb_styled": [{ "r_min": 115, "r_max": 165, "g_min": 125, "g_max": 175, "b_min": 165, "b_max": 210 }] }},
+    { "name": "color-nucleus",       "kind": { "rgb_styled": [{ "r_min": 175, "r_max": 215, "g_min": 180, "g_max": 220, "b_min": 195, "b_max": 235 }] }},
+    { "name": "color-electron",      "kind": { "rgb_styled": [{ "r_min": 180, "r_max": 230, "g_min": 185, "g_max": 235, "b_min": 200, "b_max": 250 }] }},
+    { "name": "drift-electron-a",    "kind": { "range": { "min": "14.0", "max": "38.0", "precision": 1 } }},
+    { "name": "drift-electron-b",    "kind": { "range": { "min": "19.0", "max": "45.0", "precision": 1 } }},
+    { "name": "drift-electron-c",    "kind": { "range": { "min": "12.0", "max": "32.0", "precision": 1 } }}
+  ]
+}

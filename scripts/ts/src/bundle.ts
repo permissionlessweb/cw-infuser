@@ -7,30 +7,46 @@
 import * as _0 from "./CwInfuser.types";
 import * as _1 from "./CwInfuser.client";
 import * as _2 from "./CwInfuser.message-composer";
-import * as _3 from "./Cw721Svg.types";
-import * as _4 from "./Cw721Svg.client";
-import * as _5 from "./Cw721Svg.message-composer";
-import * as _6 from "./WhitelistMerkletree.types";
-import * as _7 from "./WhitelistMerkletree.client";
-import * as _8 from "./WhitelistMerkletree.message-composer";
-import * as _9 from "./baseClient";
+import * as _3 from "./CwInfusionMinter.types";
+import * as _4 from "./CwInfusionMinter.client";
+import * as _5 from "./CwInfusionMinter.message-composer";
+import * as _6 from "./CwSvgMinter.types";
+import * as _7 from "./CwSvgMinter.client";
+import * as _8 from "./CwSvgMinter.message-composer";
+import * as _9 from "./Cw721Svg.types";
+import * as _10 from "./Cw721Svg.client";
+import * as _11 from "./Cw721Svg.message-composer";
+import * as _12 from "./WhitelistMtree.types";
+import * as _13 from "./WhitelistMtree.client";
+import * as _14 from "./WhitelistMtree.message-composer";
+import * as _15 from "./baseClient";
 export namespace contracts {
   export const CwInfuser = {
     ..._0,
     ..._1,
     ..._2
   };
-  export const Cw721Svg = {
+  export const CwInfusionMinter = {
     ..._3,
     ..._4,
     ..._5
   };
-  export const WhitelistMerkletree = {
+  export const CwSvgMinter = {
     ..._6,
     ..._7,
     ..._8
   };
+  export const Cw721Svg = {
+    ..._9,
+    ..._10,
+    ..._11
+  };
+  export const WhitelistMtree = {
+    ..._12,
+    ..._13,
+    ..._14
+  };
   export const baseClient = {
-    ..._9
+    ..._15
   };
 }

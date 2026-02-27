@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 /// Minimal SVG template that visualizes attractor params as a geometric constellation.
 /// The real fractal rendering happens off-chain; this gives each token a displayable on-chain preview.
-const FRACTAL_SVG_TEMPLATE: &str = include_str!("../../../packages/cw-svg/svgs/fractal.svg");
+const FRACTAL_SVG_TEMPLATE: &str = include_str!("../../svgs/fractal.svg");
 
 /// Deploy fractal attractor SVG NFTs using on-chain Range variables.
 ///

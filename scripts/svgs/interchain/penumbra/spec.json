@@ -1,0 +1,91 @@
+ {
+  "version": "1",
+  "collection": "penumbra",
+  "description": "Mystical Penumbra logo with living radial gradient orb. The central penumbra shape features a gentle, elegant breathing pulse (slow scale + opacity) that gives the circles a soft cosmic life. Text remains crisp metallic white. 100% faithful geometry, ultra-classy motion.",
+
+  "palette_groups": [
+    {
+      "id": "core",
+      "note": "Deep cosmic purple core of the gradient",
+      "anchor": "color-core",
+      "members": ["color-core"],
+      "ranges": [
+        { "r_min": 75, "r_max": 105, "g_min": 45, "g_max": 70, "b_min": 95, "b_max": 125 }
+      ]
+    },
+    {
+      "id": "warm",
+      "note": "Rich amber-orange mid tones",
+      "anchor": "color-warm",
+      "members": ["color-warm"],
+      "ranges": [
+        { "r_min": 210, "r_max": 245, "g_min": 110, "g_max": 145, "b_min": 45, "b_max": 75 }
+      ]
+    },
+    {
+      "id": "accent",
+      "note": "Bright fiery orange highlight",
+      "anchor": "color-accent",
+      "members": ["color-accent"],
+      "ranges": [
+        { "r_min": 245, "r_max": 255, "g_min": 135, "g_max": 165, "b_min": 35, "b_max": 65 }
+      ]
+    },
+    {
+      "id": "glow",
+      "note": "Electric teal-cyan outer glow",
+      "anchor": "color-glow",
+      "members": ["color-glow"],
+      "ranges": [
+        { "r_min": 120, "r_max": 165, "g_min": 215, "g_max": 245, "b_min": 200, "b_max": 235 }
+      ]
+    },
+    {
+      "id": "text",
+      "note": "Crisp warm-white metallic for the logo text",
+      "anchor": "color-text",
+      "members": ["color-text"],
+      "ranges": [
+        { "r_min": 245, "r_max": 255, "g_min": 245, "g_max": 255, "b_min": 245, "b_max": 255 }
+      ]
+    }
+  ],
+
+  "motion_groups": [
+    {
+      "id": "orb-breath",
+      "note": "Extremely classy slow breathing pulse on the entire penumbra orb — subtle scale and opacity shift creates living depth without any distraction",
+      "members": ["breath-orb"],
+      "min": "7.5",
+      "max": "18.0",
+      "precision": 1
+    }
+  ],
+
+  "vars": [
+    {
+      "name": "color-core",
+      "kind": { "rgb_styled": [{ "r_min": 75, "r_max": 105, "g_min": 45, "g_max": 70, "b_min": 95, "b_max": 125 }] }
+    },
+    {
+      "name": "color-warm",
+      "kind": { "rgb_styled": [{ "r_min": 210, "r_max": 245, "g_min": 110, "g_max": 145, "b_min": 45, "b_max": 75 }] }
+    },
+    {
+      "name": "color-accent",
+      "kind": { "rgb_styled": [{ "r_min": 245, "r_max": 255, "g_min": 135, "g_max": 165, "b_min": 35, "b_max": 65 }] }
+    },
+    {
+      "name": "color-glow",
+      "kind": { "rgb_styled": [{ "r_min": 120, "r_max": 165, "g_min": 215, "g_max": 245, "b_min": 200, "b_max": 235 }] }
+    },
+    {
+      "name": "color-text",
+      "kind": { "rgb_styled": [{ "r_min": 245, "r_max": 255, "g_min": 245, "g_max": 255, "b_min": 245, "b_max": 255 }] }
+    },
+    {
+      "name": "breath-orb",
+      "kind": { "range": { "min": "7.5", "max": "18.0", "precision": 1 } }
+    }
+  ]
+}

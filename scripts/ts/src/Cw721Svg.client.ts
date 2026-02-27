@@ -6,7 +6,7 @@
 
 import { ICosmWasmClient, ISigningCosmWasmClient } from "./baseClient";
 import { StdFee } from "@interchainjs/types";
-import { Uint128, Binary, VariableKind, InstantiateMsg, PriceTier, Coin, TemplateSlot, VariableDef, ExecuteMsg, Expiration, Timestamp, Uint64, Action, QueryMsg, AllNftInfoResponseForSvgMetadata, OwnerOfResponse, Approval, NftInfoResponseForSvgMetadata, SvgMetadata, TokenParam, OperatorsResponse, TokensResponse, ApprovalResponse, ApprovalsResponse, Addr, ConfigResponse, MintConfig, ContractInfoResponse, MintCountResponse, OwnershipForAddr, NumTokensResponse, OwnershipForString, SvgTokenUriResponse, SvgTemplateResponse, NullableAddr } from "./Cw721Svg.types";
+import { Uint128, Binary, VariableKind, InstantiateMsg, PriceTier, Coin, TemplateSlot, VariableDef, RgbRange, ExecuteMsg, Expiration, Timestamp, Uint64, Action, QueryMsg, Addr, AllNftInfoResponseForSvgMetadata, OwnerOfResponse, Approval, NftInfoResponseForSvgMetadata, SvgMetadata, TokenParam, OperatorsResponse, TokensResponse, ApprovalResponse, ApprovalsResponse, ConfigResponse, MintConfig, CollectionInfoAndExtensionResponseForNullable_Empty, Empty, MintCountResponse, OwnershipForAddr, NumTokensResponse, OwnershipForString, SvgTokenUriResponse, SvgTemplateResponse, NullableAddr } from "./Cw721Svg.types";
 export interface Cw721SvgReadOnlyInterface {
   contractAddress: string;
   ownerOf: ({
@@ -44,7 +44,7 @@ export interface Cw721SvgReadOnlyInterface {
     startAfter?: string;
   }) => Promise<OperatorsResponse>;
   numTokens: () => Promise<NumTokensResponse>;
-  contractInfo: () => Promise<ContractInfoResponse>;
+  contractInfo: () => Promise<CollectionInfoAndExtensionResponseForNullableEmpty>;
   nftInfo: ({
     tokenId
   }: {
@@ -195,7 +195,7 @@ export class Cw721SvgQueryClient implements Cw721SvgReadOnlyInterface {
       num_tokens: {}
     });
   };
-  contractInfo = async (): Promise<ContractInfoResponse> => {
+  contractInfo = async (): Promise<CollectionInfoAndExtensionResponseForNullableEmpty> => {
     return this.client.queryContractSmart(this.contractAddress, {
       contract_info: {}
     });

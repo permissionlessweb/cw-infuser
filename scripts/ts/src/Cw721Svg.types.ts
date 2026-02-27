@@ -14,6 +14,8 @@ export type VariableKind = {
     min: string;
     precision: number;
   };
+} | "rgb" | {
+  rgb_styled: RgbRange[];
 };
 export interface InstantiateMsg {
   mint_end_time?: number | null;
@@ -37,7 +39,6 @@ export interface PriceTier {
 export interface Coin {
   amount: Uint128;
   denom: string;
-  [k: string]: unknown;
 }
 export interface TemplateSlot {
   end: number;
@@ -47,6 +48,14 @@ export interface TemplateSlot {
 export interface VariableDef {
   kind: VariableKind;
   name: string;
+}
+export interface RgbRange {
+  b_max: number;
+  b_min: number;
+  g_max: number;
+  g_min: number;
+  r_max: number;
+  r_min: number;
 }
 export type ExecuteMsg = {
   mint: {
@@ -185,6 +194,7 @@ export type QueryMsg = {
 } | {
   ownership: {};
 };
+export type Addr = string;
 export interface AllNftInfoResponseForSvgMetadata {
   access: OwnerOfResponse;
   info: NftInfoResponseForSvgMetadata;
@@ -195,7 +205,7 @@ export interface OwnerOfResponse {
 }
 export interface Approval {
   expires: Expiration;
-  spender: string;
+  spender: Addr;
 }
 export interface NftInfoResponseForSvgMetadata {
   extension: SvgMetadata;
@@ -220,7 +230,6 @@ export interface ApprovalResponse {
 export interface ApprovalsResponse {
   approvals: Approval[];
 }
-export type Addr = string;
 export interface ConfigResponse {
   config: MintConfig;
 }
@@ -234,10 +243,13 @@ export interface MintConfig {
   seed: Binary;
   total: number;
 }
-export interface ContractInfoResponse {
+export interface CollectionInfoAndExtensionResponseForNullable_Empty {
+  extension?: Empty | null;
   name: string;
   symbol: string;
+  updated_at: Timestamp;
 }
+export interface Empty {}
 export interface MintCountResponse {
   address: string;
   count: number;

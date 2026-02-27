@@ -4,7 +4,7 @@ use cw721_svg::msg::{InstantiateMsg, VariableDef, VariableKind};
 
 /// Reference SVG with default colors (Black theme) filled in
 // pub const YIN_YANG_SVG_DEFAULT: &str = include_str!("../svgs/dao-default.svg");
-pub const YIN_YANG_SVG_TEMPLATE: &str = include_str!("../svgs/dao.svg");
+pub const YIN_YANG_SVG_TEMPLATE: &str = include_str!("../../../scripts/svgs/interchain/dao/template.svg");
 
 pub fn dao_variables() -> Vec<VariableDef> {
     vec![

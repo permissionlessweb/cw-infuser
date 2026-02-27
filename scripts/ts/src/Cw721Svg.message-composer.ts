@@ -7,7 +7,7 @@
 import { EncodeObject } from "@interchainjs/cosmos-types";
 import { MsgExecuteContract } from "interchainjs/cosmwasm/wasm/v1/tx";
 import { toUtf8 } from "@interchainjs/encoding";
-import { Uint128, Binary, VariableKind, InstantiateMsg, PriceTier, Coin, TemplateSlot, VariableDef, ExecuteMsg, Expiration, Timestamp, Uint64, Action, QueryMsg, AllNftInfoResponseForSvgMetadata, OwnerOfResponse, Approval, NftInfoResponseForSvgMetadata, SvgMetadata, TokenParam, OperatorsResponse, TokensResponse, ApprovalResponse, ApprovalsResponse, Addr, ConfigResponse, MintConfig, ContractInfoResponse, MintCountResponse, OwnershipForAddr, NumTokensResponse, OwnershipForString, SvgTokenUriResponse, SvgTemplateResponse, NullableAddr } from "./Cw721Svg.types";
+import { Uint128, Binary, VariableKind, InstantiateMsg, PriceTier, Coin, TemplateSlot, VariableDef, RgbRange, ExecuteMsg, Expiration, Timestamp, Uint64, Action, QueryMsg, Addr, AllNftInfoResponseForSvgMetadata, OwnerOfResponse, Approval, NftInfoResponseForSvgMetadata, SvgMetadata, TokenParam, OperatorsResponse, TokensResponse, ApprovalResponse, ApprovalsResponse, ConfigResponse, MintConfig, CollectionInfoAndExtensionResponseForNullable_Empty, Empty, MintCountResponse, OwnershipForAddr, NumTokensResponse, OwnershipForString, SvgTokenUriResponse, SvgTemplateResponse, NullableAddr } from "./Cw721Svg.types";
 export interface Cw721SvgMsg {
   contractAddress: string;
   sender: string;

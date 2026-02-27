@@ -22,7 +22,7 @@ use cw_svg_minter::InstantiateMsg as SvgMinterInitMsg;
 
 #[derive(Clone, Debug)]
 pub struct CwSvgSuiteDeployData {
-    pub svg: Option<cw_svg::InstantiateMsg>,
+    pub svg: Vec<cw_svg::InstantiateMsg>,
     pub infuse: Option<cw_infusion_minter::msg::InstantiateMsg>,
     pub admin: Option<Addr>,
     pub infuse_coins: Vec<Coin>,
@@ -33,6 +33,8 @@ pub struct CwSvgSuite<Chain> {
     pub infuser: CwInfuser<Chain>,
     pub cwsvg: Cw721Svg<Chain>,
     pub cwsvgminter: Cw721SvgMinter<Chain>,
+    /// svg collections saved
+    pub svgs: Vec<String>,
     // pub nfts: Vec<Addr>,
     // pub admin: Addr,
     // pub wavs_service: Addr,
@@ -46,6 +48,7 @@ impl<Chain: CwEnv> CwSvgSuite<Chain> {
             infuser: CwInfuser::new(chain.clone()),
             cwsvg: Cw721Svg::new(chain.clone()),
             cwsvgminter: Cw721SvgMinter::new(chain.clone()),
+            svgs: Vec::new(),
         }
     }
     pub fn upload(&self) -> Result<(), CwOrchError> {
@@ -80,23 +83,26 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
         // upload and initalize
         if let Some(init) = data {
             let admin = init.admin.as_ref();
-            if let Some(i) = &init.svg {
-                let owner = Some(chain.sender_addr().to_string());
-                suite.cwsvgminter.instantiate(
-                    &SvgMinterInitMsg {
-                        owner,
-                        svg_code_id: suite.cwsvg.code_id()?,
-                    },
-                    admin,
-                    &[],
-                )?;
-
-                suite.cwsvg.set_address(&Addr::unchecked(
-                    suite
+            let owner = Some(chain.sender_addr().to_string());
+            suite.cwsvgminter.instantiate(
+                &SvgMinterInitMsg {
+                    owner,
+                    svg_code_id: suite.cwsvg.code_id()?,
+                },
+                admin,
+                &[],
+            )?;
+            if !&init.svg.is_empty() {
+                for i in init.svg {
+                    let svg = suite
                         .cwsvgminter
                         .create_svg_collection(i.clone(), "cwsvg-colllection")?
-                        .event_attr_value("wasm", "contract")?,
-                ));
+                        .event_attr_value("wasm", "contract")?;
+                    suite.svgs.push(svg);
+                }
+                suite
+                    .cwsvg
+                    .set_address(&Addr::unchecked(suite.svgs.last().unwrap()));
             }
             if let Some(i) = &init.infuse {
                 suite.infuser.instantiate(&i, admin, &[])?;

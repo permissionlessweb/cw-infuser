@@ -1,0 +1,110 @@
+{
+  "version": "1",
+  "collection": "brad-geo",
+  "description": "Minimal geometric abstract form built from Brad's signature black (#232323) and red (#FF414C) palette. A multi-stop animated gradient breathes between the two brand colors — the highlight diamond pulses red from its tip inward while the solid back-forms receive a faint sympathetic red bleed at their far edges. All geometry is exactly as original. Two independent pulse timings (pulse-a, pulse-b) run offset from each other so the effect feels organic rather than mechanical.",
+
+  "palette_groups": [
+    {
+      "id": "main",
+      "note": "Core dark brand tones centered on #232323. Used as gradient stop-color base and solid fills.",
+      "entropy": "tight",
+      "anchor": "color-main",
+      "members": [],
+      "ranges": [
+        { "r_min": 25, "r_max": 45, "g_min": 25, "g_max": 45, "b_min": 25, "b_max": 45 }
+      ]
+    },
+    {
+      "id": "accent",
+      "note": "Vibrant red brand tones centered on #FF414C. Used in animated stop-color values and bleed overlays.",
+      "entropy": "low",
+      "anchor": "color-accent",
+      "members": [],
+      "ranges": [
+        { "r_min": 220, "r_max": 255, "g_min": 45, "g_max": 85, "b_min": 55, "b_max": 95 }
+      ]
+    }
+  ],
+
+  "motion_groups": [
+    {
+      "id": "pulse-primary",
+      "note": "Primary pulse on the highlight diamond gradient — mid-stop color transition and tip opacity breath. Drives the main red transfusion feeling.",
+      "members": ["pulse-a"],
+      "min": "2.0",
+      "max": "5.0",
+      "precision": 2
+    },
+    {
+      "id": "pulse-secondary",
+      "note": "Secondary pulse on outer tip stop and solid-shape bleed overlay — intentionally slightly offset in period from pulse-a so the two layers beat independently, creating a natural irregular rhythm.",
+      "members": ["pulse-b"],
+      "min": "2.5",
+      "max": "6.5",
+      "precision": 2
+    }
+  ],
+
+  "vars": [
+    {
+      "name": "color-main",
+      "note": "Dark brand anchor. Gradient stop base and solid fill. Canonical #232323.",
+      "kind": {
+        "rgb_styled": [
+          { "r_min": 25, "r_max": 45, "g_min": 25, "g_max": 45, "b_min": 25, "b_max": 45 }
+        ]
+      }
+    },
+    {
+      "name": "color-accent",
+      "note": "Red brand accent. Animated into mid and tip gradient stops. Canonical #FF414C.",
+      "kind": {
+        "rgb_styled": [
+          { "r_min": 220, "r_max": 255, "g_min": 45, "g_max": 85, "b_min": 55, "b_max": 95 }
+        ]
+      }
+    },
+    {
+      "name": "alpha-lo",
+      "note": "Opacity floor for animated stop-opacity and bleed overlays. The resting 'exhale' state — red nearly invisible.",
+      "kind": {
+        "range": { "min": "0.0", "max": "0.12", "precision": 2 }
+      }
+    },
+    {
+      "name": "alpha-mid",
+      "note": "Mid opacity used in the solid-shape bleed gradient tip — a gentler peak than alpha-hi, keeping the solids from overpowering.",
+      "kind": {
+        "range": { "min": "0.08", "max": "0.22", "precision": 2 }
+      }
+    },
+    {
+      "name": "alpha-hi",
+      "note": "Opacity ceiling for animated stop-opacity on the highlight diamond tip — the 'inhale' peak where red is most present.",
+      "kind": {
+        "range": { "min": "0.55", "max": "0.90", "precision": 2 }
+      }
+    },
+    {
+      "name": "alpha-bleed",
+      "note": "Static base opacity of the solid-shape red-bleed overlay paths. Scales overall bleed intensity independent of animation.",
+      "kind": {
+        "range": { "min": "0.04", "max": "0.18", "precision": 2 }
+      }
+    },
+    {
+      "name": "pulse-a",
+      "note": "Primary pulse period (seconds) — drives mid-stop color transition and hi-stop opacity breath on the highlight diamond. Template appends 's'.",
+      "kind": {
+        "range": { "min": "2.0", "max": "5.0", "precision": 2 }
+      }
+    },
+    {
+      "name": "pulse-b",
+      "note": "Secondary pulse period (seconds) — drives tip stop color/opacity and solid-bleed animation. Set slightly different from pulse-a for organic feel. Template appends 's'.",
+      "kind": {
+        "range": { "min": "2.5", "max": "6.5", "precision": 2 }
+      }
+    }
+  ]
+}

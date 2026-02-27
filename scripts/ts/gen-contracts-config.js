@@ -8,13 +8,15 @@ function toPascalCase(str) {
     .join('');
 }
 
-const rootDir = path.resolve(__dirname);
+const rootDir = path.resolve(__dirname, '../..');
 const contractsDir = path.join(rootDir, 'contracts');
-const outputDir = path.join(rootDir, 'scripts', 'ts');
+const outputDir = __dirname;
 const outputFile = path.join(outputDir, 'contracts.generated.json');
 
+console.log('📝 Generating dynamic CONTRACTS list for TypeScript codegen...');
 console.log('🔍 Scanning for contract schemas under contracts/...');
 
+// Collect all IDL JSON files under contracts/**/schema/*.json
 const schemaFiles = [];
 function scan(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -28,21 +30,45 @@ function scan(dir) {
   }
 }
 scan(contractsDir);
-
 schemaFiles.sort();
 
+// Group files by their schema directory so we can detect multi-IDL dirs
+const dirGroups = {};
+for (const jsonPath of schemaFiles) {
+  const schemaDir = path.dirname(jsonPath);
+  if (!dirGroups[schemaDir]) dirGroups[schemaDir] = [];
+  dirGroups[schemaDir].push(jsonPath);
+}
+
+// For directories with multiple IDL files, create isolated subdirectories so that
+// ts-codegen always sees exactly one JSON file per directory (CosmWasm 1.1+ IDL mode).
+for (const [schemaDir, files] of Object.entries(dirGroups)) {
+  if (files.length > 1) {
+    for (const f of files) {
+      const contractName = path.basename(f, '.json');
+      const isolatedDir = path.join(schemaDir, contractName);
+      fs.mkdirSync(isolatedDir, { recursive: true });
+      fs.copyFileSync(f, path.join(isolatedDir, path.basename(f)));
+    }
+  }
+}
+
+// Build the CONTRACTS array
 const CONTRACTS = [];
 
 for (const jsonPath of schemaFiles) {
+  const schemaDir = path.dirname(jsonPath);
+  const files = dirGroups[schemaDir];
   const outName = path.basename(jsonPath, '.json');
-  const schemaDir = path.dirname(jsonPath);           // e.g. contracts/cw-infuser/schema
   const name = toPascalCase(outName);
 
-  // Relative path from scripts/ts/ → e.g. '../../contracts/cw-infuser/schema'
-  const relativeDir = path.relative(
-    path.join(rootDir, 'scripts', 'ts'),
-    schemaDir
-  ).replace(/\\/g, '/');   // normalize slashes for TS/JSON
+  // If this dir had multiple IDL files, point to the isolated subdir
+  const effectiveSchemaDir = files.length > 1
+    ? path.join(schemaDir, outName)
+    : schemaDir;
+
+  // Relative path from scripts/ts/ to the effective schema dir
+  const relativeDir = path.relative(outputDir, effectiveSchemaDir).replace(/\\/g, '/');
 
   CONTRACTS.push({
     name,
@@ -57,10 +83,9 @@ for (const jsonPath of schemaFiles) {
   });
 }
 
-fs.mkdirSync(outputDir, { recursive: true });
 fs.writeFileSync(outputFile, JSON.stringify(CONTRACTS, null, 2));
 
 console.log(`✅ Generated ${CONTRACTS.length} contract entries → scripts/ts/contracts.generated.json`);
 for (const c of CONTRACTS) {
-  console.log(`   • ${c.name} (${c.outName})`);
+  console.log(`   • ${c.name}  (dir: ${c.dir})`);
 }
