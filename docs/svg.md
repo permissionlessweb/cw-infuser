@@ -108,9 +108,42 @@ This means: first 100 mints cost 1 STARS, mints 101–500 cost 5 STARS. An empty
 
 When minting multiple tokens in a single transaction, costs are calculated per-token based on the running count, so a batch mint that crosses a tier boundary pays the correct price for each token.
 
+## Placeholder Dictionary
+
+Variable names in `${...}` placeholders follow a structured naming convention that encodes semantic intent. This allows tooling and LLMs to automatically infer appropriate `VariableKind` configurations without per-variable manual input.
+
+See [`docs/placeholder-dictionary-spec.md`](./placeholder-dictionary-spec.md) for the full **Leaning Tower of Babel** specification — a stable Universal Layer grammar with per-collection dictionary files.
+
+Each SVG can ship a companion `*.dict.json` (Collection Layer) that describes its palette groups, motion groups, and concrete `VariableDef` entries.
+
+Quick name → kind inference:
+
+| Prefix | Kind | Notes |
+|---|---|---|
+| `color-*`, `glow-*` | `RgbStyled` | shared palette ranges |
+| `pulse-*`, `breath-*` | `Range` [1.2, 4.5] | unitless — template appends `s` |
+| `flicker-*`, `strobe-*` | `Range` [0.08, 0.50] | unitless — template appends `s` |
+| `opacity-*`, `alpha-*` | `Range` [0.0, 1.0] | |
+| `rotate-*`, `spin-*` | `Range` [0, 360] | |
+| `toggle-*` | `Options` | `["0","1"]` |
+
+### Timing unit convention
+
+Timing variables produce unitless decimals. The SVG template appends the CSS unit:
+
+```xml
+<!-- correct -->
+style="--pulse-dur:${pulse-a}s"
+
+<!-- incorrect (Range can't produce "2.42s") -->
+style="--pulse-dur:${pulse-a}"
+```
+
 ## Scripting
 
-Use the `prepare_svg` binary to build an `InstantiateMsg` JSON from an SVG template file:
+Use the `prepare_svg` binary to build an `InstantiateMsg` JSON from an SVG template file.
+
+### Interactive (default)
 
 ```sh
 cargo run -p cw-infuser-scripts --bin prepare_svg -- \
@@ -121,9 +154,33 @@ cargo run -p cw-infuser-scripts --bin prepare_svg -- \
   --seed "my-secret-seed"
 ```
 
-This scans the SVG for `${varname}` placeholders, walks you through defining each variable, computes template slots, and outputs the complete JSON.
+### Dictionary file (`--dict`)
 
-For non-interactive usage, provide variable definitions via `--vars-json`:
+Pass a `*.dict.json` Collection Layer file to skip interactive prompts:
+
+```sh
+cargo run -p cw-infuser-scripts --bin prepare_svg -- \
+  --svg packages/cw-svg/svgs/terp-strobe-v2.svg \
+  --dict packages/cw-svg/svgs/terp-strobe.dict.json \
+  --name "Terp Strobe" --symbol "STROBE" --total 1000 \
+  --seed "entropy" -o init-msg.json
+```
+
+### LLM-assisted (`--llm`)
+
+Let the `claude` CLI auto-generate variable definitions using the Placeholder Dictionary Specification. Requires `claude` in `PATH`.
+
+```sh
+cargo run -p cw-infuser-scripts --bin prepare_svg -- \
+  --svg packages/cw-svg/svgs/terp-strobe-v2.svg \
+  --llm \
+  --name "Terp Strobe" --symbol "STROBE" --total 1000 \
+  --seed "entropy" -o init-msg.json
+```
+
+If `claude` is not in `PATH`, the tool prints the full prompt for manual pasting into any LLM. The LLM output (a `Vec<VariableDef>` JSON array) can then be saved and passed via `--vars-json`.
+
+### Raw vars JSON (`--vars-json`)
 
 ```sh
 cargo run -p cw-infuser-scripts --bin prepare_svg -- \
@@ -142,3 +199,5 @@ The `load_svg_init_msg` function in the scripts library loads a generated JSON f
 
 - time based svg: dynamic rendering based on block height / time progressed from contract mint
 - test between packed u64 approach from any optimizations in r/w + seralizations
+- mint default svg at a premium
+- rotate default svg (if enabled)

@@ -2,7 +2,8 @@ use crate::msg::{MintConfig, TemplateSlot, VariableDef};
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
-pub const MAX_SVG_SIZE: usize = 420 * 1024;
+// 0.043 MB limit
+pub const MAX_SVG_SIZE: usize = 42 * 1024;
 pub const MAX_TOTAL_SUPPLY: u64 = 10_000;
 
 pub const SVG_TEMPLATE: Item<String> = Item::new("svg_template");

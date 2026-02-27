@@ -1,6 +1,5 @@
 use cosmwasm_schema::write_api;
-
-use cw_infusion_minter::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use cw_svg_minter::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

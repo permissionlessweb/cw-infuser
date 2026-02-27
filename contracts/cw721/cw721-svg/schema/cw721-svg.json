@@ -137,6 +137,50 @@
         },
         "additionalProperties": false
       },
+      "RgbRange": {
+        "type": "object",
+        "required": [
+          "b_max",
+          "b_min",
+          "g_max",
+          "g_min",
+          "r_max",
+          "r_min"
+        ],
+        "properties": {
+          "b_max": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "b_min": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "g_max": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "g_min": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "r_max": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "r_min": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false
+      },
       "TemplateSlot": {
         "type": "object",
         "required": [
@@ -229,6 +273,29 @@
                   }
                 },
                 "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Generate a random `rgb(R,G,B)` color string. Each channel is independently random in 0–255.",
+            "type": "string",
+            "enum": [
+              "rgb"
+            ]
+          },
+          {
+            "description": "Pick a random range from the list, then generate a random shade within it. Each channel is constrained to [min, max] of the selected range.",
+            "type": "object",
+            "required": [
+              "rgb_styled"
+            ],
+            "properties": {
+              "rgb_styled": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/RgbRange"
+                }
               }
             },
             "additionalProperties": false

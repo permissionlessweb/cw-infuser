@@ -4,7 +4,7 @@ use cosmwasm_std::Binary;
 use cw721_svg::interface::Cw721Svg;
 use cw_infusion_minter::interface::CwInfuser;
 use cw_infusion_minter::{
-    msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
+    msg::{ExecuteMsg, ExecuteMsgFns as _, InstantiateMsg, QueryMsgFns},
     state::Config,
     AnyOfErr, ContractError,
 };
@@ -16,6 +16,9 @@ use cw_infusions::{
 };
 use cw_orch::{anyhow, prelude::*};
 use cw_svg::InstantiateMsg as SvgInitMsg;
+use cw_svg_minter::interface::Cw721SvgMinter;
+use cw_svg_minter::msg::ExecuteMsgFns as _;
+use cw_svg_minter::InstantiateMsg as SvgMinterInitMsg;
 
 #[derive(Clone, Debug)]
 pub struct CwSvgSuiteDeployData {
@@ -29,6 +32,7 @@ pub struct CwSvgSuite<Chain> {
     pub chain: Chain,
     pub infuser: CwInfuser<Chain>,
     pub cwsvg: Cw721Svg<Chain>,
+    pub cwsvgminter: Cw721SvgMinter<Chain>,
     // pub nfts: Vec<Addr>,
     // pub admin: Addr,
     // pub wavs_service: Addr,
@@ -41,10 +45,12 @@ impl<Chain: CwEnv> CwSvgSuite<Chain> {
             chain: chain.clone(),
             infuser: CwInfuser::new(chain.clone()),
             cwsvg: Cw721Svg::new(chain.clone()),
+            cwsvgminter: Cw721SvgMinter::new(chain.clone()),
         }
     }
     pub fn upload(&self) -> Result<(), CwOrchError> {
         self.cwsvg.upload()?;
+        self.cwsvgminter.upload()?;
         self.infuser.upload()?;
         Ok(())
     }
@@ -58,10 +64,6 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
         let suite = CwSvgSuite::new(chain.clone());
         suite.upload()?;
         Ok(suite)
-    }
-
-    fn deployed_state_file_path() -> Option<String> {
-        todo!()
     }
 
     fn get_contracts_mut(&mut self) -> Vec<Box<&mut dyn ContractInstance<Chain>>> {
@@ -79,17 +81,29 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
         if let Some(init) = data {
             let admin = init.admin.as_ref();
             if let Some(i) = &init.svg {
-                suite.cwsvg.instantiate(i, admin, None)?;
+                let owner = Some(chain.sender_addr().to_string());
+                suite.cwsvgminter.instantiate(
+                    &SvgMinterInitMsg {
+                        owner,
+                        svg_code_id: suite.cwsvg.code_id()?,
+                    },
+                    admin,
+                    &[],
+                )?;
+
+                suite.cwsvg.set_address(&Addr::unchecked(
+                    suite
+                        .cwsvgminter
+                        .create_svg_collection(i.clone(), "cwsvg-colllection")?
+                        .event_attr_value("wasm", "contract")?,
+                ));
             }
             if let Some(i) = &init.infuse {
-                suite.infuser.instantiate(&i, admin, None)?;
+                suite.infuser.instantiate(&i, admin, &[])?;
             }
             // TODO: Vec<ExecuteMsg> for each contract
         }
         Ok(suite)
-    }
-    fn get_all_deployed_chains() -> Vec<String> {
-        vec![]
     }
 }
 

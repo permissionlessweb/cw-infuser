@@ -1,9 +1,12 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, Coin, Timestamp, Uint128};
-use cw721::{
-    AllNftInfoResponse, ApprovalResponse, ApprovalsResponse, ContractInfoResponse, Expiration,
-    NftInfoResponse, NumTokensResponse, OperatorsResponse, OwnerOfResponse, TokensResponse,
+use cosmwasm_std::{Addr, Binary, Coin, Timestamp};
+use cw721::EmptyOptionalCollectionExtension;
+use cw721::msg::CollectionInfoAndExtensionResponse;
+use cw721::msg::{
+    AllNftInfoResponse, ApprovalResponse, ApprovalsResponse, NftInfoResponse, NumTokensResponse,
+    OperatorsResponse, OwnerOfResponse, TokensResponse,
 };
+use cw721::Expiration;
 use cw_ownable::Ownership;
 
 #[cw_serde]
@@ -224,7 +227,7 @@ pub enum QueryMsg {
     },
     #[returns(NumTokensResponse)]
     NumTokens {},
-    #[returns(ContractInfoResponse)]
+    #[returns(CollectionInfoAndExtensionResponse<EmptyOptionalCollectionExtension>)]
     ContractInfo {},
     #[returns(NftInfoResponse<SvgMetadata>)]
     NftInfo { token_id: String },

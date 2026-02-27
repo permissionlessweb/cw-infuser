@@ -34,12 +34,11 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 cw-orch =  { workspace = true, optional = true }
 cw721 = { workspace = true }
 whitelist-mtree = { workspace = true, features = ["library"] }
-cw721-base = { workspace = true, features = ["library"] }
 cw-storage-plus = { workspace = true }
 cosmwasm-schema = { workspace = true }
-cosmwasm-std = { workspace = true, features = ["cosmwasm_1_4"] }
+cosmwasm-std = { workspace = true }
 cw2 = { workspace = true }
-cw-ownable = "0.5.1"
+cw-ownable = "2.1.0"
 cw-utils = { workspace = true }
 schemars = "0.8.16"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
@@ -47,4 +46,4 @@ sha2 = { workspace = true }
 thiserror = { version = "1.0.58" }
 
 [dev-dependencies]
-cw-multi-test = "1.2.0"
+cw-multi-test = "2.5.1"

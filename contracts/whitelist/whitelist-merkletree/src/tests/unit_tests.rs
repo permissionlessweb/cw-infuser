@@ -4,29 +4,45 @@ mod tests {
         contract::{execute, instantiate, query_config, query_has_member},
         msg::{ExecuteMsg, InstantiateMsg},
         state::{GENESIS_MINT_START_TIME, NATIVE_FEE_DENOM},
-        tests::test_helpers::get_merkle_tree_simple,
+        tests::{hasher::SortingBlake3Hasher, test_helpers::hash_and_build_tree},
     };
+    use rs_merkle::MerkleTree;
     use std::vec;
 
     use cosmwasm_std::{
         coin,
-        testing::{mock_dependencies, mock_env, mock_info},
-        BlockInfo, DepsMut, Env, Timestamp,
+        testing::{message_info, mock_dependencies, mock_env},
+        Addr, BlockInfo, DepsMut, Env, Timestamp,
     };
 
-    const ADMIN: &str = "admin";
+    const ADMIN: &str = "cosmwasm1ye63jpm474yfrq02nyplrspyw75y82tpd2shys";
     const UNIT_AMOUNT: u128 = 100_000_000;
-
     const CREATION_AMOUNT: u128 = 1_000_000_000;
 
     const GENESIS_START_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
     const END_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME + 1000);
 
-    const MERKLE_ROOT: &str = "5ab281bca33c9819e0daa0708d20ff8a25e65de7d1f6659dbdeb1d2050652b80";
+    // Inline test whitelist — four cosmwasm-prefix addresses.
+    // ADDR_0 matches ADMIN so the admin can prove membership at leaf 0.
+    const ADDR_0: &str = ADMIN;
+    const ADDR_1: &str = "cosmwasm130dxx3nr2ste4fwsum57k3en60wqd76m9spvxzz";
+    const ADDR_2: &str = "cosmwasm1x97rgyyudwr29xkauhxuvkgyhsrdxx3tz6q3cs";
+    const ADDR_3: &str = "cosmwasm16epdu6c7h8apxrnuu06yzfxflrede0mt6008rw";
+
+    const TEST_WHITELIST: &[&str] = &[ADDR_0, ADDR_1, ADDR_2, ADDR_3];
+
+    // Invalid root format constants — used to test instantiate validation.
     const NON_HEX_MERKLE_ROOT: &str =
         "5zb281bca33c9819e0daa0708d20ff8a25e65de7d1f6659dbdeb1d2050652b80";
     const NON_32BYTES_MERKLE_ROOT: &str =
         "5ab281bca33c9819e0daa0708d20ff8a25e65de7d1f6659dbdeb1d2050652b80ab";
+
+    /// Build a fresh merkle tree from the inline test whitelist.
+    /// Root hex is derived at runtime so it always matches the current address prefix.
+    fn build_test_tree() -> MerkleTree<SortingBlake3Hasher> {
+        let addrs: Vec<String> = TEST_WHITELIST.iter().map(|s| s.to_string()).collect();
+        hash_and_build_tree(&addrs)
+    }
 
     /// Mock env with block time before GENESIS_START_TIME so instantiate succeeds.
     fn early_mock_env() -> Env {
@@ -40,23 +56,6 @@ mod tests {
         }
     }
 
-    fn setup_contract(deps: DepsMut, merkle_root: Option<String>) {
-        let msg = InstantiateMsg {
-            merkle_root: merkle_root.unwrap_or(MERKLE_ROOT.to_string()),
-            merkle_tree_uri: None,
-            per_address_limit: 1,
-            start_time: GENESIS_START_TIME,
-            end_time: END_TIME,
-            mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
-            admins: vec![ADMIN.to_string()],
-            admins_mutable: true,
-        };
-        let info = mock_info(ADMIN, &[coin(CREATION_AMOUNT, NATIVE_FEE_DENOM)]);
-        let res = instantiate(deps, early_mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-        assert_eq!(5, res.attributes.len());
-    }
-
     fn custom_mock_env() -> Env {
         Env {
             block: BlockInfo {
@@ -66,6 +65,33 @@ mod tests {
             },
             ..mock_env()
         }
+    }
+
+    /// Instantiate the contract with a freshly-computed merkle root.
+    /// Returns the admin address and the tree so callers can derive proofs.
+    fn setup_contract(
+        deps: DepsMut,
+        merkle_root: Option<String>,
+    ) -> (Addr, MerkleTree<SortingBlake3Hasher>) {
+        let tree = build_test_tree();
+        let root = merkle_root.unwrap_or_else(|| tree.root_hex().unwrap());
+        let admin = Addr::unchecked(ADMIN);
+        let msg = InstantiateMsg {
+            merkle_root: root,
+            merkle_tree_uri: None,
+            per_address_limit: 1,
+            start_time: GENESIS_START_TIME,
+            end_time: END_TIME,
+            mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
+            admins: vec![ADMIN.to_string()],
+            admins_mutable: true,
+        };
+        let info = message_info(&admin, &[coin(CREATION_AMOUNT, NATIVE_FEE_DENOM)]);
+        let res = instantiate(deps, early_mock_env(), info, msg).unwrap();
+        println!("{:#?}", res);
+        assert_eq!(0, res.messages.len());
+        assert_eq!(5, res.attributes.len());
+        (admin, tree)
     }
 
     #[test]
@@ -78,6 +104,10 @@ mod tests {
     fn improper_initializations() {
         let mut deps = mock_dependencies();
         let env = custom_mock_env();
+        let admin = Addr::unchecked(ADMIN);
+
+        // Fresh valid root for test cases that are testing other validations.
+        let valid_root = build_test_tree().root_hex().unwrap();
 
         let invalid_msgs: Vec<InstantiateMsg> = vec![
             // invalid merkle root (non hex)
@@ -88,7 +118,7 @@ mod tests {
                 start_time: GENESIS_START_TIME,
                 end_time: END_TIME,
                 mint_price: coin(1, NATIVE_FEE_DENOM),
-                admins: vec![ADMIN.to_string()],
+                admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
             // invalid merkle root (non 32 bytes)
@@ -99,23 +129,23 @@ mod tests {
                 start_time: GENESIS_START_TIME,
                 end_time: END_TIME,
                 mint_price: coin(1, NATIVE_FEE_DENOM),
-                admins: vec![ADMIN.to_string()],
+                admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
             // invalid mint price denom
             InstantiateMsg {
-                merkle_root: MERKLE_ROOT.to_string(),
+                merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
                 per_address_limit: 1,
                 start_time: GENESIS_START_TIME,
                 end_time: END_TIME,
                 mint_price: coin(UNIT_AMOUNT, "not_ustars"),
-                admins: vec![ADMIN.to_string()],
+                admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
             // invalid admin address (MockApi only) (too short)
             InstantiateMsg {
-                merkle_root: MERKLE_ROOT.to_string(),
+                merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
                 per_address_limit: 1,
                 start_time: GENESIS_START_TIME,
@@ -126,41 +156,40 @@ mod tests {
             },
             // invalid start time (after end time)
             InstantiateMsg {
-                merkle_root: MERKLE_ROOT.to_string(),
+                merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
                 per_address_limit: 1,
                 start_time: END_TIME.plus_nanos(1u64),
                 end_time: END_TIME,
                 mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
-                admins: vec![ADMIN.to_string()],
+                admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
             // invalid start time (before genesis mint start time)
             InstantiateMsg {
-                merkle_root: MERKLE_ROOT.to_string(),
+                merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
                 per_address_limit: 1,
                 start_time: GENESIS_START_TIME.minus_nanos(1u64),
                 end_time: END_TIME,
                 mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
-                admins: vec![ADMIN.to_string()],
+                admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
             // invalid start time (before current block time)
             InstantiateMsg {
-                merkle_root: MERKLE_ROOT.to_string(),
+                merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
                 per_address_limit: 1,
                 start_time: env.block.time.minus_nanos(1u64),
                 end_time: END_TIME,
                 mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
-                admins: vec![ADMIN.to_string()],
+                admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
         ];
 
-        let info = mock_info(ADMIN, &[]);
-
+        let info = message_info(&admin, &[]);
         for msg in invalid_msgs {
             instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
         }
@@ -169,10 +198,10 @@ mod tests {
     #[test]
     fn update_start_time() {
         let mut deps = mock_dependencies();
-        setup_contract(deps.as_mut(), None);
+        let (admin, _tree) = setup_contract(deps.as_mut(), None);
 
         let msg = ExecuteMsg::UpdateStartTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME - 100));
-        let info = mock_info(ADMIN, &[]);
+        let info = message_info(&admin, &[]);
         let res = execute(deps.as_mut(), early_mock_env(), info, msg).unwrap();
         assert_eq!(res.attributes.len(), 3);
         let res = query_config(deps.as_ref(), early_mock_env()).unwrap();
@@ -182,70 +211,51 @@ mod tests {
     #[test]
     fn update_end_time() {
         let mut deps = mock_dependencies();
-        setup_contract(deps.as_mut(), None);
+        let (admin, _tree) = setup_contract(deps.as_mut(), None);
 
         let msg = ExecuteMsg::UpdateEndTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME + 100));
-        let info = mock_info(ADMIN, &[]);
+        let info = message_info(&admin, &[]);
         let res = execute(deps.as_mut(), early_mock_env(), info, msg).unwrap();
         assert_eq!(res.attributes.len(), 3);
 
         let msg = ExecuteMsg::UpdateEndTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME - 100));
-        let info = mock_info(ADMIN, &[]);
+        let info = message_info(&admin, &[]);
         execute(deps.as_mut(), early_mock_env(), info, msg).unwrap_err();
     }
 
     #[test]
     fn query_membership() {
         let mut deps = mock_dependencies();
+        // Build tree and instantiate with its root in one step.
+        let (_admin, tree) = setup_contract(deps.as_mut(), None);
 
-        let tree = get_merkle_tree_simple(None);
-        let root = tree.root_hex();
-
-        setup_contract(deps.as_mut(), root.clone());
-
+        // leaf index 0: ADDR_0 (= ADMIN)
         let proof = tree.proof(&[0]);
-        let hash_strings = proof.proof_hashes_hex();
-
-        let user = mock_info("stars1ye63jpm474yfrq02nyplrspyw75y82tptsls9t", &[]);
-        let res = query_has_member(deps.as_ref(), user.sender.to_string(), hash_strings).unwrap();
+        let res =
+            query_has_member(deps.as_ref(), ADDR_0.to_string(), proof.proof_hashes_hex()).unwrap();
         assert!(res.has_member);
 
-        // leaf index 1
-        let user = mock_info("stars130dxx3nr2ste4fwsum57k3en60wqd76m9pvpsy", &[]);
+        // leaf index 1: ADDR_1
         let proof = tree.proof(&[1]);
-        let res = query_has_member(
-            deps.as_ref(),
-            user.sender.to_string(),
-            proof.proof_hashes_hex(),
-        )
-        .unwrap();
+        let res =
+            query_has_member(deps.as_ref(), ADDR_1.to_string(), proof.proof_hashes_hex()).unwrap();
         assert!(res.has_member);
 
-        // leaf index 3
-        let user = mock_info("stars16epdu6c7h8apxrnuu06yzfxflrede0mtu4qqz4", &[]);
+        // leaf index 3: ADDR_3
         let proof = tree.proof(&[3]);
-        let res = query_has_member(
-            deps.as_ref(),
-            user.sender.to_string(),
-            proof.proof_hashes_hex(),
-        )
-        .unwrap();
+        let res =
+            query_has_member(deps.as_ref(), ADDR_3.to_string(), proof.proof_hashes_hex()).unwrap();
         assert!(res.has_member);
 
-        // mismatched proof: use proof for index 1 against address at index 0
-        let user = mock_info("stars1ye63jpm474yfrq02nyplrspyw75y82tptsls9t", &[]);
+        // mismatched proof: proof for index 1 presented with ADDR_0's address
         let wrong_proof = tree.proof(&[1]);
-        let res = query_has_member(
-            deps.as_ref(),
-            user.sender.to_string(),
-            wrong_proof.proof_hashes_hex(),
-        )
-        .unwrap();
+        let res =
+            query_has_member(deps.as_ref(), ADDR_0.to_string(), wrong_proof.proof_hashes_hex())
+                .unwrap();
         assert!(!res.has_member);
 
-        // invalid proof
-        let user = mock_info("stars1ye63jpm474yfrq02nyplrspyw75y82tptsls9t", &[]);
-        let proof = vec!["x".to_string(), "x".to_string()];
-        let _ = query_has_member(deps.as_ref(), user.sender.to_string(), proof).unwrap_err();
+        // invalid proof hashes (not valid hex) must error
+        let bad_proof = vec!["x".to_string(), "x".to_string()];
+        query_has_member(deps.as_ref(), ADDR_0.to_string(), bad_proof).unwrap_err();
     }
 }

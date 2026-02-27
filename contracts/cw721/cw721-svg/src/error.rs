@@ -15,7 +15,7 @@ pub enum ContractError {
     Payment(#[from] PaymentError),
 
     #[error("{0}")]
-    Base(#[from] cw721_base::ContractError),
+    Base(#[from] cw721::error::Cw721ContractError),
 
     #[error("Minting is paused")]
     MintingPaused {},

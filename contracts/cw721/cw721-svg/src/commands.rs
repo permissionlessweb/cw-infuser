@@ -10,7 +10,8 @@ use crate::Cw721SvgContract;
 use cosmwasm_std::{
     Addr, BankMsg, Coin, Deps, DepsMut, Env, Event, MessageInfo, Response, Uint128,
 };
-use cw721_base::state::TokenInfo;
+
+use cw721::state::NftInfo;
 use sha2::{Digest, Sha256};
 use whitelist_mtree::msg::{ConfigResponse as WhitelistConfigRes, QueryMsg as WlistQueryMsg};
 
@@ -382,7 +383,7 @@ pub fn execute_mint(
 
         let extension = SvgMetadata { params };
 
-        let token = TokenInfo {
+        let token = NftInfo {
             owner: info.sender.clone(),
             approvals: vec![],
             token_uri: None,
@@ -390,13 +391,16 @@ pub fn execute_mint(
         };
 
         Cw721SvgContract::default()
-            .tokens
+            .config
+            .nft_info
             .update(deps.storage, &token_id, |old| match old {
-                Some(_) => Err(ContractError::Base(cw721_base::ContractError::Claimed {})),
+                Some(_) => Err(ContractError::Base(
+                    cw721::error::Cw721ContractError::Claimed {},
+                )),
                 None => Ok(token),
             })?;
 
-        Cw721SvgContract::default().increment_tokens(deps.storage)?;
+        Cw721SvgContract::default().config.increment_tokens(deps.storage)?;
 
         events.push(
             Event::new("mint")
@@ -462,7 +466,8 @@ pub fn query_svg_token_uri(
     let template = SVG_TEMPLATE.load(deps.storage)?;
     let slots = TEMPLATE_SLOTS.load(deps.storage)?;
     let token = Cw721SvgContract::default()
-        .tokens
+        .config
+        .nft_info
         .load(deps.storage, &token_id)?;
 
     let mut result = String::with_capacity(template.len());
@@ -520,6 +525,80 @@ pub fn query_config(deps: cosmwasm_std::Deps) -> Result<crate::msg::MintConfig, 
 
 pub fn query_svg_template(deps: cosmwasm_std::Deps) -> Result<String, ContractError> {
     Ok(SVG_TEMPLATE.load(deps.storage)?)
+}
+
+/// Validate all variable definitions in isolation (options non-empty, range
+/// parseable / ordered, rgb_styled ranges non-empty with min <= max).
+/// This is the same check that runs inside `instantiate`.
+pub fn validate_variables(variables: &[VariableDef]) -> Result<(), ContractError> {
+    for var in variables {
+        match &var.kind {
+            VariableKind::Options(opts) => {
+                if opts.is_empty() {
+                    return Err(ContractError::InvalidVariableDef {
+                        reason: format!("variable '{}': options list must not be empty", var.name),
+                    });
+                }
+            }
+            VariableKind::Range {
+                min,
+                max,
+                precision,
+            } => {
+                if *precision > 18 {
+                    return Err(ContractError::InvalidVariableDef {
+                        reason: format!(
+                            "variable '{}': precision {} exceeds maximum of 18",
+                            var.name, precision
+                        ),
+                    });
+                }
+                let min_scaled = parse_decimal_scaled(min, *precision).map_err(|e| {
+                    ContractError::InvalidVariableDef {
+                        reason: format!("variable '{}' min: {}", var.name, e),
+                    }
+                })?;
+                let max_scaled = parse_decimal_scaled(max, *precision).map_err(|e| {
+                    ContractError::InvalidVariableDef {
+                        reason: format!("variable '{}' max: {}", var.name, e),
+                    }
+                })?;
+                if min_scaled > max_scaled {
+                    return Err(ContractError::InvalidVariableDef {
+                        reason: format!(
+                            "variable '{}': min ({}) must be <= max ({})",
+                            var.name, min, max
+                        ),
+                    });
+                }
+            }
+            VariableKind::Rgb => {}
+            VariableKind::RgbStyled(ranges) => {
+                if ranges.is_empty() {
+                    return Err(ContractError::InvalidVariableDef {
+                        reason: format!(
+                            "variable '{}': rgb_styled ranges list must not be empty",
+                            var.name
+                        ),
+                    });
+                }
+                for (i, range) in ranges.iter().enumerate() {
+                    if range.r_min > range.r_max
+                        || range.g_min > range.g_max
+                        || range.b_min > range.b_max
+                    {
+                        return Err(ContractError::InvalidVariableDef {
+                            reason: format!(
+                                "variable '{}': range {} has min > max for a channel",
+                                var.name, i
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn validate_template_slots(

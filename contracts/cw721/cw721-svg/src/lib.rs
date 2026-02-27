@@ -9,19 +9,68 @@ pub mod interface;
 pub use crate::error::ContractError;
 use crate::msg::SvgMetadata;
 pub use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use cosmwasm_std::Empty;
+use cosmwasm_std::{Deps, DepsMut, Empty, Env, MessageInfo};
+use cw721::{
+    error::Cw721ContractError,
+    traits::{Contains, Cw721CustomMsg, Cw721State, StateFactory},
+    EmptyOptionalCollectionExtension, EmptyOptionalCollectionExtensionMsg,
+};
 
 const CONTRACT_NAME: &str = "crates.io:cw721-svg";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub type Cw721SvgContract<'a> = cw721_base::Cw721Contract<'a, SvgMetadata, Empty, Empty, Empty>;
+// ── Trait impls required by Cw721Extensions ──────────────────────────────────
+
+impl Cw721State for SvgMetadata {}
+impl Cw721CustomMsg for SvgMetadata {}
+
+impl Contains for SvgMetadata {
+    fn contains(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl StateFactory<SvgMetadata> for SvgMetadata {
+    fn create(
+        &self,
+        _deps: Deps,
+        _env: &Env,
+        _info: Option<&MessageInfo>,
+        _current: Option<&SvgMetadata>,
+    ) -> Result<SvgMetadata, Cw721ContractError> {
+        Ok(self.clone())
+    }
+    fn validate(
+        &self,
+        _deps: Deps,
+        _env: &Env,
+        _info: Option<&MessageInfo>,
+        _current: Option<&SvgMetadata>,
+    ) -> Result<(), Cw721ContractError> {
+        Ok(())
+    }
+}
+
+// ── Contract type alias ───────────────────────────────────────────────────────
+
+pub type Cw721SvgContract<'a> = cw721::extension::Cw721Extensions<
+    'a,
+    SvgMetadata,                         // TNftExtension
+    SvgMetadata,                         // TNftExtensionMsg
+    EmptyOptionalCollectionExtension,    // TCollectionExtension
+    EmptyOptionalCollectionExtensionMsg, // TCollectionExtensionMsg
+    Empty,                               // TExtensionMsg
+    Empty,                               // TExtensionQueryMsg
+    Empty,                               // TCustomResponseMsg
+>;
+
+// ── Entry points ──────────────────────────────────────────────────────────────
 
 pub mod entry {
     use super::*;
     use crate::commands::*;
     use crate::msg::{
         ConfigResponse, MigrateMsg, MintConfig, SvgTemplateResponse, SvgTokenUriResponse,
-        VariableKind,
     };
     use crate::state::{
         MAX_SVG_SIZE, MAX_TOTAL_SUPPLY, MINT_CONFIG, SVG_TEMPLATE, TEMPLATE_SLOTS, VARIABLES,
@@ -29,9 +78,12 @@ pub mod entry {
     };
     use cosmwasm_std::{
         entry_point, to_json_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
-        StdResult, Timestamp,
+        StdError, StdResult, Timestamp,
     };
-    use cw721_base::msg::InstantiateMsg as Cw721InstantiateMsg;
+    use cw721::msg::{
+        Cw721ExecuteMsg as BaseExecuteMsg, Cw721InstantiateMsg, Cw721QueryMsg as BaseQueryMsg,
+    };
+    use cw721::traits::{Cw721Execute, Cw721Query};
 
     #[cfg_attr(not(feature = "library"), entry_point)]
     pub fn instantiate(
@@ -56,16 +108,21 @@ pub mod entry {
             });
         }
 
-        Cw721SvgContract::default().instantiate(
-            deps.branch(),
-            env.clone(),
-            info.clone(),
-            Cw721InstantiateMsg {
-                name: msg.name,
-                symbol: msg.symbol,
-                minter: env.contract.address.to_string(),
-            },
-        )?;
+        Cw721SvgContract::default()
+            .instantiate(
+                deps.branch(),
+                &env,
+                &info,
+                Cw721InstantiateMsg::<EmptyOptionalCollectionExtensionMsg> {
+                    name: msg.name.clone(),
+                    symbol: msg.symbol.clone(),
+                    minter: Some(env.contract.address.to_string()),
+                    creator: Some(info.sender.to_string()),
+                    collection_info_extension: None,
+                    withdraw_address: None,
+                },
+            )
+            .map_err(|e| ContractError::Std(StdError::generic_err(e.to_string())))?;
 
         // Compute mint start time
         let mint_start_time = match msg.mint_start_time {
@@ -105,76 +162,7 @@ pub mod entry {
         }
 
         // Validate variable definitions
-        for var in &msg.variables {
-            match &var.kind {
-                VariableKind::Options(opts) => {
-                    if opts.is_empty() {
-                        return Err(ContractError::InvalidVariableDef {
-                            reason: format!(
-                                "variable '{}': options list must not be empty",
-                                var.name
-                            ),
-                        });
-                    }
-                }
-                VariableKind::Range {
-                    min,
-                    max,
-                    precision,
-                } => {
-                    if *precision > 18 {
-                        return Err(ContractError::InvalidVariableDef {
-                            reason: format!(
-                                "variable '{}': precision {} exceeds maximum of 18",
-                                var.name, precision
-                            ),
-                        });
-                    }
-                    let min_scaled = parse_decimal_scaled(min, *precision).map_err(|e| {
-                        ContractError::InvalidVariableDef {
-                            reason: format!("variable '{}' min: {}", var.name, e),
-                        }
-                    })?;
-                    let max_scaled = parse_decimal_scaled(max, *precision).map_err(|e| {
-                        ContractError::InvalidVariableDef {
-                            reason: format!("variable '{}' max: {}", var.name, e),
-                        }
-                    })?;
-                    if min_scaled > max_scaled {
-                        return Err(ContractError::InvalidVariableDef {
-                            reason: format!(
-                                "variable '{}': min ({}) must be <= max ({})",
-                                var.name, min, max
-                            ),
-                        });
-                    }
-                }
-                VariableKind::Rgb => {}
-                VariableKind::RgbStyled(ranges) => {
-                    if ranges.is_empty() {
-                        return Err(ContractError::InvalidVariableDef {
-                            reason: format!(
-                                "variable '{}': rgb_styled ranges list must not be empty",
-                                var.name
-                            ),
-                        });
-                    }
-                    for (i, range) in ranges.iter().enumerate() {
-                        if range.r_min > range.r_max
-                            || range.g_min > range.g_max
-                            || range.b_min > range.b_max
-                        {
-                            return Err(ContractError::InvalidVariableDef {
-                                reason: format!(
-                                    "variable '{}': range {} has min > max for a channel",
-                                    var.name, i
-                                ),
-                            });
-                        }
-                    }
-                }
-            }
-        }
+        validate_variables(&msg.variables)?;
 
         cw_ownable::initialize_owner(deps.storage, deps.api, Some(&owner))?;
 
@@ -213,62 +201,81 @@ pub mod entry {
             ExecuteMsg::TransferNft {
                 recipient,
                 token_id,
-            } => Ok(Cw721SvgContract::default().execute(
-                deps,
-                env,
-                info,
-                cw721_base::ExecuteMsg::TransferNft {
-                    recipient,
-                    token_id,
-                },
-            )?),
+            } => Cw721SvgContract::default()
+                .execute(
+                    deps,
+                    &env,
+                    &info,
+                    BaseExecuteMsg::<SvgMetadata, EmptyOptionalCollectionExtensionMsg, Empty>::TransferNft {
+                        recipient,
+                        token_id,
+                    },
+                )
+                .map_err(ContractError::Base),
             ExecuteMsg::SendNft {
                 contract,
                 token_id,
                 msg: send_msg,
-            } => Ok(Cw721SvgContract::default().execute(
-                deps,
-                env,
-                info,
-                cw721_base::ExecuteMsg::SendNft {
-                    contract,
-                    token_id,
-                    msg: send_msg,
-                },
-            )?),
+            } => Cw721SvgContract::default()
+                .execute(
+                    deps,
+                    &env,
+                    &info,
+                    BaseExecuteMsg::<SvgMetadata, EmptyOptionalCollectionExtensionMsg, Empty>::SendNft {
+                        contract,
+                        token_id,
+                        msg: send_msg,
+                    },
+                )
+                .map_err(ContractError::Base),
             ExecuteMsg::Approve {
                 spender,
                 token_id,
                 expires,
-            } => Ok(Cw721SvgContract::default().execute(
-                deps,
-                env,
-                info,
-                cw721_base::ExecuteMsg::Approve {
-                    spender,
-                    token_id,
-                    expires,
-                },
-            )?),
-            ExecuteMsg::Revoke { spender, token_id } => Ok(Cw721SvgContract::default().execute(
-                deps,
-                env,
-                info,
-                cw721_base::ExecuteMsg::Revoke { spender, token_id },
-            )?),
-            ExecuteMsg::ApproveAll { operator, expires } => Ok(Cw721SvgContract::default()
+            } => Cw721SvgContract::default()
                 .execute(
                     deps,
-                    env,
-                    info,
-                    cw721_base::ExecuteMsg::ApproveAll { operator, expires },
-                )?),
-            ExecuteMsg::RevokeAll { operator } => Ok(Cw721SvgContract::default().execute(
-                deps,
-                env,
-                info,
-                cw721_base::ExecuteMsg::RevokeAll { operator },
-            )?),
+                    &env,
+                    &info,
+                    BaseExecuteMsg::<SvgMetadata, EmptyOptionalCollectionExtensionMsg, Empty>::Approve {
+                        spender,
+                        token_id,
+                        expires,
+                    },
+                )
+                .map_err(ContractError::Base),
+            ExecuteMsg::Revoke { spender, token_id } => Cw721SvgContract::default()
+                .execute(
+                    deps,
+                    &env,
+                    &info,
+                    BaseExecuteMsg::<SvgMetadata, EmptyOptionalCollectionExtensionMsg, Empty>::Revoke {
+                        spender,
+                        token_id,
+                    },
+                )
+                .map_err(ContractError::Base),
+            ExecuteMsg::ApproveAll { operator, expires } => Cw721SvgContract::default()
+                .execute(
+                    deps,
+                    &env,
+                    &info,
+                    BaseExecuteMsg::<SvgMetadata, EmptyOptionalCollectionExtensionMsg, Empty>::ApproveAll {
+                        operator,
+                        expires,
+                    },
+                )
+                .map_err(ContractError::Base),
+            ExecuteMsg::RevokeAll { operator } => Cw721SvgContract::default()
+                .execute(
+                    deps,
+                    &env,
+                    &info,
+                    BaseExecuteMsg::<SvgMetadata, EmptyOptionalCollectionExtensionMsg, Empty>::RevokeAll {
+                        operator,
+                    },
+                )
+                .map_err(ContractError::Base),
         }
     }
 
@@ -277,27 +284,27 @@ pub mod entry {
         match msg {
             QueryMsg::SvgTokenUri { token_id } => {
                 let svg = query_svg_token_uri(deps, token_id)
-                    .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+                    .map_err(|e| StdError::generic_err(e.to_string()))?;
                 to_json_binary(&SvgTokenUriResponse { svg })
             }
             QueryMsg::SvgPlaceholder { seed } => {
                 let svg = query_svg_placeholder(deps, seed)
-                    .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+                    .map_err(|e| StdError::generic_err(e.to_string()))?;
                 to_json_binary(&SvgTokenUriResponse { svg })
             }
             QueryMsg::Config {} => {
                 let config = query_config(deps)
-                    .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+                    .map_err(|e| StdError::generic_err(e.to_string()))?;
                 to_json_binary(&ConfigResponse { config })
             }
             QueryMsg::SvgTemplate {} => {
                 let template = query_svg_template(deps)
-                    .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+                    .map_err(|e| StdError::generic_err(e.to_string()))?;
                 to_json_binary(&SvgTemplateResponse { template })
             }
             QueryMsg::Whitelist {} => {
                 let wl = query_whitelist(deps)
-                    .map_err(|e| cosmwasm_std::StdError::generic_err(e.to_string()))?;
+                    .map_err(|e| StdError::generic_err(e.to_string()))?;
                 to_json_binary(&wl)
             }
             QueryMsg::Minter {} => to_json_binary(&cw_ownable::get_ownership(deps.storage)?),
@@ -306,93 +313,122 @@ pub mod entry {
             QueryMsg::OwnerOf {
                 token_id,
                 include_expired,
-            } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::OwnerOf {
-                    token_id,
-                    include_expired,
-                },
-            ),
+            } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::OwnerOf {
+                        token_id,
+                        include_expired,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
             QueryMsg::Approval {
                 token_id,
                 spender,
                 include_expired,
-            } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::Approval {
-                    token_id,
-                    spender,
-                    include_expired,
-                },
-            ),
+            } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::Approval {
+                        token_id,
+                        spender,
+                        include_expired,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
             QueryMsg::Approvals {
                 token_id,
                 include_expired,
-            } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::Approvals {
-                    token_id,
-                    include_expired,
-                },
-            ),
+            } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::Approvals {
+                        token_id,
+                        include_expired,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
             QueryMsg::AllOperators {
                 owner,
                 include_expired,
                 start_after,
                 limit,
-            } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::AllOperators {
-                    owner,
-                    include_expired,
-                    start_after,
-                    limit,
-                },
-            ),
-            QueryMsg::NumTokens {} => {
-                Cw721SvgContract::default().query(deps, env, cw721_base::QueryMsg::NumTokens {})
-            }
-            QueryMsg::ContractInfo {} => {
-                Cw721SvgContract::default().query(deps, env, cw721_base::QueryMsg::ContractInfo {})
-            }
-            QueryMsg::NftInfo { token_id } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::NftInfo { token_id },
-            ),
+            } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::AllOperators {
+                        owner,
+                        include_expired,
+                        start_after,
+                        limit,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
+            QueryMsg::NumTokens {} => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::NumTokens {},
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
+            QueryMsg::ContractInfo {} => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::GetCollectionInfoAndExtension {},
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
+            QueryMsg::NftInfo { token_id } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::NftInfo {
+                        token_id,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
             QueryMsg::AllNftInfo {
                 token_id,
                 include_expired,
-            } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::AllNftInfo {
-                    token_id,
-                    include_expired,
-                },
-            ),
+            } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::AllNftInfo {
+                        token_id,
+                        include_expired,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
             QueryMsg::Tokens {
                 owner,
                 start_after,
                 limit,
-            } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::Tokens {
-                    owner,
-                    start_after,
-                    limit,
-                },
-            ),
-            QueryMsg::AllTokens { start_after, limit } => Cw721SvgContract::default().query(
-                deps,
-                env,
-                cw721_base::QueryMsg::AllTokens { start_after, limit },
-            ),
+            } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::Tokens {
+                        owner,
+                        start_after,
+                        limit,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
+            QueryMsg::AllTokens { start_after, limit } => Cw721SvgContract::default()
+                .query(
+                    deps,
+                    &env,
+                    BaseQueryMsg::<SvgMetadata, EmptyOptionalCollectionExtension, Empty>::AllTokens {
+                        start_after,
+                        limit,
+                    },
+                )
+                .map_err(|e| StdError::generic_err(e.to_string())),
             QueryMsg::MintCount { address } => {
                 let addr = deps.api.addr_validate(&address)?;
                 let count = mint_count(deps, &addr);
@@ -405,6 +441,7 @@ pub mod entry {
             }
         }
     }
+
     #[cfg_attr(not(feature = "library"), entry_point)]
     pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
         let prev_version = cw2::get_contract_version(deps.storage)?;

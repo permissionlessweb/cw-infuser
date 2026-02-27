@@ -122,7 +122,7 @@ impl CwSvgSuite<MockBech32> {
             template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
 
-        svg.instantiate(&init_msg, Some(&admin), None)?;
+        svg.instantiate(&init_msg, Some(&admin), &[])?;
 
         Ok(CwSvgSuite {
             chain: mock,
@@ -157,7 +157,7 @@ impl CwSvgSuite<MockBech32> {
             template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
 
-        svg.instantiate(&init_msg, Some(&admin), None)?;
+        svg.instantiate(&init_msg, Some(&admin), &[])?;
 
         Ok(CwSvgSuite {
             chain: mock,
@@ -192,7 +192,7 @@ impl CwSvgSuite<MockBech32> {
             template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
 
-        svg.instantiate(&init_msg, Some(&admin), None)?;
+        svg.instantiate(&init_msg, Some(&admin), &[])?;
 
         Ok(CwSvgSuite {
             chain: mock,
@@ -228,7 +228,7 @@ impl CwSvgSuite<MockBech32> {
             admins: vec![admin.to_string()],
             admins_mutable: false,
         };
-        wlist.instantiate(&wl_init, Some(&admin), None)?;
+        wlist.instantiate(&wl_init, Some(&admin), &[])?;
         mock.wait_seconds(2)?;
 
         // Deploy SVG contract with whitelist
@@ -250,7 +250,7 @@ impl CwSvgSuite<MockBech32> {
             whitelist: Some(wlist.address()?.to_string()),
             template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
         };
-        svg.instantiate(&svg_init, Some(&admin), None)?;
+        svg.instantiate(&svg_init, Some(&admin), &[])?;
 
         let suite = CwSvgSuite {
             chain: mock,
@@ -283,12 +283,14 @@ fn test_successful_instantiate() -> anyhow::Result<()> {
     assert_eq!(template.template, TEST_SVG_TEMPLATE);
 
     // Query contract info via cw721
-    let info: cw721::ContractInfoResponse = suite.svg.query(&QueryMsg::ContractInfo {})?;
+    let info: cw721::msg::CollectionInfoAndExtensionResponse<
+        cw721::EmptyOptionalCollectionExtension,
+    > = suite.svg.query(&QueryMsg::ContractInfo {})?;
     assert_eq!(info.name, "Test SVG Collection");
     assert_eq!(info.symbol, "TSVG");
 
     // Query num tokens (should be 0)
-    let num: cw721::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
+    let num: cw721::msg::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(num.count, 0);
 
     Ok(())
@@ -298,27 +300,28 @@ fn test_successful_instantiate() -> anyhow::Result<()> {
 fn test_mint_single() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     // Verify mint count incremented
     let config: ConfigResponse = suite.svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.mint_count, 1);
 
     // Verify num tokens
-    let num: cw721::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
+    let num: cw721::msg::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(num.count, 1);
 
     // Verify token owner is the sender
-    let owner: cw721::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
+    let owner: cw721::msg::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
         token_id: "0".to_string(),
         include_expired: None,
     })?;
     assert_eq!(owner.owner, suite.chain.sender_addr().to_string());
 
     // Verify NftInfo returns params
-    let nft_info: cw721::NftInfoResponse<SvgMetadata> = suite.svg.query(&QueryMsg::NftInfo {
-        token_id: "0".to_string(),
-    })?;
+    let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> =
+        suite.svg.query(&QueryMsg::NftInfo {
+            token_id: "0".to_string(),
+        })?;
     assert_eq!(nft_info.extension.params.len(), 2);
     assert_eq!(nft_info.extension.params[0].name, "color_yin");
     assert_eq!(nft_info.extension.params[1].name, "color_yang");
@@ -335,19 +338,19 @@ fn test_mint_single() -> anyhow::Result<()> {
 fn test_mint_multiple() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(5), None)?;
+    suite.svg.execute(&mint_msg(5), &[])?;
 
     // Verify mint count
     let config: ConfigResponse = suite.svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.mint_count, 5);
 
     // Verify num tokens
-    let num: cw721::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
+    let num: cw721::msg::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(num.count, 5);
 
     // Verify all tokens exist and have correct owner
     for i in 0..5 {
-        let owner: cw721::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
+        let owner: cw721::msg::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
             token_id: i.to_string(),
             include_expired: None,
         })?;
@@ -362,11 +365,11 @@ fn test_entropy_produces_valid_params() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
     // Mint several tokens and verify all params are from the options
-    suite.svg.execute(&mint_msg(10), None)?;
+    suite.svg.execute(&mint_msg(10), &[])?;
 
     let vars = test_variables();
     for i in 0..10 {
-        let nft_info: cw721::NftInfoResponse<SvgMetadata> =
+        let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> =
             suite.svg.query(&QueryMsg::NftInfo {
                 token_id: i.to_string(),
             })?;
@@ -392,7 +395,7 @@ fn test_entropy_produces_valid_params() -> anyhow::Result<()> {
 fn test_svg_token_uri_substitution() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     // Get the resolved SVG
     let svg_resp: SvgTokenUriResponse = suite.svg.query(&QueryMsg::SvgTokenUri {
@@ -407,9 +410,10 @@ fn test_svg_token_uri_substitution() -> anyhow::Result<()> {
     );
 
     // Get the token params to verify substitution
-    let nft_info: cw721::NftInfoResponse<SvgMetadata> = suite.svg.query(&QueryMsg::NftInfo {
-        token_id: "0".to_string(),
-    })?;
+    let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> =
+        suite.svg.query(&QueryMsg::NftInfo {
+            token_id: "0".to_string(),
+        })?;
 
     // Verify the SVG contains the resolved values
     for param in &nft_info.extension.params {
@@ -448,13 +452,13 @@ fn test_mint_exceeds_total_supply() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint 3 should succeed
-    svg.execute(&mint_msg(3), None)?;
+    svg.execute(&mint_msg(3), &[])?;
 
     // Mint 1 more should fail
-    svg.execute(&mint_msg(1), None)
+    svg.execute(&mint_msg(1), &[])
         .expect_err("should fail: exceeds total supply");
 
     Ok(())
@@ -483,17 +487,17 @@ fn test_mint_partial_exceeds_total_supply() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint 3 succeeds
-    svg.execute(&mint_msg(3), None)?;
+    svg.execute(&mint_msg(3), &[])?;
 
     // Mint 3 more exceeds total of 5
-    svg.execute(&mint_msg(3), None)
+    svg.execute(&mint_msg(3), &[])
         .expect_err("should fail: exceeds total supply");
 
     // Mint 2 should still succeed (exactly at limit)
-    svg.execute(&mint_msg(2), None)?;
+    svg.execute(&mint_msg(2), &[])?;
 
     let config: ConfigResponse = svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.mint_count, 5);
@@ -506,7 +510,7 @@ fn test_pause_and_unpause() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
     // Minting works before pause
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     // Admin pauses
     suite.chain.call_as(&suite.admin).execute(
@@ -518,7 +522,7 @@ fn test_pause_and_unpause() -> anyhow::Result<()> {
     // Minting fails when paused
     suite
         .svg
-        .execute(&mint_msg(1), None)
+        .execute(&mint_msg(1), &[])
         .expect_err("should fail: minting is paused");
 
     // Admin unpauses
@@ -529,7 +533,7 @@ fn test_pause_and_unpause() -> anyhow::Result<()> {
     )?;
 
     // Minting works again
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     let config: ConfigResponse = suite.svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.mint_count, 2);
@@ -564,7 +568,7 @@ fn test_mint_before_start_time() -> anyhow::Result<()> {
     // Minting should fail because start time hasn't arrived
     suite
         .svg
-        .execute(&mint_msg(1), None)
+        .execute(&mint_msg(1), &[])
         .expect_err("should fail: minting not started yet");
 
     Ok(())
@@ -574,7 +578,7 @@ fn test_mint_before_start_time() -> anyhow::Result<()> {
 fn test_transfer_nft() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     let recipient = suite.chain.addr_make("recipient");
 
@@ -583,20 +587,21 @@ fn test_transfer_nft() -> anyhow::Result<()> {
             recipient: recipient.to_string(),
             token_id: "0".to_string(),
         },
-        None,
+        &[],
     )?;
 
     // Verify new owner
-    let owner: cw721::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
+    let owner: cw721::msg::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
         token_id: "0".to_string(),
         include_expired: None,
     })?;
     assert_eq!(owner.owner, recipient.to_string());
 
     // Params should still be intact after transfer
-    let nft_info: cw721::NftInfoResponse<SvgMetadata> = suite.svg.query(&QueryMsg::NftInfo {
-        token_id: "0".to_string(),
-    })?;
+    let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> =
+        suite.svg.query(&QueryMsg::NftInfo {
+            token_id: "0".to_string(),
+        })?;
     assert_eq!(nft_info.extension.params.len(), 2);
 
     Ok(())
@@ -606,9 +611,9 @@ fn test_transfer_nft() -> anyhow::Result<()> {
 fn test_all_tokens_query() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(5), None)?;
+    suite.svg.execute(&mint_msg(5), &[])?;
 
-    let tokens: cw721::TokensResponse = suite.svg.query(&QueryMsg::AllTokens {
+    let tokens: cw721::msg::TokensResponse = suite.svg.query(&QueryMsg::AllTokens {
         start_after: None,
         limit: None,
     })?;
@@ -622,9 +627,9 @@ fn test_all_tokens_query() -> anyhow::Result<()> {
 fn test_tokens_by_owner() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(3), None)?;
+    suite.svg.execute(&mint_msg(3), &[])?;
 
-    let tokens: cw721::TokensResponse = suite.svg.query(&QueryMsg::Tokens {
+    let tokens: cw721::msg::TokensResponse = suite.svg.query(&QueryMsg::Tokens {
         owner: suite.chain.sender_addr().to_string(),
         start_after: None,
         limit: None,
@@ -638,7 +643,7 @@ fn test_tokens_by_owner() -> anyhow::Result<()> {
 fn test_svg_token_uri_multiple_tokens_differ() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(10), None)?;
+    suite.svg.execute(&mint_msg(10), &[])?;
 
     // Collect all SVG URIs
     let mut svgs = vec![];
@@ -676,7 +681,7 @@ fn test_dao_builder_helper() -> anyhow::Result<()> {
         Binary::from(b"dao-seed-value"),
     );
 
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Verify template is the yin-yang SVG
     let template: SvgTemplateResponse = svg.query(&QueryMsg::SvgTemplate {})?;
@@ -684,7 +689,7 @@ fn test_dao_builder_helper() -> anyhow::Result<()> {
     assert!(template.template.contains("${color_yang}"));
 
     // Mint and verify SVG resolves
-    svg.execute(&mint_msg(1), None)?;
+    svg.execute(&mint_msg(1), &[])?;
 
     let svg_resp: SvgTokenUriResponse = svg.query(&QueryMsg::SvgTokenUri {
         token_id: "0".to_string(),
@@ -718,21 +723,21 @@ fn test_mintout_full_collection() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint all 10
-    svg.execute(&mint_msg(10), None)?;
+    svg.execute(&mint_msg(10), &[])?;
 
     let config: ConfigResponse = svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.mint_count, 10);
     assert_eq!(config.config.total, 10);
 
     // Can't mint any more
-    svg.execute(&mint_msg(1), None)
+    svg.execute(&mint_msg(1), &[])
         .expect_err("should fail: collection fully minted");
 
     // All tokens queryable
-    let tokens: cw721::TokensResponse = svg.query(&QueryMsg::AllTokens {
+    let tokens: cw721::msg::TokensResponse = svg.query(&QueryMsg::AllTokens {
         start_after: None,
         limit: None,
     })?;
@@ -745,7 +750,7 @@ fn test_mintout_full_collection() -> anyhow::Result<()> {
 fn test_approve_and_transfer_by_operator() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     let operator = suite.chain.addr_make("operator");
     let recipient = suite.chain.addr_make("recipient");
@@ -757,7 +762,7 @@ fn test_approve_and_transfer_by_operator() -> anyhow::Result<()> {
             token_id: "0".to_string(),
             expires: None,
         },
-        None,
+        &[],
     )?;
 
     // Operator transfers the token
@@ -771,7 +776,7 @@ fn test_approve_and_transfer_by_operator() -> anyhow::Result<()> {
     )?;
 
     // Verify new owner
-    let owner: cw721::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
+    let owner: cw721::msg::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
         token_id: "0".to_string(),
         include_expired: None,
     })?;
@@ -784,10 +789,10 @@ fn test_approve_and_transfer_by_operator() -> anyhow::Result<()> {
 fn test_all_nft_info() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
 
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     // AllNftInfo returns both owner and extension data
-    let all_info: cw721::AllNftInfoResponse<SvgMetadata> =
+    let all_info: cw721::msg::AllNftInfoResponse<SvgMetadata> =
         suite.svg.query(&QueryMsg::AllNftInfo {
             token_id: "0".to_string(),
             include_expired: None,
@@ -828,7 +833,7 @@ fn test_svg_template_too_large() -> anyhow::Result<()> {
         template_slots: vec![],
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)
+    svg.instantiate(&init_msg, Some(&admin), &[])
         .expect_err("should fail: SVG template exceeds max size");
 
     Ok(())
@@ -861,7 +866,7 @@ fn test_svg_template_at_max_size() -> anyhow::Result<()> {
         template_slots: vec![],
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     Ok(())
 }
@@ -890,7 +895,7 @@ fn test_total_supply_too_high() -> anyhow::Result<()> {
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)
+    svg.instantiate(&init_msg, Some(&admin), &[])
         .expect_err("should fail: total supply exceeds maximum");
 
     Ok(())
@@ -921,7 +926,7 @@ fn test_total_supply_at_max() -> anyhow::Result<()> {
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     let config: ConfigResponse = svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.total, MAX_TOTAL_SUPPLY);
@@ -947,7 +952,7 @@ fn test_no_mint_end_time() -> anyhow::Result<()> {
     assert!(config.config.mint_end_time.is_none());
 
     // Minting works without an end time
-    suite.svg.execute(&mint_msg(1), None)?;
+    suite.svg.execute(&mint_msg(1), &[])?;
 
     Ok(())
 }
@@ -984,7 +989,7 @@ fn test_price_tier_single_tier() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint without funds should fail
     mock.call_as(&minter)
@@ -1034,7 +1039,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Batch mint 5 tokens: should cost 5 * 2_000_000 = 10_000_000
     mock.call_as(&minter)
@@ -1096,7 +1101,7 @@ fn test_price_tier_multiple_tiers() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint 3 in tier 1: 3 * 1_000_000 = 3_000_000
     mock.call_as(&minter)
@@ -1158,7 +1163,7 @@ fn test_price_tier_cross_boundary_mint() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint 3 spanning tier boundary: 2 * 1_000_000 + 1 * 5_000_000 = 7_000_000
     mock.call_as(&minter)
@@ -1195,7 +1200,7 @@ fn test_price_tier_free_mint_rejects_funds() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Free mint with no funds should succeed
     mock.call_as(&minter)
@@ -1237,7 +1242,7 @@ fn test_price_tier_payment_goes_to_treasury() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Get treasury balance before
     let treasury_before = mock.query_balance(&treasury, "ustars")?;
@@ -1268,7 +1273,7 @@ fn test_delayed_start_blocks_early_mints() -> anyhow::Result<()> {
     // Immediate mint should fail (start is 600 seconds in the future)
     suite
         .svg
-        .execute(&mint_msg(1), None)
+        .execute(&mint_msg(1), &[])
         .expect_err("should fail: mint not started");
 
     Ok(())
@@ -1298,17 +1303,17 @@ fn test_delayed_start_allows_mints_after_wait() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Should fail now
-    svg.execute(&mint_msg(1), None)
+    svg.execute(&mint_msg(1), &[])
         .expect_err("should fail: not started yet");
 
     // Advance time past the start
     mock.wait_seconds(200)?;
 
     // Should succeed now
-    svg.execute(&mint_msg(1), None)?;
+    svg.execute(&mint_msg(1), &[])?;
 
     let config: ConfigResponse = svg.query(&QueryMsg::Config {})?;
     assert_eq!(config.config.mint_count, 1);
@@ -1340,16 +1345,16 @@ fn test_end_time_blocks_late_mints() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Should succeed before end time
-    svg.execute(&mint_msg(1), None)?;
+    svg.execute(&mint_msg(1), &[])?;
 
     // Advance past end time
     mock.wait_seconds(200)?;
 
     // Should fail after end time
-    svg.execute(&mint_msg(1), None)
+    svg.execute(&mint_msg(1), &[])
         .expect_err("should fail: minting ended");
 
     let config: ConfigResponse = svg.query(&QueryMsg::Config {})?;
@@ -1382,19 +1387,19 @@ fn test_start_and_end_time_window() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Too early
-    svg.execute(&mint_msg(1), None)
+    svg.execute(&mint_msg(1), &[])
         .expect_err("should fail: before start");
 
     // Advance into the window
     mock.wait_seconds(60)?;
-    svg.execute(&mint_msg(1), None)?;
+    svg.execute(&mint_msg(1), &[])?;
 
     // Advance past end
     mock.wait_seconds(200)?;
-    svg.execute(&mint_msg(1), None)
+    svg.execute(&mint_msg(1), &[])
         .expect_err("should fail: after end");
 
     let config: ConfigResponse = svg.query(&QueryMsg::Config {})?;
@@ -1516,7 +1521,7 @@ fn test_whitelist_multiple_members() -> anyhow::Result<()> {
 
     // Verify each owns their token
     for (i, member) in [&alice, &bob, &charlie, &dave].iter().enumerate() {
-        let owner: cw721::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
+        let owner: cw721::msg::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
             token_id: i.to_string(),
             include_expired: None,
         })?;
@@ -1618,7 +1623,7 @@ fn test_whitelist_update_by_admin() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Query whitelist — should be None
     let wl: Option<Addr> = svg.query(&QueryMsg::Whitelist {})?;
@@ -1684,7 +1689,7 @@ fn test_template_slot_var_idx_out_of_range() -> anyhow::Result<()> {
         }],
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)
+    svg.instantiate(&init_msg, Some(&admin), &[])
         .expect_err("should fail: var_idx out of range");
 
     Ok(())
@@ -1719,7 +1724,7 @@ fn test_template_slot_content_mismatch() -> anyhow::Result<()> {
         }],
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)
+    svg.instantiate(&init_msg, Some(&admin), &[])
         .expect_err("should fail: slot content does not match template");
 
     Ok(())
@@ -1760,7 +1765,7 @@ fn test_mint_count_query() -> anyhow::Result<()> {
     assert_eq!(count.count, 0);
 
     // Mint some
-    suite.svg.execute(&mint_msg(3), None)?;
+    suite.svg.execute(&mint_msg(3), &[])?;
 
     let count: MintCountResponse = suite.svg.query(&QueryMsg::MintCount {
         address: minter.to_string(),
@@ -1768,7 +1773,7 @@ fn test_mint_count_query() -> anyhow::Result<()> {
     assert_eq!(count.count, 3);
 
     // Mint more
-    suite.svg.execute(&mint_msg(2), None)?;
+    suite.svg.execute(&mint_msg(2), &[])?;
 
     let count: MintCountResponse = suite.svg.query(&QueryMsg::MintCount {
         address: minter.to_string(),
@@ -1869,10 +1874,10 @@ fn test_rgb_variable_kind() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(template, &variables),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint a token
-    svg.execute(&mint_msg(1), None)?;
+    svg.execute(&mint_msg(1), &[])?;
 
     // Query the SVG
     let resp: SvgTokenUriResponse = svg.query(&QueryMsg::SvgTokenUri {
@@ -1892,7 +1897,7 @@ fn test_rgb_variable_kind() -> anyhow::Result<()> {
     );
 
     // Verify the param stored on the token is a valid rgb string
-    let nft_info: cw721::NftInfoResponse<SvgMetadata> = svg.query(&QueryMsg::NftInfo {
+    let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> = svg.query(&QueryMsg::NftInfo {
         token_id: "0".to_string(),
     })?;
     let bg_value = &nft_info.extension.params[0].value;
@@ -1957,10 +1962,10 @@ fn test_rgb_styled_variable_kind() -> anyhow::Result<()> {
         whitelist: None,
         template_slots: compute_slots(template, &variables),
     };
-    svg.instantiate(&init_msg, Some(&admin), None)?;
+    svg.instantiate(&init_msg, Some(&admin), &[])?;
 
     // Mint several tokens
-    svg.execute(&mint_msg(10), None)?;
+    svg.execute(&mint_msg(10), &[])?;
 
     for i in 0..10 {
         let resp: SvgTokenUriResponse = svg.query(&QueryMsg::SvgTokenUri {
@@ -1981,15 +1986,11 @@ fn test_rgb_styled_variable_kind() -> anyhow::Result<()> {
         );
 
         // Parse the rgb values and verify they fall within one of the defined ranges
-        let nft_info: cw721::NftInfoResponse<SvgMetadata> = svg.query(&QueryMsg::NftInfo {
+        let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> = svg.query(&QueryMsg::NftInfo {
             token_id: i.to_string(),
         })?;
         let val = &nft_info.extension.params[0].value;
-        let inner = val
-            .strip_prefix("rgb(")
-            .unwrap()
-            .strip_suffix(')')
-            .unwrap();
+        let inner = val.strip_prefix("rgb(").unwrap().strip_suffix(')').unwrap();
         let parts: Vec<u8> = inner.split(',').map(|s| s.parse().unwrap()).collect();
         let (r, g, b) = (parts[0], parts[1], parts[2]);
 
@@ -2038,7 +2039,7 @@ fn test_rgb_styled_empty_ranges_rejected() -> anyhow::Result<()> {
         template_slots: compute_slots(template, &variables),
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)
+    svg.instantiate(&init_msg, Some(&admin), &[])
         .expect_err("should fail: empty ranges list");
 
     Ok(())
@@ -2081,7 +2082,7 @@ fn test_rgb_styled_min_gt_max_rejected() -> anyhow::Result<()> {
         template_slots: compute_slots(template, &variables),
     };
 
-    svg.instantiate(&init_msg, Some(&admin), None)
+    svg.instantiate(&init_msg, Some(&admin), &[])
         .expect_err("should fail: r_min > r_max");
 
     Ok(())

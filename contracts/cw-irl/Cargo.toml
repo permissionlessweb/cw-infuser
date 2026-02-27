@@ -52,7 +52,6 @@ cw-controllers = "2.0.0"
  
 cw-orch =  { workspace = true }
 cw721 =  { workspace = true }
-cw721-base  = { workspace = true, features = ["library"] }
 cw-infusions = {workspace = true }
 
 

@@ -262,9 +262,9 @@ pub fn query_has_member(
     );
 
     if final_hash.is_err() {
-        return Err(cosmwasm_std::StdError::GenericErr {
-            msg: "Invalid Merkle Proof".to_string(),
-        });
+        return Err(cosmwasm_std::StdError::generic_err(
+            "Invalid Merkle Proof".to_string(),
+        ));
     }
 
     Ok(HasMemberResponse {

@@ -1,20 +1,68 @@
 #!/bin/bash
+# Must stay #!/bin/bash (we use a couple of bash features for safety)
 
-# Run schema command for cw-ave and move the schema file
-echo "Updating schema for cw-infuser..."
+set -eu
 
-cargo schema -p cw-infusion-minter 
-mv schema/cw-infuser.json ./contracts/cw-infuser/schema/
+echo "🔄 Updating schemas for ALL contracts under ./contracts/..."
 
-cargo schema -p cw721-svg  
-mv schema/cw721-svg.json ./contracts/cw721/cw721-svg/schema/
+SCHEMA_OUTPUT_DIR=schema
+mkdir -p "$SCHEMA_OUTPUT_DIR"
 
-cargo schema -p whitelist-mtree 
-mv schema/whitelist-mtree.json ./contracts/whitelist/whitelist-merkletree/schema/
+# ------------------------------------------------------------------
+# Helper: move the generated JSON schema
+# ------------------------------------------------------------------
+move_schema() {
+    local contract_dir=$1
 
+    json_file=$(find "$SCHEMA_OUTPUT_DIR" -maxdepth 1 -type f -name '*.json' -print -quit)
 
- 
-echo "Schema update completed."
+    if [ -z "$json_file" ]; then
+        echo "⚠️  No JSON schema found after generating for $contract_dir"
+        return 1
+    fi
 
-## generate ts code
+    mkdir -p "${contract_dir}/schema"
+    mv "$json_file" "${contract_dir}/schema/"
+    echo "✅  Moved $(basename "$json_file") → ${contract_dir}/schema/"
+}
+
+# ------------------------------------------------------------------
+# Auto-discover ALL contracts (POSIX-compatible loop – no more syntax error!)
+# ------------------------------------------------------------------
+echo "Discovering contracts..."
+
+find contracts -name "Cargo.toml" -type f -print0 | while IFS= read -r -d '' cargo_toml; do
+    contract_dir=$(dirname "$cargo_toml")
+
+    # Extract package name from Cargo.toml
+    package_name=$(awk -F'"' '/^[[:space:]]*name[[:space:]]*=/ {print $2; exit}' "$cargo_toml")
+
+    if [ -z "$package_name" ]; then
+        echo "⚠️  Could not parse package name from $cargo_toml – skipping"
+        continue
+    fi
+
+    echo "=== Processing $contract_dir (package: $package_name) ==="
+
+    # Generate schema
+    cargo schema -p "$package_name" --all-features
+
+    # Move the generated JSON
+    move_schema "$contract_dir"
+done
+
+echo "🎉 All schemas have been updated and moved to their contract folders."
+
+# ------------------------------------------------------------------
+# Generate dynamic CONTRACTS config for TypeScript
+# ------------------------------------------------------------------
+echo "📝 Generating dynamic CONTRACTS list for TypeScript codegen..."
+node scripts/ts/gen-contracts-config.js
+
+# ------------------------------------------------------------------
+# Generate TypeScript bindings
+# ------------------------------------------------------------------
+echo "Generating TypeScript code..."
 cd scripts/ts && yarn codegen
+
+echo "✅ Schema update + codegen completed successfully!"

@@ -70,7 +70,7 @@ fn workflow(network: ChainInfoOwned) -> anyhow::Result<()> {
 }
 
 fn deploy_data(sender: Addr, _chain_id: &str) -> Result<Option<CwSvgSuiteDeployData>> {
-    let mut msg = load_svg_init_msg("scripts/json/dao-init.json")?;
+    let mut msg = load_svg_init_msg("scripts/json/terpsvg_init.json")?;
     msg.owner = Some(sender.to_string());
 
     Ok(Some(CwSvgSuiteDeployData {
@@ -80,37 +80,36 @@ fn deploy_data(sender: Addr, _chain_id: &str) -> Result<Option<CwSvgSuiteDeployD
         infuse_coins: vec![],
     }))
 }
+// fn spinup() -> Result<()> {
+//     println!("Building localterp image...");
+//     run_sh_command(
+//         "docker buildx build --target localterp -t terpnetwork/terp-core:localterp --load .",
+//     )?;
+//     println!("Starting localterp container...");
+//     run_sh_command(
+//         "docker run --rm -it -p 26657:26657 -p 1317:1317 -p 8545:8545 terpnetwork/terp-core:localterp"
+//     )?;
+//     println!("Container started successfully.");
+//     Ok(())
+// }
 
-fn spinup() -> Result<()> {
-    println!("Building localterp image...");
-    run_sh_command(
-        "docker buildx build --target localterp -t terpnetwork/terp-core:localterp --load .",
-    )?;
-    println!("Starting localterp container...");
-    run_sh_command(
-        "docker run --rm -it -p 26657:26657 -p 1317:1317 -p 8545:8545 terpnetwork/terp-core:localterp"
-    )?;
-    println!("Container started successfully.");
-    Ok(())
-}
+// fn run_sh_command(cmd: &str) -> Result<()> {
+//     let mut parts = shlex::Shlex::new(cmd);
+//     let program = parts.next().ok_or_else(|| anyhow!("Empty command"))?;
+//     let args: Vec<String> = parts.collect();
 
-fn run_sh_command(cmd: &str) -> Result<()> {
-    let mut parts = shlex::Shlex::new(cmd);
-    let program = parts.next().ok_or_else(|| anyhow!("Empty command"))?;
-    let args: Vec<String> = parts.collect();
+//     let status = Command::new(&program)
+//         .args(&args)
+//         .status()
+//         .with_context(|| format!("Failed to execute: {}", cmd))?;
 
-    let status = Command::new(&program)
-        .args(&args)
-        .status()
-        .with_context(|| format!("Failed to execute: {}", cmd))?;
+//     if !status.success() {
+//         return Err(anyhow!(
+//             "Command failed: {} (exit code: {:?})",
+//             cmd,
+//             status.code()
+//         ));
+//     }
 
-    if !status.success() {
-        return Err(anyhow!(
-            "Command failed: {} (exit code: {:?})",
-            cmd,
-            status.code()
-        ));
-    }
-
-    Ok(())
-}
+//     Ok(())
+// }

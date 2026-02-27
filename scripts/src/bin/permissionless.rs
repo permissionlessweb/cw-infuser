@@ -157,6 +157,7 @@ pub fn main() -> anyhow::Result<()> {
                 println!("  ${{{}}}: {} pre-generated options", vd.name, opts.len());
             }
             VariableKind::Rgb => println!("RGB"),
+            VariableKind::RgbStyled(rgb_ranges) => todo!(),
         }
     }
 
@@ -192,7 +193,7 @@ pub fn main() -> anyhow::Result<()> {
             template_slots: cw_svg::compute_template_slots(FRACTAL_SVG_TEMPLATE, &variable_defs),
         },
         Some(&chain.sender().address()),
-        None,
+        &[],
     )?;
 
     Ok(())

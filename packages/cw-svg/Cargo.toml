@@ -4,6 +4,7 @@ authors = ["hard-nett <hardnettt@proton.me>"]
 description = "Helper library for building SVG NFT collection instantiation payloads."
 version = "0.1.0"
 edition = "2021"
+ignore = ["svgs","dicts"]
 
 [lib]
 crate-type = ["rlib"]

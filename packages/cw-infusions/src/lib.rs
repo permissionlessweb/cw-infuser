@@ -20,7 +20,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64) -> Binary {
     let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(hash);
     let mut result = checksum_hash.to_vec();
     result.extend_from_slice(SALT_POSTFIX);
-    Binary(result)
+    Binary::new(result)
 }
 
 #[cosmwasm_schema::cw_serde]

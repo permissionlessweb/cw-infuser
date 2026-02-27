@@ -13,11 +13,12 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 
-use cw721::{Cw721QueryMsg, OwnerOfResponse};
+use cw721::msg::{Cw721QueryMsg, OwnerOfResponse};
+use cw721::{EmptyOptionalCollectionExtensionMsg, EmptyOptionalNftExtensionMsg};
 // use cw721_v18::Cw721ExecuteMsg;
 use cw_controllers::AdminError;
 
-use cw721_base::msg::{ExecuteMsg as Cw721ExecuteMessage, InstantiateMsg as Cw721InstantiateMsg};
+use cw721::msg::{Cw721ExecuteMsg, Cw721InstantiateMsg};
 
 use cw_infusions::state::UpdateInfusion;
 use cw_infusions::{
@@ -395,14 +396,19 @@ pub fn execute_create_infusion(
 
         // select if sg or vanilla cw721
         let init_msg = match infusion.infused_collection.sg {
-            false => to_json_binary(&Cw721InstantiateMsg {
-                name: infusion.infused_collection.name.clone(),
-                symbol: infusion.infused_collection.symbol.clone(),
-                minter: env.contract.address.to_string(),
-                // collection_info_extension: None,
-                // creator: Some(infusion_admin.clone()),
-                // withdraw_address: Some(infusion_admin.clone()),
-            })?,
+            false => to_json_binary(
+                &Cw721InstantiateMsg::<EmptyOptionalCollectionExtensionMsg> {
+                    name: infusion.infused_collection.name.clone(),
+                    symbol: infusion.infused_collection.symbol.clone(),
+                    minter: Some(env.contract.address.to_string()),
+                    collection_info_extension: None,
+                    creator: Some(infusion_admin.clone()),
+                    withdraw_address: None,
+                    // collection_info_extension: None,
+                    // creator: Some(infusion_admin.clone()),
+                    // withdraw_address: Some(infusion_admin.clone()),
+                },
+            )?,
             true => to_json_binary(&SgInstantiateMsg {
                 name: infusion.infused_collection.name.clone(),
                 symbol: infusion.infused_collection.symbol.clone(),
@@ -789,13 +795,14 @@ fn burn_bundle(
     // println!("paysub_msg_and_mc: {:#?}", paysub_msg_and_mc);
     // println!("mint_num: {:#?}", mint_num);
     for nft in nfts {
-        msgs.push(into_cosmos_msg(
-            cw721::Cw721ExecuteMsg::Burn {
-                token_id: nft.token_id.to_string(),
-            },
-            nft.addr,
-            None,
-        )?);
+        let burn_msg = cw721::msg::Cw721ExecuteMsg::<
+            cw721::EmptyOptionalNftExtensionMsg,
+            cw721::EmptyOptionalCollectionExtensionMsg,
+            Empty,
+        >::Burn {
+            token_id: nft.token_id.to_string(),
+        };
+        msgs.push(into_cosmos_msg(burn_msg, nft.addr, None)?);
     }
 
     let prep_msgs = prepare_wasm_events(
@@ -843,7 +850,11 @@ fn prepare_wasm_events(
         )?;
 
         // mint_msg
-        let mint_msg: Cw721ExecuteMessage<Empty, Empty> = Cw721ExecuteMessage::Mint {
+        let mint_msg: Cw721ExecuteMsg<
+            EmptyOptionalNftExtensionMsg,
+            EmptyOptionalCollectionExtensionMsg,
+            Empty,
+        > = Cw721ExecuteMsg::Mint {
             token_id: token_id.token_id.to_string(),
             owner: sender.to_string(),
             token_uri: Some(format!(
@@ -852,7 +863,7 @@ fn prepare_wasm_events(
                 token_id.token_id,
                 ".json"
             )),
-            extension: Empty {},
+            extension: Some(Empty {}),
         };
 
         msgs.push(into_cosmos_msg(mint_msg, infused_col_addr.clone(), None)?);
@@ -1493,7 +1504,11 @@ pub fn is_nft_owner(
         let owner_response: OwnerOfResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: nft_address.to_string(),
-                msg: to_json_binary(&Cw721QueryMsg::OwnerOf {
+                msg: to_json_binary(&Cw721QueryMsg::<
+                    cw721::EmptyOptionalNftExtension,
+                    cw721::EmptyOptionalCollectionExtension,
+                    Empty,
+                >::OwnerOf {
                     token_id: token_id.to_string(),
                     include_expired: None,
                 })?,
@@ -1512,7 +1527,7 @@ pub fn generate_instantiate_salt2(checksum: &HexBinary, height: u64, sender: &[u
     hash.extend_from_slice(&height.to_be_bytes());
     hash.extend_from_slice(sender);
     let checksum_hash = <sha2::Sha256 as sha2::Digest>::digest(hash);
-    Binary(checksum_hash.to_vec())
+    Binary::new(checksum_hash.to_vec())
 }
 
 pub fn random_token_list(
