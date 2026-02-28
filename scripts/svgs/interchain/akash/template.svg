@@ -1,105 +1,84 @@
 <svg width="481" height="420" viewBox="0 0 481 420" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
 
-    <!-- Primary gradient: pulses from dark-dominant to red-dominant -->
-    <linearGradient id="main-gradient" x1="160" y1="420" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+ 
+    <linearGradient id="grad-shared"
+      x1="160" y1="420" x2="400" y2="0"
+      gradientUnits="userSpaceOnUse">
 
-      <!-- Stop 0: always anchored to dark -->
+      <!-- Permanent dark anchor -->
       <stop offset="0%" stop-color="${color-main}" stop-opacity="1"/>
 
-      <!-- Stop mid: the beating heart — oscillates between dark and accent -->
-      <stop offset="45%" stop-color="${color-main}" stop-opacity="1">
+      <!-- Beating red tip — transfuses then recedes -->
+      <stop offset="100%" stop-color="${color-main}" stop-opacity="1">
         <animate
           attributeName="stop-color"
           values="${color-main};${color-accent};${color-main}"
           dur="${pulse-a}s"
           keyTimes="0;0.5;1"
-          keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+          keySplines="0.45 0 0.55 1;0.45 0 0.55 1"
           calcMode="spline"
           repeatCount="indefinite"/>
-      </stop>
-
-      <!-- Stop hi: accent color, fades in and out in opacity -->
-      <stop offset="78%" stop-color="${color-accent}" stop-opacity="0">
         <animate
           attributeName="stop-opacity"
           values="${alpha-lo};${alpha-hi};${alpha-lo}"
           dur="${pulse-a}s"
           keyTimes="0;0.5;1"
-          keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
-          calcMode="spline"
-          repeatCount="indefinite"/>
-        <animate
-          attributeName="stop-color"
-          values="${color-accent};${color-main};${color-accent}"
-          dur="${pulse-b}s"
-          keyTimes="0;0.5;1"
-          keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+          keySplines="0.45 0 0.55 1;0.45 0 0.55 1"
           calcMode="spline"
           repeatCount="indefinite"/>
       </stop>
 
-      <!-- Stop 100%: deep accent tip, fully breathing -->
-      <stop offset="100%" stop-color="${color-accent}" stop-opacity="${alpha-lo}">
-        <animate
-          attributeName="stop-opacity"
-          values="${alpha-lo};${alpha-hi};${alpha-lo}"
-          dur="${pulse-b}s"
-          keyTimes="0;0.5;1"
-          keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
-          calcMode="spline"
-          repeatCount="indefinite"/>
-      </stop>
-
-    </linearGradient>
-
-    <!-- Separate gradient for the back-solid shapes: very faint red bleed -->
-    <linearGradient id="solid-gradient" x1="480" y1="0" x2="0" y2="420" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="${color-main}"/>
-      <stop offset="100%" stop-color="${color-main}">
-        <animate
-          attributeName="stop-color"
-          values="${color-main};${color-accent};${color-main}"
-          dur="${pulse-b}s"
-          keyTimes="0;0.5;1"
-          keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
-          calcMode="spline"
-          repeatCount="indefinite"/>
-        <animate
-          attributeName="stop-opacity"
-          values="0;${alpha-mid};0"
-          dur="${pulse-b}s"
-          keyTimes="0;0.5;1"
-          keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
-          calcMode="spline"
-          repeatCount="indefinite"/>
-      </stop>
     </linearGradient>
 
   </defs>
-
-  <!-- Highlight diamond — the primary pulse zone -->
+ 
   <path
     d="M321.355 279.4L400.615 419.038H240.511L160.415 279.4H321.355Z"
-    fill="url(#main-gradient)"/>
-
-  <!-- Solid back shapes — receive a ghost red bleed on their far edges -->
+    fill="url(#grad-shared)">
+    <animate
+      attributeName="opacity"
+      values="${opacity-lo};${opacity-hi};${opacity-lo}"
+      dur="${pulse-fast}s"
+      keyTimes="0;0.5;1"
+      keySplines="0.45 0 0.55 1;0.45 0 0.55 1"
+      calcMode="spline"
+      repeatCount="indefinite"/>
+  </path>
+ 
   <path
     d="M400.572 419.061L480.536 279.423L320.476 0.0800781H160.415L400.572 419.061Z"
     fill="${color-main}"/>
-  <!-- Red bleed overlay on right solid -->
   <path
     d="M400.572 419.061L480.536 279.423L320.476 0.0800781H160.415L400.572 419.061Z"
-    fill="url(#solid-gradient)"
-    opacity="${alpha-bleed}"/>
+    fill="url(#grad-shared)">
+    <animate
+      attributeName="opacity"
+      values="${alpha-bleed-lo};${alpha-bleed-hi};${alpha-bleed-lo}"
+      dur="${pulse-mid}s"
+      keyTimes="0;0.5;1"
+      keySplines="0.45 0 0.55 1;0.45 0 0.55 1"
+      calcMode="spline"
+      begin="${offset-mid}s"
+      repeatCount="indefinite"/>
+  </path>
 
+ 
   <path
     d="M80.3874 139.682H240.449L80.454 419.025L0.357422 279.387L80.3874 139.682Z"
     fill="${color-main}"/>
-  <!-- Red bleed overlay on left solid -->
   <path
     d="M80.3874 139.682H240.449L80.454 419.025L0.357422 279.387L80.3874 139.682Z"
-    fill="url(#solid-gradient)"
-    opacity="${alpha-bleed}"/>
+    fill="url(#grad-shared)">
+    <animate
+      attributeName="opacity"
+      values="${alpha-bleed-lo};${alpha-bleed-hi};${alpha-bleed-lo}"
+      dur="${pulse-slow}s"
+      keyTimes="0;0.5;1"
+      keySplines="0.45 0 0.55 1;0.45 0 0.55 1"
+      calcMode="spline"
+      begin="${offset-slow}s"
+      repeatCount="indefinite"/>
+  </path>
 
 </svg>
