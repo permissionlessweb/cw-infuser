@@ -1,32 +1,32 @@
 {
     "stargaze-1": {
         "code_ids": {
-            "cw_infusion_minter": 682
+            "cw_infuser": 682
         },
         "contracts": {
-            "cw_infusion_minter": [
+            "cw_infuser": [
                 "stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l",
                 "stars1333zgwvcxe04apsg98mccpc2fg7ft5xwl9ewkey2fwgf70zghsrse5nglu"
             ]
         },
         "default": {
-            "cw_infusion_minter": "stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l"
+            "cw_infuser": "stars1zkdqlly53sdafh6dhcpuapxxc3llxyqw4v9ekk9x553mc4mv0xlqkyvg3l"
         }
     },
     "juno-1": {
         "code_ids": {
-            "cw_infusion_minter": 4945
+            "cw_infuser": 4945
         }
     },
     "phoenix-1": {
         "code_ids": {
-            "cw_infusion_minter": 3639
+            "cw_infuser": 3639
         }
     },
     "terra-4": {},
     "neutron-1": {
         "code_ids": {
-            "cw_infusion_minter": 4117
+            "cw_infuser": 4117
         }
     },
     "omniflix-1": {}

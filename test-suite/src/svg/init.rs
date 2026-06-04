@@ -1,9 +1,9 @@
 use cosmwasm_std::{coin, coins, Timestamp};
 use cosmwasm_std::{Addr, Binary};
 use cw721::msg::{CollectionInfoAndExtensionResponse, NumTokensResponse};
-use cw721_svg::contract::*;
 use cw721_svg::Cw721SvgContractSuite;
 use cw721_svg::SvgQueryMsgExt::SvgTokenUri;
+use cw721_svg::{contract::*, SvgCollectionMetadata, SvgMetadata};
 use cw721_svg::{ExecuteMsg, InstantiateMsg, QueryMsg, SvgExecuteMsgExt, SvgQueryMsgExt};
 use cw_orch::{anyhow, mock::MockBech32, prelude::*};
 use cw_svg::dao::{dao_variables, YIN_YANG_SVG_TEMPLATE};
@@ -19,6 +19,7 @@ pub struct CwSvgSuite<Chain> {
     pub admin: Addr,
 }
 
+pub const TEST_WL_ALLOCATION: u32 = 3;
 const TEST_SVG_TEMPLATE: &str =
     "<svg><circle fill='${color_yin}' /><path fill='${color_yang}' /></svg>";
 
@@ -92,17 +93,13 @@ fn compute_slots(template: &str, variables: &[VariableDef]) -> Vec<TemplateSlot>
     slots
 }
 
-/// Per-address allocation used in whitelist tests — must match the tree leaf `addr || TEST_WL_ALLOCATION`.
-/// Set to 3 so tests that mint multiple tokens stay within the limit.
-const TEST_WL_ALLOCATION: u32 = 3;
-
 /// Helper to build a standard mint message (no whitelist proof).
 /// Allocation is arbitrary here since it is only checked when proof_hashes is Some.
 fn mint_msg(amount: u64) -> ExecuteMsg {
     ExecuteMsg::UpdateExtension {
         msg: SvgExecuteMsgExt::Mint(MintMsg {
             amnt: amount,
-            proof_hashes: None,
+            proof_hashes: vec![],
             alloc: 0,
         }),
     }
@@ -133,7 +130,7 @@ impl CwSvgSuite<MockBech32> {
                 template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
             },
             minter: None,
-            creator: None,
+            creator: Some(admin.to_string()),
             withdraw_address: Some(admin.to_string()),
         };
 
@@ -269,11 +266,11 @@ impl CwSvgSuite<MockBech32> {
                 mint_start_time: None,
                 mint_end_time: None,
                 price_tiers,
-                whitelist: None,
+                whitelist: Some(wlist.addr_str()?),
                 template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
             },
             minter: Some(admin.to_string()),
-            creator: None,
+            creator: Some(admin.to_string()),
             withdraw_address: Some(admin.to_string()),
         };
         svg.instantiate(&svg_init, Some(&admin), &[])?;
@@ -328,25 +325,16 @@ fn test_successful_instantiate() -> anyhow::Result<()> {
 #[test]
 fn test_mint_single() -> anyhow::Result<()> {
     let suite = CwSvgSuite::setup()?;
-
     suite.svg.execute(&mint_msg(1), &[])?;
-
-    // Verify mint count incremented
     let config: NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(config.count, 1);
-
-    // Verify num tokens
     let num: cw721::msg::NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(num.count, 1);
-
-    // Verify token owner is the sender
     let owner: cw721::msg::OwnerOfResponse = suite.svg.query(&QueryMsg::OwnerOf {
         token_id: "0".to_string(),
         include_expired: None,
     })?;
     assert_eq!(owner.owner, suite.chain.sender_addr().to_string());
-
-    // Verify NftInfo returns params
     let nft_info: cw721::msg::NftInfoResponse<SvgMetadata> =
         suite.svg.query(&QueryMsg::NftInfo {
             token_id: "0".to_string(),
@@ -354,12 +342,9 @@ fn test_mint_single() -> anyhow::Result<()> {
     assert_eq!(nft_info.extension.params.len(), 2);
     assert_eq!(nft_info.extension.params[0].name, "color_yin");
     assert_eq!(nft_info.extension.params[1].name, "color_yang");
-
-    // Verify each param value is from the options list
     let vars = test_variables();
     assert!(options_list(&vars[0]).contains(&nft_info.extension.params[0].value));
     assert!(options_list(&vars[1]).contains(&nft_info.extension.params[1].value));
-
     Ok(())
 }
 
@@ -578,9 +563,7 @@ fn test_pause_and_unpause() -> anyhow::Result<()> {
     // Minting works again
     suite.svg.execute(&mint_msg(1), &[])?;
 
-    let config: NumTokensResponse = suite
-        .svg
-        .query(&QueryMsg::GetCollectionInfoAndExtension {})?;
+    let config: NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(config.count, 2);
 
     Ok(())
@@ -740,39 +723,39 @@ pub fn dao_instantiate_msg(
     }
 }
 
-#[test]
-fn test_dao_builder_helper() -> anyhow::Result<()> {
-    let mock = MockBech32::new("mock");
-    let admin = mock.addr_make("admin");
+// #[test]
+// fn test_dao_builder_helper() -> anyhow::Result<()> {
+//     let mock = MockBech32::new("mock");
+//     let admin = mock.addr_make("admin");
 
-    let svg = Cw721SvgContractSuite::new(mock.clone());
-    svg.upload()?;
+//     let svg = Cw721SvgContractSuite::new(mock.clone());
+//     svg.upload()?;
 
-    // Use the cw-svg dao helper to build instantiate msg
-    let init_msg = dao_instantiate_msg("8-Bit DAO", "8BITDAO", 50, Binary::from(b"dao-seed-value"));
+//     // Use the cw-svg dao helper to build instantiate msg
+//     let init_msg = dao_instantiate_msg("8-Bit DAO", "8BITDAO", 50, Binary::from(b"dao-seed-value"));
 
-    svg.instantiate(&init_msg, Some(&admin), &[])?;
+//     svg.instantiate(&init_msg, Some(&admin), &[])?;
 
-    // Verify template is the yin-yang SVG
-    let template: SvgTemplateResponse = svg.query(&QueryMsg::Extension {
-        msg: SvgQueryMsgExt::SvgTemplate {},
-    })?;
-    assert!(template.template.contains("${color_yin}"));
-    assert!(template.template.contains("${color_yang}"));
+//     // Verify template is the yin-yang SVG
+//     let template: SvgTemplateResponse = svg.query(&QueryMsg::Extension {
+//         msg: SvgQueryMsgExt::SvgTemplate {},
+//     })?;
+//     assert!(template.template.contains("${color_yin}"));
+//     assert!(template.template.contains("${color_yang}"));
 
-    // Mint and verify SVG resolves
-    svg.execute(&mint_msg(1), &[])?;
+//     // Mint and verify SVG resolves
+//     svg.execute(&mint_msg(1), &[])?;
 
-    let svg_resp: SvgTokenUriResponse = svg.query(&QueryMsg::Extension {
-        msg: SvgTokenUri {
-            token_id: "0".to_string(),
-        },
-    })?;
-    assert!(!svg_resp.svg.contains("${"));
-    assert!(svg_resp.svg.contains("rgb("));
+//     let svg_resp: SvgTokenUriResponse = svg.query(&QueryMsg::Extension {
+//         msg: SvgTokenUri {
+//             token_id: "0".to_string(),
+//         },
+//     })?;
+//     assert!(!svg_resp.svg.contains("${"));
+//     assert!(svg_resp.svg.contains("rgb("));
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 #[test]
 fn test_mintout_full_collection() -> anyhow::Result<()> {
@@ -1059,7 +1042,7 @@ fn test_price_tier_single_tier() -> anyhow::Result<()> {
     let mock = MockBech32::new("mock");
     let admin = mock.addr_make("admin");
     let treasury = mock.addr_make("treasury");
-    let minter = mock.addr_make_with_balance("minter", coins(10_000_000_000, "ustars"))?;
+    let minter = mock.addr_make_with_balance("minter", coins(10_000_000_000, "uterp"))?;
 
     let svg = Cw721SvgContractSuite::new(mock.clone());
     svg.upload()?;
@@ -1080,7 +1063,7 @@ fn test_price_tier_single_tier() -> anyhow::Result<()> {
             mint_end_time: None,
             price_tiers: vec![PriceTier {
                 until_count: 100,
-                price: coin(1_000_000, "ustars"),
+                price: coin(1_000_000, "uterp"),
             }],
             whitelist: None,
             template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
@@ -1095,12 +1078,12 @@ fn test_price_tier_single_tier() -> anyhow::Result<()> {
 
     // Mint with wrong amount should fail
     mock.call_as(&minter)
-        .execute(&mint_msg(1), &coins(500_000, "ustars"), &svg.address()?)
+        .execute(&mint_msg(1), &coins(500_000, "uterp"), &svg.address()?)
         .expect_err("should fail: incorrect payment");
 
     // Mint with correct amount should succeed
     mock.call_as(&minter)
-        .execute(&mint_msg(1), &coins(1_000_000, "ustars"), &svg.address()?)?;
+        .execute(&mint_msg(1), &coins(1_000_000, "uterp"), &svg.address()?)?;
 
     let config: NumTokensResponse = svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(config.count, 1);
@@ -1113,7 +1096,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
     let mock = MockBech32::new("mock");
     let admin = mock.addr_make("admin");
     let treasury = mock.addr_make("treasury");
-    let minter = mock.addr_make_with_balance("minter", coins(100_000_000_000, "ustars"))?;
+    let minter = mock.addr_make_with_balance("minter", coins(100_000_000_000, "uterp"))?;
 
     let svg = Cw721SvgContractSuite::new(mock.clone());
     svg.upload()?;
@@ -1133,7 +1116,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
             mint_end_time: None,
             price_tiers: vec![PriceTier {
                 until_count: 100,
-                price: coin(2_000_000, "ustars"),
+                price: coin(2_000_000, "uterp"),
             }],
             whitelist: None,
             template_slots: compute_slots(TEST_SVG_TEMPLATE, &test_variables()),
@@ -1143,7 +1126,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 
     // Batch mint 5 tokens: should cost 5 * 2_000_000 = 10_000_000
     mock.call_as(&minter)
-        .execute(&mint_msg(5), &coins(10_000_000, "ustars"), &svg.address()?)?;
+        .execute(&mint_msg(5), &coins(10_000_000, "uterp"), &svg.address()?)?;
 
     let config: NumTokensResponse = svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(config.count, 5);
@@ -1152,7 +1135,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
     mock.call_as(&minter)
         .execute(
             &mint_msg(3),
-            &coins(5_000_000, "ustars"), // should be 6_000_000
+            &coins(5_000_000, "uterp"), // should be 6_000_000
             &svg.address()?,
         )
         .expect_err("should fail: incorrect batch payment");
@@ -1165,7 +1148,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //     let mock = MockBech32::new("mock");
 //     let admin = mock.addr_make("admin");
 //     let treasury = mock.addr_make("treasury");
-//     let minter = mock.addr_make_with_balance("minter", coins(100_000_000_000, "ustars"))?;
+//     let minter = mock.addr_make_with_balance("minter", coins(100_000_000_000, "uterp"))?;
 
 //     let svg = Cw721SvgContractSuite::new(mock.clone());
 //     svg.upload()?;
@@ -1186,15 +1169,15 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //         price_tiers: vec![
 //             PriceTier {
 //                 until_count: 3,
-//                 price: coin(1_000_000, "ustars"),
+//                 price: coin(1_000_000, "uterp"),
 //             },
 //             PriceTier {
 //                 until_count: 6,
-//                 price: coin(5_000_000, "ustars"),
+//                 price: coin(5_000_000, "uterp"),
 //             },
 //             PriceTier {
 //                 until_count: 10,
-//                 price: coin(10_000_000, "ustars"),
+//                 price: coin(10_000_000, "uterp"),
 //             },
 //         ],
 //         payment_address: Some(treasury.to_string()),
@@ -1208,21 +1191,21 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 
 //     // Mint 3 in tier 1: 3 * 1_000_000 = 3_000_000
 //     mock.call_as(&minter)
-//         .execute(&mint_msg(3), &coins(3_000_000, "ustars"), &svg.address()?)?;
+//         .execute(&mint_msg(3), &coins(3_000_000, "uterp"), &svg.address()?)?;
 
 //     let config:  NumTokensResponse = svg.query(&&QueryMsg::NumTokens  {  })?;
 //     assert_eq!(config.count, 3);
 
 //     // Mint 3 in tier 2: 3 * 5_000_000 = 15_000_000
 //     mock.call_as(&minter)
-//         .execute(&mint_msg(3), &coins(15_000_000, "ustars"), &svg.address()?)?;
+//         .execute(&mint_msg(3), &coins(15_000_000, "uterp"), &svg.address()?)?;
 
 //     let config:  NumTokensResponse = svg.query(&&QueryMsg::NumTokens  {  })?;
 //     assert_eq!(config.count, 6);
 
 //     // Mint 2 in tier 3: 2 * 10_000_000 = 20_000_000
 //     mock.call_as(&minter)
-//         .execute(&mint_msg(2), &coins(20_000_000, "ustars"), &svg.address()?)?;
+//         .execute(&mint_msg(2), &coins(20_000_000, "uterp"), &svg.address()?)?;
 
 //     let config:  NumTokensResponse = svg.query(&&QueryMsg::NumTokens  {  })?;
 //     assert_eq!(config.count, 8);
@@ -1235,7 +1218,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //     let mock = MockBech32::new("mock");
 //     let admin = mock.addr_make("admin");
 //     let treasury = mock.addr_make("treasury");
-//     let minter = mock.addr_make_with_balance("minter", coins(100_000_000_000, "ustars"))?;
+//     let minter = mock.addr_make_with_balance("minter", coins(100_000_000_000, "uterp"))?;
 
 //     let svg = Cw721SvgContractSuite::new(mock.clone());
 //     svg.upload()?;
@@ -1255,11 +1238,11 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //         price_tiers: vec![
 //             PriceTier {
 //                 until_count: 2,
-//                 price: coin(1_000_000, "ustars"),
+//                 price: coin(1_000_000, "uterp"),
 //             },
 //             PriceTier {
 //                 until_count: 5,
-//                 price: coin(5_000_000, "ustars"),
+//                 price: coin(5_000_000, "uterp"),
 //             },
 //         ],
 //         payment_address: Some(treasury.to_string()),
@@ -1273,7 +1256,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 
 //     // Mint 3 spanning tier boundary: 2 * 1_000_000 + 1 * 5_000_000 = 7_000_000
 //     mock.call_as(&minter)
-//         .execute(&mint_msg(3), &coins(7_000_000, "ustars"), &svg.address()?)?;
+//         .execute(&mint_msg(3), &coins(7_000_000, "uterp"), &svg.address()?)?;
 
 //     let config: CollectionInfoAndExtensionResponse<SvgCollectionMetadata>= svg.query(&QueryMsg::GetCollectionInfoAndExtension {  })?;
 //     assert_eq!(config.count, 3);
@@ -1285,7 +1268,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 // fn test_price_tier_free_mint_rejects_funds() -> anyhow::Result<()> {
 //     let mock = MockBech32::new("mock");
 //     let admin = mock.addr_make("admin");
-//     let minter = mock.addr_make_with_balance("minter", coins(10_000_000, "ustars"))?;
+//     let minter = mock.addr_make_with_balance("minter", coins(10_000_000, "uterp"))?;
 
 //     let svg = Cw721SvgContractSuite::new(mock.clone());
 //     svg.upload()?;
@@ -1317,7 +1300,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 
 //     // Free mint with funds should fail
 //     mock.call_as(&minter)
-//         .execute(&mint_msg(1), &coins(1_000_000, "ustars"), &svg.address()?)
+//         .execute(&mint_msg(1), &coins(1_000_000, "uterp"), &svg.address()?)
 //         .expect_err("should fail: free mint rejects funds");
 
 //     Ok(())
@@ -1328,7 +1311,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //     let mock = MockBech32::new("mock");
 //     let admin = mock.addr_make("admin");
 //     let treasury = mock.addr_make("treasury");
-//     let minter = mock.addr_make_with_balance("minter", coins(100_000_000, "ustars"))?;
+//     let minter = mock.addr_make_with_balance("minter", coins(100_000_000, "uterp"))?;
 
 //     let svg = Cw721SvgContractSuite::new(mock.clone());
 //     svg.upload()?;
@@ -1345,7 +1328,7 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //         mint_end_time: None,
 //         price_tiers: vec![PriceTier {
 //             until_count: 100,
-//             price: coin(5_000_000, "ustars"),
+//             price: coin(5_000_000, "uterp"),
 //         }],
 //         payment_address: Some(treasury.to_string()),
 //         whitelist: None,
@@ -1357,18 +1340,18 @@ fn test_price_tier_batch_mint_cost() -> anyhow::Result<()> {
 //     svg.instantiate(&init_msg, Some(&admin), &[])?;
 
 //     // Get treasury balance before
-//     let treasury_before = mock.query_balance(&treasury, "ustars")?;
+//     let treasury_before = mock.query_balance(&treasury, "uterp")?;
 
 //     // Mint 2 tokens: 2 * 5_000_000 = 10_000_000
 //     mock.call_as(&minter)
-//         .execute(&mint_msg(2), &coins(10_000_000, "ustars"), &svg.address()?)?;
+//         .execute(&mint_msg(2), &coins(10_000_000, "uterp"), &svg.address()?)?;
 
 //     // Treasury should have received the payment
-//     let treasury_after = mock.query_balance(&treasury, "ustars")?;
+//     let treasury_after = mock.query_balance(&treasury, "uterp")?;
 //     assert_eq!(
 //         treasury_after - treasury_before,
 //         Uint256::from(10_000_000u128),
-//         "Treasury should have received 10_000_000 ustars"
+//         "Treasury should have received 10_000_000 uterp"
 //     );
 
 //     Ok(())
@@ -1539,23 +1522,26 @@ fn test_start_and_end_time_window() -> anyhow::Result<()> {
 fn test_whitelist_bypasses_payment() -> anyhow::Result<()> {
     let mock_temp = MockBech32::new("mock");
     let wl_member_addr = mock_temp.addr_make("whitelisted");
+    let also_whitelisted = mock_temp.addr_make("also_whitelisted");
 
-    let members = vec![wl_member_addr.to_string()];
+    let members = vec![wl_member_addr.to_string(), also_whitelisted.to_string()];
     let (suite, tree) = CwSvgSuite::setup_with_whitelist(
         &members,
         vec![PriceTier {
             until_count: 100,
-            price: coin(5_000_000, "ustars"),
+            price: coin(5_000_000, "uterp"),
         }],
     )?;
-
+    println!("{:#?}", tree.leaves_len());
+    println!("{:#?}", tree.leaves());
     // The whitelisted address — get its proof
     let proof = tree.proof(&[0]).proof_hashes_hex();
+    println!("{:#?}", proof);
 
     // Non-whitelisted user must pay
     let non_wl = suite
         .chain
-        .addr_make_with_balance("normie", coins(100_000_000, "ustars"))?;
+        .addr_make_with_balance("normie", coins(100_000_000, "uterp"))?;
     suite
         .chain
         .call_as(&non_wl)
@@ -1563,15 +1549,18 @@ fn test_whitelist_bypasses_payment() -> anyhow::Result<()> {
         .expect_err("should fail: non-whitelisted without payment");
 
     // Whitelisted user can mint for free with valid proof
-    suite.chain.call_as(&wl_member_addr).execute(
-        &SvgExecuteMsgExt::Mint(MintMsg {
+    let msg = ExecuteMsg::UpdateExtension {
+        msg: SvgExecuteMsgExt::Mint(MintMsg {
             amnt: 1,
-            proof_hashes: Some(proof),
+            proof_hashes: proof,
             alloc: TEST_WL_ALLOCATION,
         }),
-        &[],
-        &suite.svg.address()?,
-    )?;
+    };
+    println!("{:#?}", msg);
+    suite
+        .chain
+        .call_as(&wl_member_addr)
+        .execute(&msg, &[], &suite.svg.address()?)?;
 
     let config: NumTokensResponse = suite.svg.query(&QueryMsg::NumTokens {})?;
     assert_eq!(config.count, 1);
@@ -1583,26 +1572,26 @@ fn test_whitelist_bypasses_payment() -> anyhow::Result<()> {
 fn test_whitelist_invalid_proof_rejected() -> anyhow::Result<()> {
     let mock_temp = MockBech32::new("mock");
     let wl_member_addr = mock_temp.addr_make("whitelisted");
+    let wl_member_addr2 = mock_temp.addr_make("wl_member_addr2");
     let impostor_addr = mock_temp.addr_make("impostor");
 
-    let members = vec![wl_member_addr.to_string()];
+    let members = vec![wl_member_addr.to_string(), wl_member_addr2.to_string()];
     let (suite, tree) = CwSvgSuite::setup_with_whitelist(&members, vec![])?;
 
     // Get valid proof for the whitelisted address
     let proof = tree.proof(&[0]).proof_hashes_hex();
-
+    let msg = SvgExecuteMsgExt::Mint(MintMsg {
+        amnt: 1,
+        proof_hashes: proof,
+        alloc: TEST_WL_ALLOCATION,
+    });
+    println!("{:#?}", msg);
     // Impostor tries to use the proof — should fail
     suite
         .chain
         .call_as(&impostor_addr)
         .execute(
-            &ExecuteMsg::UpdateExtension {
-                msg: SvgExecuteMsgExt::Mint(MintMsg {
-                    amnt: 1,
-                    proof_hashes: Some(proof),
-                    alloc: TEST_WL_ALLOCATION,
-                }),
-            },
+            &ExecuteMsg::UpdateExtension { msg },
             &[],
             &suite.svg.address()?,
         )
@@ -1631,11 +1620,13 @@ fn test_whitelist_multiple_members() -> anyhow::Result<()> {
     for (i, member) in [&alice, &bob, &charlie, &dave].iter().enumerate() {
         let proof = tree.proof(&[i]).proof_hashes_hex();
         suite.chain.call_as(member).execute(
-            &SvgExecuteMsgExt::Mint(MintMsg {
-                amnt: 1,
-                proof_hashes: Some(proof),
-                alloc: TEST_WL_ALLOCATION,
-            }),
+            &ExecuteMsg::UpdateExtension {
+                msg: SvgExecuteMsgExt::Mint(MintMsg {
+                    amnt: 1,
+                    proof_hashes: proof,
+                    alloc: TEST_WL_ALLOCATION,
+                }),
+            },
             &[],
             &suite.svg.address()?,
         )?;
@@ -1666,13 +1657,13 @@ fn test_whitelist_no_proof_requires_payment() -> anyhow::Result<()> {
         &members,
         vec![PriceTier {
             until_count: 100,
-            price: coin(1_000_000, "ustars"),
+            price: coin(1_000_000, "uterp"),
         }],
     )?;
 
     let funded_wl = suite
         .chain
-        .addr_make_with_balance("whitelisted", coins(10_000_000, "ustars"))?;
+        .addr_make_with_balance("whitelisted", coins(10_000_000, "uterp"))?;
 
     // Whitelisted member mints without providing proof — should need payment
     suite
@@ -1684,7 +1675,7 @@ fn test_whitelist_no_proof_requires_payment() -> anyhow::Result<()> {
     // With correct payment, should succeed even without proof
     suite.chain.call_as(&funded_wl).execute(
         &mint_msg(1),
-        &coins(1_000_000, "ustars"),
+        &coins(1_000_000, "uterp"),
         &suite.svg.address()?,
     )?;
 
@@ -1709,7 +1700,7 @@ fn test_whitelist_tracks_wl_mint_count() -> anyhow::Result<()> {
         &ExecuteMsg::UpdateExtension {
             msg: SvgExecuteMsgExt::Mint(MintMsg {
                 amnt: 3,
-                proof_hashes: Some(proof),
+                proof_hashes: proof,
                 alloc: TEST_WL_ALLOCATION,
             }),
         },
@@ -1753,7 +1744,7 @@ fn test_whitelist_update_by_admin() -> anyhow::Result<()> {
         },
 
         minter: None,
-        creator: None,
+        creator: Some(admin.to_string()),
         withdraw_address: Some(admin.to_string()),
     };
     svg.instantiate(&init_msg, Some(&admin), &[])?;

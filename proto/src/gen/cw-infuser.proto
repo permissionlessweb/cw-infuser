@@ -1,0 +1,7 @@
+syntax = "proto3";
+package cw_infuser.contract.v1;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.goproto_getters_all) = false;
+

@@ -1,5 +1,6 @@
 pub mod contract;
 pub use contract::*;
+pub use state::*;
 
 pub(crate) const CONTRACT_NAME: &str = "cw721_svg";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -60,11 +61,10 @@ pub mod entry {
                 got: svg.total,
             });
         }
-        let owner = msg
+        let creator = msg
             .creator
             .clone()
             .unwrap_or_else(|| info.sender.to_string());
-        cw_ownable::initialize_owner(deps.storage, deps.api, Some(&owner))?;
 
         // Compute mint start time
         let mint_start_time = match svg.mint_start_time {
@@ -81,7 +81,7 @@ pub mod entry {
         // Resolve payment address (defaults to owner)
         let witdraw_addr = deps
             .api
-            .addr_validate(msg.withdraw_address.as_deref().unwrap_or(&owner))?;
+            .addr_validate(msg.withdraw_address.as_deref().unwrap_or(&creator))?;
         // Validate price tiers: each cutoff must be strictly higher than the previous
         if svg
             .price_tiers
@@ -92,13 +92,11 @@ pub mod entry {
         };
 
         // Validate variable definitions
-        validate_variables(&svg.variables)?;
-
-        validate_template_slots(&svg.svg_template, &svg.variables, &svg.template_slots)?;
+        cw_svg::validate_variables(&svg.variables)?;
+        cw_svg::validate_template_slots(&svg.svg_template, &svg.variables, &svg.template_slots)?;
         SVG_TEMPLATE.save(deps.storage, &svg.svg_template)?;
         VARIABLES.save(deps.storage, &svg.variables)?;
         TEMPLATE_SLOTS.save(deps.storage, &svg.template_slots)?;
-
         Cw721SvgContract::default()
             .instantiate(
                 deps.branch(),
@@ -108,7 +106,7 @@ pub mod entry {
                     name: msg.name.clone(),
                     symbol: msg.symbol.clone(),
                     minter: Some(env.contract.address.to_string()),
-                    creator: Some(info.sender.to_string()),
+                    creator: Some(creator),
                     collection_info_extension: svg,
                     withdraw_address: Some(witdraw_addr.into_string()),
                 },
@@ -134,7 +132,7 @@ pub mod entry {
                 }
                 SvgExecuteMsgExt::Pause { pause } => execute_pause(deps, info, pause),
                 SvgExecuteMsgExt::UpdateWhitelist { address } => {
-                    execute_update_whitelist(deps, info, address)
+                    execute_update_whitelist(deps, info, env, address)
                 }
             },
             ExecuteMsg::Mint { .. } => return Err(ContractError::IncorrectEntrypoint),
@@ -213,12 +211,19 @@ pub mod entry {
 }
 
 pub mod state {
-    use crate::SvgMetadata;
-    use cosmwasm_std::{Deps, Empty, Env, MessageInfo};
+
+    use cosmwasm_schema::cw_serde;
+    use cosmwasm_std::{
+        from_json, to_json_binary, Binary, Deps, Env, MessageInfo, StdError, Timestamp,
+    };
     use cw721::{
         error::Cw721ContractError,
         traits::{Contains, Cw721CustomMsg, Cw721State, StateFactory},
+        Attribute,
     };
+    use cw_svg::{TemplateSlot, TokenParam, VariableDef};
+
+    use crate::PriceTier;
     // ── Trait impls required by Cw721Extensions ──────────────────────────────────
 
     impl Cw721State for SvgMetadata {}
@@ -249,5 +254,167 @@ pub mod state {
         ) -> Result<(), Cw721ContractError> {
             Ok(())
         }
+    }
+
+    #[cw_serde]
+    #[derive(Default)]
+    pub struct SvgMetadata {
+        pub params: Vec<TokenParam>,
+    }
+
+    #[cw_serde]
+    pub struct SvgCollectionMetadata {
+        pub seed: Binary,
+        pub svg_template: String,
+        pub variables: Vec<VariableDef>,
+        /// Pre-computed placeholder positions in the SVG template.
+        /// Each slot maps a `${varname}` occurrence to its byte offsets and variable index.
+        pub template_slots: Vec<TemplateSlot>,
+        /// Price tiers for minting. Empty or None = free mint.
+        pub price_tiers: Vec<PriceTier>,
+        pub total: u64,
+        /// Timestamp of mint start. If less than current block, mints available
+        pub mint_start_time: Option<Timestamp>,
+        pub mint_end_time: Option<Timestamp>,
+        /// Optional merkle whitelist contract address. Whitelisted minters bypass fees.
+        pub whitelist: Option<String>,
+    }
+
+    impl cw721::traits::Cw721State for SvgCollectionMetadata {}
+    impl cw721::traits::Cw721CustomMsg for SvgCollectionMetadata {}
+    impl cw721::traits::ToAttributesState for SvgCollectionMetadata {
+        fn to_attributes_state(&self) -> Result<Vec<Attribute>, Cw721ContractError> {
+            Ok(vec![Attribute {
+                key: "metadata".to_string(),
+                value: to_json_binary(self)?,
+            }])
+        }
+    }
+
+    impl cw721::traits::FromAttributesState for SvgCollectionMetadata {
+        fn from_attributes_state(value: &[Attribute]) -> Result<Self, Cw721ContractError> {
+            // Find the metadata attribute
+            let metadata_attr = value
+                .iter()
+                .find(|attr| attr.key == "metadata")
+                .ok_or_else(|| {
+                    Cw721ContractError::Std(StdError::msg(
+                        "Missing 'metadata' attribute".to_string(),
+                    ))
+                })?;
+
+            from_json(&metadata_attr.value).map_err(|e| Cw721ContractError::Std(e))
+        }
+    }
+
+    impl cw721::traits::StateFactory<SvgCollectionMetadata> for SvgCollectionMetadata {
+        fn create(
+            &self,
+            _deps: cosmwasm_std::Deps,
+            _env: &cosmwasm_std::Env,
+            _info: Option<&cosmwasm_std::MessageInfo>,
+            _current: Option<&SvgCollectionMetadata>,
+        ) -> Result<SvgCollectionMetadata, Cw721ContractError> {
+            Ok(self.clone())
+        }
+
+        fn validate(
+            &self,
+            _deps: cosmwasm_std::Deps,
+            _env: &cosmwasm_std::Env,
+            _info: Option<&cosmwasm_std::MessageInfo>,
+            _current: Option<&SvgCollectionMetadata>,
+        ) -> Result<(), Cw721ContractError> {
+            // Add your validation logic here
+            if self.svg_template.is_empty() {
+                return Err(Cw721ContractError::Std(StdError::msg(
+                    "SVG template cannot be empty".to_string(),
+                )));
+            }
+            if self.total == 0 {
+                return Err(Cw721ContractError::Std(StdError::msg(
+                    "Total supply must be greater than 0".to_string(),
+                )));
+            }
+            Ok(())
+        }
+    }
+}
+
+pub use error::ContractError;
+mod error {
+    use cosmwasm_std::StdError;
+    use cw_ownable::OwnershipError;
+    use cw_svg::SvgError;
+    use cw_utils::PaymentError;
+    use thiserror::Error;
+
+    #[derive(Error, Debug)]
+    pub enum ContractError {
+        #[error("{0}")]
+        Std(#[from] StdError),
+
+        #[error("{0}")]
+        OwnershipError(#[from] OwnershipError),
+
+        #[error("{0}")]
+        Svg(#[from] SvgError),
+
+        #[error("{0}")]
+        Payment(#[from] PaymentError),
+
+        #[error("{0}")]
+        Base(#[from] cw721::error::Cw721ContractError),
+
+        #[error("Minting is paused")]
+        MintingPaused {},
+
+        #[error("Please wrap the SvgExecuteMsgExt::Mint inside the default ExecuteMsg::UpdateExtension option.")]
+        IncorrectEntrypoint,
+
+        #[error("Minting has not started yet")]
+        MintingNotStarted {},
+
+        #[error("Minting has not started yet")]
+        PricingTierError {},
+
+        #[error("Cannot mint more than total supply")]
+        CannotMintMoreThanTotal {},
+
+        #[error("Unauthorized")]
+        Unauthorized {},
+
+        #[error("SVG template exceeds max size of {max} bytes (got {got})")]
+        SvgTemplateTooLarge { max: usize, got: usize },
+
+        #[error("Total supply {got} exceeds maximum of {max}")]
+        TotalSupplyTooHigh { max: u64, got: u64 },
+
+        #[error("Minting period has ended")]
+        MintingEnded {},
+
+        #[error("Incorrect payment: expected {expected}")]
+        IncorrectPayment { expected: String },
+
+        #[error("Proof hashes required for whitelist verification")]
+        MissingProofHashes {},
+
+        #[error("Address {addr} is not whitelisted")]
+        NotWhitelisted { addr: String },
+
+        #[error("No whitelist contract configured")]
+        NoWhitelistConfigured {},
+
+        #[error("{e}")]
+        General { e: String },
+
+        #[error("Whitelist per-address mint limit exceeded")]
+        MaxPerAddressLimitExceeded {},
+
+        #[error("Invalid variable definition: {reason}")]
+        InvalidVariableDef { reason: String },
+
+        #[error("Invalid template placeholder: {reason}")]
+        InvalidTemplatePlaceholder { reason: String },
     }
 }

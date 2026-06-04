@@ -10,26 +10,31 @@ function toPascalCase(str) {
 
 const rootDir = path.resolve(__dirname, '../..');
 const contractsDir = path.join(rootDir, 'contracts');
+const vendorDir = path.join(rootDir, 'vendor');
 const outputDir = __dirname;
 const outputFile = path.join(outputDir, 'contracts.generated.json');
 
 console.log('📝 Generating dynamic CONTRACTS list for TypeScript codegen...');
-console.log('🔍 Scanning for contract schemas under contracts/...');
+console.log('🔍 Scanning for contract schemas under contracts/ and vendor/...');
 
-// Collect all IDL JSON files under contracts/**/schema/*.json
+// Collect all IDL JSON files under contracts/**/schema/*.json and vendor/**/schema/*.json
 const schemaFiles = [];
 function scan(dir) {
+  if (!fs.existsSync(dir)) return;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       scan(fullPath);
     } else if (entry.name.endsWith('.json') && path.dirname(fullPath).endsWith('schema')) {
+      // Skip the vendor manifest file
+      if (entry.name === 'external-schemas.json') continue;
       schemaFiles.push(fullPath);
     }
   }
 }
 scan(contractsDir);
+scan(vendorDir);
 schemaFiles.sort();
 
 // Group files by their schema directory so we can detect multi-IDL dirs

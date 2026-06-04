@@ -42,7 +42,3 @@ Checkout our [scripts here](./scripts/README) for CLI deployment & interaction.
 This smart contract is made of use to allocate resources to donate to humanitarian relief in Gaza.
 If you would like to donate directly, we reccomend making use of <https://linktr.ee/thesameerproject>.
  
-
-## important feature to add
-- display list of all nfts for a collection with at collection mint page (query-and-cache template svg from contract for collection, query just values for collections (not full svgs, set values in template client side to render each nft image effeciently))
-- display list of nfts a connected wallet owns for a specific collection when browsing (can be implemented in a filter like design with displaying all nft collections)

@@ -11,9 +11,10 @@ pub struct MintMsg {
     /// amount of tokens to mint. Must send atleast `t` funds, where t >= amnt * mint-fee
     pub amnt: u64,
     /// Merkle proof hashes for whitelist verification (bypasses mint fees)
-    pub proof_hashes: Option<Vec<String>>,
+    pub proof_hashes: Vec<String>,
     /// Per-address mint allocation encoded in the merkle leaf.
     /// When set, the leaf is hash(sender || allocation) and this value
     /// caps how many tokens the address can mint via whitelist.
     pub alloc: u32,
 }
+ 

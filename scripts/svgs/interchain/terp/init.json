@@ -1,6 +1,6 @@
 {
-  "name": "TerpSVG",
-  "symbol": "TSVG",
+  "name": "Terp SVG",
+  "symbol": "TERP",
   "svg_template": "<svg width=\"200\" height=\"200\" viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\">\n  \n  <defs>\n    <filter id=\"neonglow\" x=\"-90%\" y=\"-90%\" width=\"280%\" height=\"280%\">\n      <feDropShadow dx=\"0\" dy=\"0\" stdDeviation=\"2.0\" flood-color=\"${glow-color}\" flood-opacity=\"0.96\"/>\n      <feDropShadow dx=\"0\" dy=\"0\" stdDeviation=\"4.6\" flood-color=\"${glow-color}\" flood-opacity=\"0.68\"/>\n      <feDropShadow dx=\"0\" dy=\"0\" stdDeviation=\"9.2\" flood-color=\"${glow-color}\" flood-opacity=\"0.36\"/>\n    </filter>\n\n    <style>\n      \n        @keyframes neonBreath {\n          0%, 100% { r: 7.4; }\n          50%      { r: 12.8; }\n        }\n\n        @keyframes strobeFlicker {\n          0%, 18%, 22%, 100% { opacity: 1; }\n          4%  { opacity: 0.42; }\n          9%  { opacity: 0.95; }\n          13% { opacity: 0.51; }\n          17% { opacity: 0.87; }\n        }\n\n        .orb {\n          animation:\n            neonBreath    var(--pulse-dur)   var(--pulse-delay)   infinite ease-in-out,\n            strobeFlicker var(--flicker-dur) var(--flicker-delay) infinite linear;\n        }\n      \n    </style>\n  </defs>\n\n  <rect width=\"200\" height=\"200\" fill=\"black\" fill-opacity=\"0.23\"/>\n\n  <g filter=\"url(#neonglow)\">\n\n    \n    <circle class=\"orb\" cx=\"100\" cy=\"100\" r=\"8.7\" fill=\"${color-a}\"\n            style=\"--pulse-dur:${pulse-a}s;--pulse-delay:-0.11s;--flicker-dur:${flicker-a}s;--flicker-delay:0s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"52\" cy=\"100\" r=\"8.7\" fill=\"${color-b}\"\n            style=\"--pulse-dur:${pulse-b}s;--pulse-delay:-1.23s;--flicker-dur:${flicker-b}s;--flicker-delay:-0.07s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"148\" cy=\"100\" r=\"8.7\" fill=\"${color-c}\"\n            style=\"--pulse-dur:${pulse-c}s;--pulse-delay:-0.62s;--flicker-dur:${flicker-c}s;--flicker-delay:0.21s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"100\" cy=\"52\" r=\"8.7\" fill=\"${color-d}\"\n            style=\"--pulse-dur:${pulse-d}s;--pulse-delay:-1.97s;--flicker-dur:${flicker-d}s;--flicker-delay:-0.29s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"100\" cy=\"148\" r=\"8.7\" fill=\"${color-e}\"\n            style=\"--pulse-dur:${pulse-e}s;--pulse-delay:-0.38s;--flicker-dur:${flicker-e}s;--flicker-delay:-0.14s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"75\" cy=\"100\" r=\"8.7\" fill=\"${color-f}\"\n            style=\"--pulse-dur:${pulse-f}s;--pulse-delay:-1.48s;--flicker-dur:${flicker-f}s;--flicker-delay:0.09s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"125\" cy=\"100\" r=\"8.7\" fill=\"${color-g}\"\n            style=\"--pulse-dur:${pulse-g}s;--pulse-delay:-0.81s;--flicker-dur:${flicker-g}s;--flicker-delay:-0.22s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"100\" cy=\"75\" r=\"8.7\" fill=\"${color-h}\"\n            style=\"--pulse-dur:${pulse-h}s;--pulse-delay:-1.82s;--flicker-dur:${flicker-h}s;--flicker-delay:0.04s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"100\" cy=\"125\" r=\"8.7\" fill=\"${color-i}\"\n            style=\"--pulse-dur:${pulse-i}s;--pulse-delay:-0.19s;--flicker-dur:${flicker-i}s;--flicker-delay:-0.39s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"75\" cy=\"75\" r=\"8.7\" fill=\"${color-j}\"\n            style=\"--pulse-dur:${pulse-j}s;--pulse-delay:-1.09s;--flicker-dur:${flicker-j}s;--flicker-delay:0.14s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"75\" cy=\"125\" r=\"8.7\" fill=\"${color-k}\"\n            style=\"--pulse-dur:${pulse-k}s;--pulse-delay:-2.31s;--flicker-dur:${flicker-k}s;--flicker-delay:-0.11s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"125\" cy=\"75\" r=\"8.7\" fill=\"${color-l}\"\n            style=\"--pulse-dur:${pulse-l}s;--pulse-delay:-0.74s;--flicker-dur:${flicker-l}s;--flicker-delay:-0.26s;\"/>\n\n    \n    <circle class=\"orb\" cx=\"125\" cy=\"125\" r=\"8.7\" fill=\"${color-m}\"\n            style=\"--pulse-dur:${pulse-m}s;--pulse-delay:-1.36s;--flicker-dur:${flicker-m}s;--flicker-delay:0.07s;\"/>\n\n  </g>\n</svg>\n",
   "variables": [
     {
@@ -475,11 +475,33 @@
     }
   ],
   "total": 10000,
-  "seed": "DtwH0iDeTL/VM5EyhWeAIw7Mge6vlrk28FXj8NpW5GA=",
+  "seed": "OrF1Ww08BD4nz5c81f/8RhjWZ76oMIzjDoeYKg8CxBQ=",
   "owner": null,
   "mint_start_time": null,
   "mint_end_time": null,
-  "price_tiers": [],
+  "price_tiers": [
+    {
+      "until_count": 1000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "71000000"
+      }
+    },
+    {
+      "until_count": 5000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "710000000"
+      }
+    },
+    {
+      "until_count": 10000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "1420000000"
+      }
+    }
+  ],
   "payment_address": null,
   "whitelist": null,
   "template_slots": [

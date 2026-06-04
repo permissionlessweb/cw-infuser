@@ -18,9 +18,8 @@
 ///   Extracts the "vars" field as the variable definitions.
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use cw721_svg::commands::{validate_template_slots, validate_variables};
-use cw721_svg::msg::{InstantiateMsg, RgbRange, TemplateSlot, VariableDef, VariableKind};
-use cw721_svg::state::{MAX_SVG_SIZE, MAX_TOTAL_SUPPLY};
+use cw721_svg::contract::*;
+use cw_svg::*;
 use serde_json;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -185,6 +184,12 @@ struct Args {
     #[arg(long, default_value_t = false)]
     no_sanitize: bool,
 
+    /// Price tiers as a JSON array.
+    /// Format: '[{"until_count":100,"price":{"denom":"uterp","amount":"1000000"}}]'
+    /// Tiers are applied in order while mint_count < until_count. Empty = free mint.
+    #[arg(long)]
+    price_tiers: Option<String>,
+
     /// Output file (defaults to stdout)
     #[arg(long, short)]
     output: Option<String>,
@@ -320,11 +325,19 @@ fn define_variable(name: &str, occurrence_count: usize) -> Result<VariableDef> {
                 });
             }
             if ranges.is_empty() {
-                return Err(anyhow!("Rgb Styled requires at least one range for '{}'", name));
+                return Err(anyhow!(
+                    "Rgb Styled requires at least one range for '{}'",
+                    name
+                ));
             }
             VariableKind::RgbStyled(ranges)
         }
-        _ => return Err(anyhow!("Invalid choice '{}', expected 1, 2, 3, or 4", choice)),
+        _ => {
+            return Err(anyhow!(
+                "Invalid choice '{}', expected 1, 2, 3, or 4",
+                choice
+            ))
+        }
     };
 
     Ok(VariableDef {
@@ -356,7 +369,11 @@ fn build_llm_prompt(
     // Include a preview of the SVG (first 3000 chars) for context.
     let preview_len = template.len().min(3000);
     let preview = &template[..preview_len];
-    let truncated = if template.len() > preview_len { "\n... (truncated)" } else { "" };
+    let truncated = if template.len() > preview_len {
+        "\n... (truncated)"
+    } else {
+        ""
+    };
 
     format!(
         "{spec}\n\
@@ -434,10 +451,17 @@ fn define_variables_with_llm(
         }
     };
 
-    println!("LLM response received ({} chars). Parsing...", response.len());
+    println!(
+        "LLM response received ({} chars). Parsing...",
+        response.len()
+    );
 
-    let json_str = extract_json_array(&response)
-        .with_context(|| format!("Raw LLM response:\n{}", &response[..response.len().min(500)]))?;
+    let json_str = extract_json_array(&response).with_context(|| {
+        format!(
+            "Raw LLM response:\n{}",
+            &response[..response.len().min(500)]
+        )
+    })?;
 
     let vars: Vec<VariableDef> = serde_json::from_str(json_str)
         .with_context(|| format!("Failed to parse LLM output as Vec<VariableDef>:\n{json_str}"))?;
@@ -448,7 +472,11 @@ fn define_variables_with_llm(
         let kind_label = match &v.kind {
             VariableKind::Rgb => "Rgb".to_string(),
             VariableKind::RgbStyled(r) => format!("RgbStyled ({} range(s))", r.len()),
-            VariableKind::Range { min, max, precision } => {
+            VariableKind::Range {
+                min,
+                max,
+                precision,
+            } => {
                 format!("Range [{min}, {max}] prec {precision}")
             }
             VariableKind::Options(o) => format!("Options ({} values)", o.len()),
@@ -579,7 +607,11 @@ pub fn main() -> Result<()> {
                 ));
             }
         }
-        println!("Loaded {} variable definition(s) from {}", vars.len(), vars_path);
+        println!(
+            "Loaded {} variable definition(s) from {}",
+            vars.len(),
+            vars_path
+        );
         vars
     } else if let Some(dict_path) = &args.dict {
         load_dict_file(dict_path, &var_names)?
@@ -638,61 +670,76 @@ pub fn main() -> Result<()> {
     let seed_bytes = blake3::hash(seed_input.as_bytes());
     let seed = cosmwasm_std::Binary::from(seed_bytes.as_bytes().as_slice());
 
-    // 6. Build InstantiateMsg
-    let msg = InstantiateMsg {
+    // 6. Parse price tiers
+    let price_tiers: Vec<PriceTier> = match args.price_tiers {
+        Some(ref json) => serde_json::from_str(json).context(
+            "--price-tiers must be a JSON array of {until_count, price: {denom, amount}}",
+        )?,
+        None => vec![],
+    };
+
+    // 7. Build InstantiateMsg
+    let msg = cw721_svg::InstantiateMsg {
         name,
         symbol,
-        svg_template: template,
-        variables,
-        total,
-        seed,
-        owner: None,
-        mint_start_time: None,
-        mint_end_time: None,
-        price_tiers: vec![],
-        payment_address: None,
-        whitelist: None,
-        template_slots,
+        collection_info_extension: cw721_svg::SvgCollectionMetadata {
+            seed,
+            svg_template: template,
+            variables,
+            template_slots,
+            price_tiers,
+            total,
+            mint_start_time: None,
+            mint_end_time: None,
+            whitelist: None,
+        },
+        minter: None,
+        creator: None,
+        withdraw_address: None,
     };
 
     // 7. Pre-flight validation — mirror the on-chain instantiate checks so
     //    errors are caught here rather than burning gas on-chain.
     println!("\nRunning pre-flight validation...");
 
-    if msg.svg_template.len() > MAX_SVG_SIZE {
+    if msg.collection_info_extension.svg_template.len() > MAX_SVG_SIZE {
         return Err(anyhow!(
             "SVG template is {} bytes — exceeds on-chain limit of {} bytes",
-            msg.svg_template.len(),
+            msg.collection_info_extension.svg_template.len(),
             MAX_SVG_SIZE
         ));
     }
 
-    if msg.total > MAX_TOTAL_SUPPLY {
+    if msg.collection_info_extension.total > MAX_TOTAL_SUPPLY {
         return Err(anyhow!(
             "total supply {} exceeds on-chain limit of {}",
-            msg.total,
+            msg.collection_info_extension.total,
             MAX_TOTAL_SUPPLY
         ));
     }
 
-    validate_variables(&msg.variables)
+    validate_variables(&msg.collection_info_extension.variables)
         .map_err(|e| anyhow!("Variable definition error: {}", e))?;
 
-    validate_template_slots(&msg.svg_template, &msg.variables, &msg.template_slots)
-        .map_err(|e| anyhow!("Template slot error: {}", e))?;
+    validate_template_slots(
+        &msg.collection_info_extension.svg_template,
+        &msg.collection_info_extension.variables,
+        &msg.collection_info_extension.template_slots,
+    )
+    .map_err(|e| anyhow!("Template slot error: {}", e))?;
 
     println!(
         "  ✓ template {} bytes  (limit {})",
-        msg.svg_template.len(),
+        msg.collection_info_extension.svg_template.len(),
         MAX_SVG_SIZE
     );
     println!(
         "  ✓ {} variable(s) valid",
-        msg.variables.len()
+        msg.collection_info_extension.variables.len()
     );
     println!(
         "  ✓ {} template slot(s) valid",
-        msg.template_slots.len()
+        msg.collection_info_extension.template_slots.len()
     );
 
     // 8. Output JSON

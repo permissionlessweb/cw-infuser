@@ -1,19 +1,21 @@
 use clap::Parser;
 use cosmwasm_std::coin;
-use cw721_svg::interface::Cw721Svg;
-use cw721_svg::msg::{VariableDef, VariableKind};
-use cw_infuser_scripts::MOROCCO_1;
+
+use cw_orch::daemon::networks::TERP_MAINNET;
 // use cw_infuser_scripts::MOROCCO_1;
 use cw_orch::daemon::{Daemon, TxSender};
 use cw_orch::prelude::CwOrchInstantiate;
-use cw_svg::{InstantiateMsg, PriceTier};
+
+use cw721_svg::*;
+use cw_svg::VariableDef;
+use cw_svg::*;
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
 
 /// Minimal SVG template that visualizes attractor params as a geometric constellation.
 /// The real fractal rendering happens off-chain; this gives each token a displayable on-chain preview.
-const FRACTAL_SVG_TEMPLATE: &str = include_str!("../../svgs/fractal.svg");
+const FRACTAL_SVG_TEMPLATE: &str = include_str!("../../svgs/research/fractals/fractal.svg");
 
 /// Deploy fractal attractor SVG NFTs using on-chain Range variables.
 ///
@@ -157,40 +159,46 @@ pub fn main() -> anyhow::Result<()> {
                 println!("  ${{{}}}: {} pre-generated options", vd.name, opts.len());
             }
             VariableKind::Rgb => println!("RGB"),
-            VariableKind::RgbStyled(rgb_ranges) => todo!(),
+            VariableKind::RgbStyled(_rgb_ranges) => todo!(),
         }
     }
 
-    let chain = Daemon::builder(MOROCCO_1).build()?;
-    let svg = Cw721Svg::new(chain.clone());
+    let chain = Daemon::builder(TERP_MAINNET).build()?;
+    let svg = Cw721SvgContractSuite::new(chain.clone());
     let _res = svg.instantiate(
         &InstantiateMsg {
             name: "Permissionless Fractals".into(),
             symbol: "FRACTAL".into(),
-            svg_template: FRACTAL_SVG_TEMPLATE.to_string(),
-            variables: variable_defs.clone(),
-            total: args.supply,
-            seed: blake3::hash(&args.seed.to_le_bytes()).as_bytes().into(),
-            owner: Some(chain.sender().address().to_string()),
-            mint_start_time: None,
-            mint_end_time: None,
-            price_tiers: vec![
-                PriceTier {
-                    until_count: 1000,
-                    price: coin(100_000_000, "uthiol"),
-                },
-                PriceTier {
-                    until_count: 5000,
-                    price: coin(500_000_000, "uthiol"),
-                },
-                PriceTier {
-                    until_count: args.supply,
-                    price: coin(1000_000_000, "uthiol"),
-                },
-            ],
-            payment_address: None,
-            whitelist: None,
-            template_slots: cw_svg::compute_template_slots(FRACTAL_SVG_TEMPLATE, &variable_defs),
+            collection_info_extension: SvgCollectionMetadata {
+                seed: blake3::hash(&args.seed.to_le_bytes()).as_bytes().into(),
+                svg_template: FRACTAL_SVG_TEMPLATE.to_string(),
+                variables: variable_defs.clone(),
+                template_slots: cw_svg::compute_template_slots(
+                    FRACTAL_SVG_TEMPLATE,
+                    &variable_defs,
+                ),
+                price_tiers: vec![
+                    PriceTier {
+                        until_count: 1000,
+                        price: coin(100_000_000, "uthiol"),
+                    },
+                    PriceTier {
+                        until_count: 5000,
+                        price: coin(500_000_000, "uthiol"),
+                    },
+                    PriceTier {
+                        until_count: args.supply,
+                        price: coin(1000_000_000, "uthiol"),
+                    },
+                ],
+                total: args.supply,
+                mint_start_time: None,
+                mint_end_time: None,
+                whitelist: None,
+            },
+            minter: Some(chain.sender().address().to_string()),
+            creator: Some(chain.sender().address().to_string()),
+            withdraw_address: Some(chain.sender().address().to_string()),
         },
         Some(&chain.sender().address()),
         &[],

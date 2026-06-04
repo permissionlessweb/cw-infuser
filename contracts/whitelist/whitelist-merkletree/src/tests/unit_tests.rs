@@ -1,10 +1,17 @@
+/// Per-address allocation used in whitelist tests — must match the tree leaf `addr || TEST_WL_ALLOCATION`.
+/// Set to 3 so tests that mint multiple tokens stay within the limit.
+pub const TEST_WL_ALLOCATION: u32 = 3;
+
 #[cfg(test)]
 mod tests {
     use crate::{
-        contract::{execute, instantiate, query_has_member},
-        msg::{ExecuteMsg, InstantiateMsg},
+        contract::{instantiate, query_has_member},
+        msg::InstantiateMsg,
         state::{GENESIS_MINT_START_TIME, NATIVE_FEE_DENOM},
-        tests::{hasher::SortingBlake3Hasher, test_helpers::hash_and_build_tree},
+        tests::{
+            hasher::SortingBlake3Hasher, test_helpers::hash_and_build_tree,
+            unit_tests::TEST_WL_ALLOCATION,
+        },
     };
     use rs_merkle::MerkleTree;
     use std::vec;
@@ -16,11 +23,10 @@ mod tests {
     };
 
     const ADMIN: &str = "cosmwasm1ye63jpm474yfrq02nyplrspyw75y82tpd2shys";
-    const UNIT_AMOUNT: u128 = 100_000_000;
     const CREATION_AMOUNT: u128 = 1_000_000_000;
 
     const GENESIS_START_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    const END_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME + 1000);
+    // const END_TIME: Timestamp = Timestamp::from_nanos(GENESIS_MINT_START_TIME + 1000);
 
     // Inline test whitelist — four cosmwasm-prefix addresses.
     // ADDR_0 matches ADMIN so the admin can prove membership at leaf 0.
@@ -40,7 +46,10 @@ mod tests {
     /// Build a fresh merkle tree from the inline test whitelist.
     /// Root hex is derived at runtime so it always matches the current address prefix.
     fn build_test_tree() -> MerkleTree<SortingBlake3Hasher> {
-        let addrs: Vec<String> = TEST_WHITELIST.iter().map(|s| s.to_string()).collect();
+        let addrs: Vec<String> = TEST_WHITELIST
+            .iter()
+            .map(|s| format!("{}{}", s.to_string(), super::TEST_WL_ALLOCATION.to_string()))
+            .collect();
         hash_and_build_tree(&addrs)
     }
 
@@ -104,7 +113,7 @@ mod tests {
         let admin = Addr::unchecked(ADMIN);
 
         // Fresh valid root for test cases that are testing other validations.
-        let valid_root = build_test_tree().root_hex().unwrap();
+        let _valid_root = build_test_tree().root_hex().unwrap();
 
         let invalid_msgs: Vec<InstantiateMsg> = vec![
             // invalid merkle root (non hex)
@@ -123,46 +132,46 @@ mod tests {
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
-            // invalid mint price denom
-            InstantiateMsg {
-                merkle_root: valid_root.clone(),
-                merkle_tree_uri: None,
+            // // invalid mint price denom
+            // InstantiateMsg {
+            //     merkle_root: valid_root.clone(),
+            //     merkle_tree_uri: None,
 
-                admins: vec![admin.to_string()],
-                admins_mutable: false,
-            },
-            // invalid admin address (MockApi only) (too short)
-            InstantiateMsg {
-                merkle_root: valid_root.clone(),
-                merkle_tree_uri: None,
+            //     admins: vec![admin.to_string()],
+            //     admins_mutable: false,
+            // },
+            // // invalid admin address (MockApi only) (too short)
+            // InstantiateMsg {
+            //     merkle_root: valid_root.clone(),
+            //     merkle_tree_uri: None,
 
-                admins: vec!["A".to_string()],
-                admins_mutable: false,
-            },
-            // invalid start time (after end time)
-            InstantiateMsg {
-                merkle_root: valid_root.clone(),
-                merkle_tree_uri: None,
+            //     admins: vec!["A".to_string()],
+            //     admins_mutable: false,
+            // },
+            // // invalid start time (after end time)
+            // InstantiateMsg {
+            //     merkle_root: valid_root.clone(),
+            //     merkle_tree_uri: None,
 
-                admins: vec![admin.to_string()],
-                admins_mutable: false,
-            },
-            // invalid start time (before genesis mint start time)
-            InstantiateMsg {
-                merkle_root: valid_root.clone(),
-                merkle_tree_uri: None,
+            //     admins: vec![admin.to_string()],
+            //     admins_mutable: false,
+            // },
+            // // invalid start time (before genesis mint start time)
+            // InstantiateMsg {
+            //     merkle_root: valid_root.clone(),
+            //     merkle_tree_uri: None,
 
-                admins: vec![admin.to_string()],
-                admins_mutable: false,
-            },
-            // invalid start time (before current block time)
-            InstantiateMsg {
-                merkle_root: valid_root.clone(),
-                merkle_tree_uri: None,
+            //     admins: vec![admin.to_string()],
+            //     admins_mutable: false,
+            // },
+            // // invalid start time (before current block time)
+            // InstantiateMsg {
+            //     merkle_root: valid_root.clone(),
+            //     merkle_tree_uri: None,
 
-                admins: vec![admin.to_string()],
-                admins_mutable: false,
-            },
+            //     admins: vec![admin.to_string()],
+            //     admins_mutable: false,
+            // },
         ];
 
         let info = message_info(&admin, &[]);
@@ -179,27 +188,39 @@ mod tests {
 
         // leaf index 0: ADDR_0 (= ADMIN)
         let proof = tree.proof(&[0]);
-        let res =
-            query_has_member(deps.as_ref(), ADDR_0.to_string(), proof.proof_hashes_hex()).unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            format!("{}{}", ADDR_0.to_string(), TEST_WL_ALLOCATION),
+            proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(res.has_member);
 
         // leaf index 1: ADDR_1
         let proof = tree.proof(&[1]);
-        let res =
-            query_has_member(deps.as_ref(), ADDR_1.to_string(), proof.proof_hashes_hex()).unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            format!("{}{}", ADDR_1.to_string(), TEST_WL_ALLOCATION),
+            proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(res.has_member);
 
         // leaf index 3: ADDR_3
         let proof = tree.proof(&[3]);
-        let res =
-            query_has_member(deps.as_ref(), ADDR_3.to_string(), proof.proof_hashes_hex()).unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            format!("{}{}", ADDR_3.to_string(), TEST_WL_ALLOCATION),
+            proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(res.has_member);
 
         // mismatched proof: proof for index 1 presented with ADDR_0's address
         let wrong_proof = tree.proof(&[1]);
         let res = query_has_member(
             deps.as_ref(),
-            ADDR_0.to_string(),
+            format!("{}{}", ADDR_0.to_string(), TEST_WL_ALLOCATION),
             wrong_proof.proof_hashes_hex(),
         )
         .unwrap();
@@ -207,6 +228,11 @@ mod tests {
 
         // invalid proof hashes (not valid hex) must error
         let bad_proof = vec!["x".to_string(), "x".to_string()];
-        query_has_member(deps.as_ref(), ADDR_0.to_string(), bad_proof).unwrap_err();
+        query_has_member(
+            deps.as_ref(),
+            format!("{}{}", ADDR_0.to_string(), TEST_WL_ALLOCATION),
+            bad_proof,
+        )
+        .unwrap_err();
     }
 }

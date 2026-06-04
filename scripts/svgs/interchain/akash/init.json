@@ -1,6 +1,6 @@
 {
-  "name": "AKASH SVG",
-  "symbol": "ASVG",
+  "name": "Akash SVG",
+  "symbol": "AKASH",
   "svg_template": "<svg width=\"481\" height=\"420\" viewBox=\"0 0 481 420\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n  <defs>\n\n \n    <linearGradient id=\"grad-shared\"\n      x1=\"160\" y1=\"420\" x2=\"400\" y2=\"0\"\n      gradientUnits=\"userSpaceOnUse\">\n\n      \n      <stop offset=\"0%\" stop-color=\"${color-main}\" stop-opacity=\"1\"/>\n\n      \n      <stop offset=\"100%\" stop-color=\"${color-main}\" stop-opacity=\"1\">\n        <animate\n          attributeName=\"stop-color\"\n          values=\"${color-main};${color-accent};${color-main}\"\n          dur=\"${pulse-a}s\"\n          keyTimes=\"0;0.5;1\"\n          keySplines=\"0.45 0 0.55 1;0.45 0 0.55 1\"\n          calcMode=\"spline\"\n          repeatCount=\"indefinite\"/>\n        <animate\n          attributeName=\"stop-opacity\"\n          values=\"${alpha-lo};${alpha-hi};${alpha-lo}\"\n          dur=\"${pulse-a}s\"\n          keyTimes=\"0;0.5;1\"\n          keySplines=\"0.45 0 0.55 1;0.45 0 0.55 1\"\n          calcMode=\"spline\"\n          repeatCount=\"indefinite\"/>\n      </stop>\n\n    </linearGradient>\n\n  </defs>\n \n  <path\n    d=\"M321.355 279.4L400.615 419.038H240.511L160.415 279.4H321.355Z\"\n    fill=\"url(#grad-shared)\">\n    <animate\n      attributeName=\"opacity\"\n      values=\"${opacity-lo};${opacity-hi};${opacity-lo}\"\n      dur=\"${pulse-fast}s\"\n      keyTimes=\"0;0.5;1\"\n      keySplines=\"0.45 0 0.55 1;0.45 0 0.55 1\"\n      calcMode=\"spline\"\n      repeatCount=\"indefinite\"/>\n  </path>\n \n  <path\n    d=\"M400.572 419.061L480.536 279.423L320.476 0.0800781H160.415L400.572 419.061Z\"\n    fill=\"${color-main}\"/>\n  <path\n    d=\"M400.572 419.061L480.536 279.423L320.476 0.0800781H160.415L400.572 419.061Z\"\n    fill=\"url(#grad-shared)\">\n    <animate\n      attributeName=\"opacity\"\n      values=\"${alpha-bleed-lo};${alpha-bleed-hi};${alpha-bleed-lo}\"\n      dur=\"${pulse-mid}s\"\n      keyTimes=\"0;0.5;1\"\n      keySplines=\"0.45 0 0.55 1;0.45 0 0.55 1\"\n      calcMode=\"spline\"\n      begin=\"${offset-mid}s\"\n      repeatCount=\"indefinite\"/>\n  </path>\n\n \n  <path\n    d=\"M80.3874 139.682H240.449L80.454 419.025L0.357422 279.387L80.3874 139.682Z\"\n    fill=\"${color-main}\"/>\n  <path\n    d=\"M80.3874 139.682H240.449L80.454 419.025L0.357422 279.387L80.3874 139.682Z\"\n    fill=\"url(#grad-shared)\">\n    <animate\n      attributeName=\"opacity\"\n      values=\"${alpha-bleed-lo};${alpha-bleed-hi};${alpha-bleed-lo}\"\n      dur=\"${pulse-slow}s\"\n      keyTimes=\"0;0.5;1\"\n      keySplines=\"0.45 0 0.55 1;0.45 0 0.55 1\"\n      calcMode=\"spline\"\n      begin=\"${offset-slow}s\"\n      repeatCount=\"indefinite\"/>\n  </path>\n\n</svg>",
   "variables": [
     {
@@ -155,11 +155,33 @@
     }
   ],
   "total": 10000,
-  "seed": "gpfblN+ueuZn0IDc2n2jo6hoh2qjxl2zfI4pbFs3FIk=",
+  "seed": "U+dvWI4g1l0RM1x8aIFKONoQMBxfJz1jlxl12BWtiPY=",
   "owner": null,
   "mint_start_time": null,
   "mint_end_time": null,
-  "price_tiers": [],
+  "price_tiers": [
+    {
+      "until_count": 1000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "71000000"
+      }
+    },
+    {
+      "until_count": 5000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "710000000"
+      }
+    },
+    {
+      "until_count": 10000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "1420000000"
+      }
+    }
+  ],
   "payment_address": null,
   "whitelist": null,
   "template_slots": [

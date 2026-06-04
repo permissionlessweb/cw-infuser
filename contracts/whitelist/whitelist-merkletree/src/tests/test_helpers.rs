@@ -15,7 +15,7 @@ pub fn hash_and_build_tree(serialized: &[String]) -> MerkleTree<SortingBlake3Has
         .iter()
         .map(|x| *blake3::hash(x.as_bytes()).as_bytes())
         .collect();
-
+    println!("{:#?}", leaves);
     MerkleTree::<SortingBlake3Hasher>::from_leaves(&leaves)
 }
 

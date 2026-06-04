@@ -53,5 +53,16 @@
     ],
     "globalName": "WhitelistMtree",
     "outName": "whitelist-mtree"
+  },
+  {
+    "name": "DaoCalendar",
+    "dir": "../../vendor/dao-calendar/schema",
+    "entryFiles": [
+      "DaoCalendar.types.ts",
+      "DaoCalendar.client.ts",
+      "DaoCalendar.message-composer.ts"
+    ],
+    "globalName": "DaoCalendar",
+    "outName": "dao-calendar"
   }
 ]

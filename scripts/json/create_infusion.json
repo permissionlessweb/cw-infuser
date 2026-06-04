@@ -46,7 +46,7 @@
             }
         },
         "mint_fee": {
-            "denom": "ustars",
+            "denom": "uterp",
             "amount": "100000000"
         },
         "params": null,

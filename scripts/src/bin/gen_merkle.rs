@@ -11,15 +11,15 @@
 ///   - accounts: map of address → { tier, allocation, proof_hashes }
 ///
 /// Usage:
-///   cargo run -p cw-infuser-scripts --bin gen_merkle -- \
-///       --csv whitelist.csv \
-///       -o merkle.json
+///   cargo run -p cw-infuser-scripts --bin gen_merkle -- --csv data/whitelist.csv -o merkle.json
+///
+///   With instantiate msg:
+///  cargo run -p cw-infuser-scripts --bin gen_merkle -- --csv data/whitelist.csv -o data/terp-warriors.json --instantiate-output data/mtree-init.json --merkle-tree-uri https://mtree-api.terp.network
 use anyhow::{Context, Result};
 use clap::Parser;
 use rs_merkle::{Hasher, MerkleTree};
-use serde::Serialize;
-use std::collections::BTreeMap;
-use std::fs;
+use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, fs};
 
 #[derive(Parser, Debug)]
 #[command(version, about = "Generate a merkle tree from a tiered whitelist CSV")]
@@ -28,9 +28,25 @@ struct Args {
     #[arg(long)]
     csv: String,
 
-    /// Output JSON file (defaults to stdout)
+    /// Output JSON file for the merkle tree (defaults to stdout)
     #[arg(long, short)]
     output: Option<String>,
+
+    /// Output JSON file for the whitelist InstantiateMsg
+    #[arg(long)]
+    instantiate_output: Option<String>,
+
+    /// Admin address (repeatable)
+    #[arg(long = "admin")]
+    admins: Vec<String>,
+
+    /// Whether the admin list is mutable
+    #[arg(long, default_value = "false")]
+    admins_mutable: bool,
+
+    /// Optional IPFS/HTTP URI pointing to the full merkle tree JSON
+    #[arg(long)]
+    merkle_tree_uri: Option<String>,
 }
 
 /// Blake3 hasher that sorts left/right before concatenation.
@@ -65,9 +81,13 @@ impl Hasher for SortingBlake3Hasher {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 struct CsvRow {
     address: String,
+    #[serde(default)]
+    operator_address: String,
+    #[serde(default)]
+    moniker: String,
     tier: u8,
     allocation: u32,
 }
@@ -101,28 +121,9 @@ fn main() -> Result<()> {
         .with_context(|| format!("failed to open CSV: {}", args.csv))?;
 
     let mut rows: Vec<CsvRow> = Vec::new();
-    for result in reader.records() {
-        let record = result.with_context(|| "failed to read CSV record")?;
-        let address = record
-            .get(0)
-            .context("missing address column")?
-            .to_string();
-        let tier: u8 = record
-            .get(1)
-            .context("missing tier column")?
-            .parse()
-            .context("invalid tier")?;
-        let allocation: u32 = record
-            .get(2)
-            .context("missing allocation column")?
-            .parse()
-            .context("invalid allocation")?;
-
-        rows.push(CsvRow {
-            address,
-            tier,
-            allocation,
-        });
+    for result in reader.deserialize() {
+        let row: CsvRow = result.with_context(|| "failed to parse CSV row")?;
+        rows.push(row);
     }
 
     if rows.is_empty() {
@@ -192,6 +193,21 @@ fn main() -> Result<()> {
         None => {
             println!("{}", json);
         }
+    }
+
+    // 7. Optionally write InstantiateMsg JSON
+    if let Some(inst_path) = &args.instantiate_output {
+        let init_msg = serde_json::json!({
+            "merkle_root": root,
+            "merkle_tree_uri": args.merkle_tree_uri,
+            "admins": args.admins,
+            "admins_mutable": args.admins_mutable
+        });
+
+        let init_json = serde_json::to_string_pretty(&init_msg)?;
+        fs::write(inst_path, &init_json)
+            .with_context(|| format!("failed to write instantiate msg to: {}", inst_path))?;
+        eprintln!("Instantiate msg JSON written to: {}", inst_path);
     }
 
     eprintln!("\nSummary:");

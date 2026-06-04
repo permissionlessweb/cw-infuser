@@ -19,7 +19,10 @@ import * as _11 from "./Cw721Svg.message-composer";
 import * as _12 from "./WhitelistMtree.types";
 import * as _13 from "./WhitelistMtree.client";
 import * as _14 from "./WhitelistMtree.message-composer";
-import * as _15 from "./baseClient";
+import * as _15 from "./DaoCalendar.types";
+import * as _16 from "./DaoCalendar.client";
+import * as _17 from "./DaoCalendar.message-composer";
+import * as _18 from "./baseClient";
 export namespace contracts {
   export const CwInfuser = {
     ..._0,
@@ -46,7 +49,12 @@ export namespace contracts {
     ..._13,
     ..._14
   };
+  export const DaoCalendar = {
+    ..._15,
+    ..._16,
+    ..._17
+  };
   export const baseClient = {
-    ..._15
+    ..._18
   };
 }

@@ -1,29 +1,22 @@
-use cosmwasm_std::{coin, coins, Decimal, Event, Fraction, HexBinary, Uint128};
-
 use cosmwasm_std::Binary;
-use cw721_svg::interface::Cw721Svg;
-use cw_infusion_minter::interface::CwInfuser;
-use cw_infusion_minter::{
-    msg::{ExecuteMsg, ExecuteMsgFns as _, InstantiateMsg, QueryMsgFns},
-    state::Config,
-    AnyOfErr, ContractError,
-};
-use cw_infusions::{
-    bundles::{Bundle, BundleType},
-    nfts::{InfusedCollection, NFT},
-    state::{EligibleNFTCollection, Infusion, InfusionParamState},
-    wavs::WavsBundle,
-};
+use cw_infuser::interface::CwInfuser;
 use cw_orch::{anyhow, prelude::*};
-use cw_svg::InstantiateMsg as SvgInitMsg;
+
+use cw721_svg::Cw721SvgContractSuite;
 use cw_svg_minter::interface::Cw721SvgMinter;
 use cw_svg_minter::msg::ExecuteMsgFns as _;
 use cw_svg_minter::InstantiateMsg as SvgMinterInitMsg;
+use shit_scripts::CwShitstrapSuite;
+use whitelist_mtree::interface::WhitelistMerkleTree;
 
 #[derive(Clone, Debug)]
 pub struct CwSvgSuiteDeployData {
-    pub svg: Vec<cw_svg::InstantiateMsg>,
-    pub infuse: Option<cw_infusion_minter::msg::InstantiateMsg>,
+    pub svg: Vec<(
+        cw721_svg::InstantiateMsg,
+        Option<whitelist_mtree::msg::InstantiateMsg>,
+    )>,
+    pub infuse: Option<cw_infuser::msg::InstantiateMsg>,
+    pub shit: Option<shit_scripts::CwShitstrapSuiteDeployData>,
     pub admin: Option<Addr>,
     pub infuse_coins: Vec<Coin>,
 }
@@ -31,14 +24,13 @@ pub struct CwSvgSuiteDeployData {
 pub struct CwSvgSuite<Chain> {
     pub chain: Chain,
     pub infuser: CwInfuser<Chain>,
-    pub cwsvg: Cw721Svg<Chain>,
-    pub cwsvgminter: Cw721SvgMinter<Chain>,
+    pub cwsvg: Cw721SvgContractSuite<Chain>,
+    pub minter: Cw721SvgMinter<Chain>,
+    pub shit: CwShitstrapSuite<Chain>,
+    pub mtree: WhitelistMerkleTree<Chain>,
+
     /// svg collections saved
     pub svgs: Vec<String>,
-    // pub nfts: Vec<Addr>,
-    // pub admin: Addr,
-    // pub wavs_service: Addr,
-    // pub payment_recipient: Addr,
 }
 
 impl<Chain: CwEnv> CwSvgSuite<Chain> {
@@ -46,19 +38,22 @@ impl<Chain: CwEnv> CwSvgSuite<Chain> {
         CwSvgSuite::<Chain> {
             chain: chain.clone(),
             infuser: CwInfuser::new(chain.clone()),
-            cwsvg: Cw721Svg::new(chain.clone()),
-            cwsvgminter: Cw721SvgMinter::new(chain.clone()),
+            cwsvg: Cw721SvgContractSuite::new(chain.clone()),
+            minter: Cw721SvgMinter::new(chain.clone()),
+            shit: CwShitstrapSuite::new(chain.clone()),
+            mtree: WhitelistMerkleTree::new(chain.clone()),
             svgs: Vec::new(),
         }
     }
     pub fn upload(&self) -> Result<(), CwOrchError> {
         self.cwsvg.upload()?;
-        self.cwsvgminter.upload()?;
+        self.minter.upload()?;
         self.infuser.upload()?;
+        self.mtree.upload()?;
         Ok(())
     }
 }
-// Bitsong Accounts `Deploy` Suite
+// Terp Accounts `Deploy` Suite
 impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
     type Error = CwOrchError;
     type DeployData = Option<CwSvgSuiteDeployData>;
@@ -70,10 +65,16 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
     }
 
     fn get_contracts_mut(&mut self) -> Vec<Box<&mut dyn ContractInstance<Chain>>> {
-        vec![Box::new(&mut self.cwsvg), Box::new(&mut self.infuser)]
+        let mut contracts = Vec::new();
+        contracts.extend(self.shit.get_contracts_mut());
+        contracts.push(Box::new(&mut self.cwsvg));
+        contracts.push(Box::new(&mut self.minter));
+        contracts.push(Box::new(&mut self.infuser));
+        contracts.push(Box::new(&mut self.mtree));
+        contracts
     }
 
-    fn load_from(chain: Chain) -> Result<Self, Self::Error> {
+    fn load_from(_chain: Chain) -> Result<Self, Self::Error> {
         todo!()
     }
 
@@ -84,7 +85,7 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
         if let Some(init) = data {
             let admin = init.admin.as_ref();
             let owner = Some(chain.sender_addr().to_string());
-            suite.cwsvgminter.instantiate(
+            suite.minter.instantiate(
                 &SvgMinterInitMsg {
                     owner,
                     svg_code_id: suite.cwsvg.code_id()?,
@@ -93,9 +94,18 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
                 &[],
             )?;
             if !&init.svg.is_empty() {
-                for i in init.svg {
+                for (mut i, mt) in init.svg {
+                    if let Some(mtree) = mt {
+                        // init merkle tree first, add to initmsg
+                        let mtree_addr = suite
+                            .mtree
+                            .instantiate(&mtree, admin, &[])?
+                            .instantiated_contract_address()?;
+                        // add whitelist
+                        i.collection_info_extension.whitelist = Some(mtree_addr.to_string());
+                    }
                     let svg = suite
-                        .cwsvgminter
+                        .minter
                         .create_svg_collection(i.clone(), "cwsvg-colllection")?
                         .event_attr_value("wasm", "contract")?;
                     suite.svgs.push(svg);
@@ -107,20 +117,39 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
             if let Some(i) = &init.infuse {
                 suite.infuser.instantiate(&i, admin, &[])?;
             }
-            // TODO: Vec<ExecuteMsg> for each contract
         }
+
         Ok(suite)
     }
 }
 
+pub mod whitelist {
+    use super::*;
+    /// Load a whitelist-merkletree InstantiateMsg from a JSON file generated by gen_merkle.
+    pub fn load_terp_warrior_mtree(
+        path: &str,
+    ) -> anyhow::Result<whitelist_mtree::msg::InstantiateMsg> {
+        let contents = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("failed to read {}: {}", path, e))?;
+
+        let msg: whitelist_mtree::msg::InstantiateMsg =
+            serde_json::from_str(&contents).map_err(|e| {
+                anyhow::anyhow!("failed to deserialize InstantiateMsg from {}: {}", path, e)
+            })?;
+
+        Ok(msg)
+    }
+}
 pub mod svg {
+    use cw721_svg::InstantiateMsg;
+
     use super::*;
     /// Load a cw721-svg InstantiateMsg from a JSON file.
     ///
     /// The `seed` field can be either:
     ///   - A base64 string (standard Binary encoding)
     ///   - A plain UTF-8 string (will be blake3-hashed into 32 bytes)
-    pub fn load_svg_init_msg(path: &str) -> anyhow::Result<SvgInitMsg> {
+    pub fn load_svg_init_msg(path: &str) -> anyhow::Result<InstantiateMsg> {
         let contents = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("failed to read {}: {}", path, e))?;
 
@@ -138,7 +167,7 @@ pub mod svg {
             }
         }
 
-        let msg: SvgInitMsg = serde_json::from_value(value).map_err(|e| {
+        let msg: InstantiateMsg = serde_json::from_value(value).map_err(|e| {
             anyhow::anyhow!("failed to deserialize InstantiateMsg from {}: {}", path, e)
         })?;
 

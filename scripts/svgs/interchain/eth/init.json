@@ -1,6 +1,6 @@
 {
-  "name": "ETH SVG",
-  "symbol": "ESVG",
+  "name": "Eth SVG",
+  "symbol": "ETH",
   "svg_template": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"319.6\" height=\"533.3\" viewBox=\"0 0 319.6 533.3\" fill=\"none\">\n  <defs>\n    <style>\n      .facet {\n        animation: prism-breath ease-in-out infinite alternate;\n      }\n      .facet-a  { animation-duration: ${breath-a}s; }   /* cool blue */\n      .facet-b  { animation-duration: ${breath-b}s; }   /* soft magenta */\n      .facet-c  { animation-duration: ${breath-c}s; }   /* warm coral */\n      .facet-d  { animation-duration: ${breath-d}s; }   /* electric cyan */\n      .facet-e  { animation-duration: ${breath-e}s; }   /* fresh lime */\n      .facet-f  { animation-duration: ${breath-f}s; }   /* golden yellow */\n\n      @keyframes prism-breath {\n        from { opacity: 0.93; }\n        to   { opacity: 1.00; }\n      }\n    </style>\n  </defs>\n\n  \n  <path class=\"facet facet-a\" fill=\"${color-blue}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M159.6,402.5L319.6,302L159.6,533.3V402.5z M183.4,415.6v41.8l51.3-74L183.4,415.6z\"/>\n\n  \n  <path class=\"facet facet-b\" fill=\"${color-purple}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M175.9,193.8l118.2,66.9l-11.7,20.6l-118.2-66.9L175.9,193.8z\"/>\n\n  \n  <path class=\"facet facet-c\" fill=\"${color-coral}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M159.6,0l159.6,274.6L159.6,375.3V0z M183.1,87.9v244.7l104.2-65.7L183.1,87.9z\"/>\n\n  \n  <path class=\"facet facet-d\" fill=\"${color-cyan}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M160.1,402.5L0,302l160.1,231.3V402.5z M136.3,415.6v41.8l-51.3-74L136.3,415.6z\"/>\n\n  \n  <path class=\"facet facet-e\" fill=\"${color-lime}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M138.7,196L20.5,262.9l11.7,20.6l118.2-66.9L138.7,196z\"/>\n\n  \n  <path class=\"facet facet-f\" fill=\"${color-yellow}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M159.6,0L0,274.6l159.6,100.6V0z M136,87.9v244.7L31.8,266.9L136,87.9z\"/>\n</svg>",
   "variables": [
     {
@@ -155,11 +155,33 @@
     }
   ],
   "total": 10000,
-  "seed": "boVbj9iJiCTgxLRHPLII52kVxllvQYEeGTpSM6xe6xs=",
+  "seed": "jkqqg6gIjf4v3o6rs/RigW5FpYbxbXimK385JCS/mpA=",
   "owner": null,
   "mint_start_time": null,
   "mint_end_time": null,
-  "price_tiers": [],
+  "price_tiers": [
+    {
+      "until_count": 1000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "71000000"
+      }
+    },
+    {
+      "until_count": 5000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "710000000"
+      }
+    },
+    {
+      "until_count": 10000,
+      "price": {
+        "denom": "uthiol",
+        "amount": "1420000000"
+      }
+    }
+  ],
   "payment_address": null,
   "whitelist": null,
   "template_slots": [

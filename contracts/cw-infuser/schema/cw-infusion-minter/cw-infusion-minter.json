@@ -1,5 +1,5 @@
 {
-  "contract_name": "cw-infusion-minter",
+  "contract_name": "cw-infuser",
   "contract_version": "0.7.3",
   "idl_version": "1.0.0",
   "instantiate": {

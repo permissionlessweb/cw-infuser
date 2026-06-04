@@ -1,7 +1,5 @@
-use std::path::PathBuf;
-
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Coin, CosmosMsg, Empty, Timestamp};
+use cosmwasm_std::{CosmosMsg, Empty, Timestamp};
 
 #[cw_serde]
 pub struct Member {

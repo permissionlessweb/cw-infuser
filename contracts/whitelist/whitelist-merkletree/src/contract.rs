@@ -7,14 +7,14 @@ use crate::{
         ExecuteMsg, HasMemberResponse, InstantiateMsg, MerkleRootResponse, MerkleTreeURIResponse,
         QueryMsg,
     },
-    state::{AdminList, ADMIN_LIST, GENESIS_MINT_START_TIME, MERKLE_ROOT, MERKLE_TREE_URI},
+    state::{AdminList, ADMIN_LIST, MERKLE_ROOT, MERKLE_TREE_URI},
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response, StdError,
-    StdResult, Timestamp,
+    StdResult,
 };
 use cw2::set_contract_version;
 use mtree_tooling::helpers::{
@@ -80,7 +80,7 @@ pub fn execute(
 
 pub fn execute_update_merkle_tree(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     merkle_root: String,
     merkle_tree_uri: Option<String>,
@@ -104,7 +104,7 @@ pub fn execute_update_merkle_tree(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::HasMember {
             member,
@@ -119,13 +119,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub fn query_has_member(
     deps: Deps,
-    member: String,
+    composite_key: String,
     proof_hashes: Vec<String>,
 ) -> StdResult<HasMemberResponse> {
     let merkle_root = MERKLE_ROOT.load(deps.storage)?;
-
-    let member_init_hash_slice = blake3::hash(member.as_bytes());
-
+    let member_init_hash_slice = blake3::hash(composite_key.as_bytes());
     let final_hash = proof_hashes.into_iter().try_fold(
         member_init_hash_slice,
         |accum_hash_slice, new_proof_hashstring| {
