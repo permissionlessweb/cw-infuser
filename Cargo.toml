@@ -23,14 +23,15 @@ authors = ["hard-nett <hardnettt@proton.me>"]
 license = "MIT"
 
 [workspace.features]
-default = []
+default = ["cosmwasm-std/cosmwasm_3_0"]
+zk = ["cosmwasm-std/zk", "cosmwasm-std/cosmwasm_3_0"]
 
 [workspace.dependencies]
 
 anyhow = "1"
 blake3 = "1.8.3"
 cosmwasm-schema = { path = "../cosmwasm/packages/schema" }
-cosmwasm-std = { path = "../cosmwasm/packages/std" }
+cosmwasm-std = { path = "../cosmwasm/packages/std" , features = ["cosmwasm_3_0"]}
 cw-controllers = { path = "../cw-minus/packages/controllers" }
 cw-infuser = { path = "./contracts/cw-infuser" }
 cw-infusions = { path = "./packages/cw-infusions" }
