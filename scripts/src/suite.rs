@@ -115,7 +115,7 @@ impl<Chain: CwEnv> cw_orch::contract::Deploy<Chain> for CwSvgSuite<Chain> {
                     .set_address(&Addr::unchecked(suite.svgs.last().unwrap()));
             }
             if let Some(i) = &init.infuse {
-                suite.infuser.instantiate(&i, admin, &[])?;
+                suite.infuser.instantiate(i, admin, &[])?;
             }
         }
 

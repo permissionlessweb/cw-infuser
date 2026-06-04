@@ -2,8 +2,7 @@ use crate::state::SvgCollectionMetadata;
 use crate::{ContractError, Cw721SvgContract, SvgMetadata};
 
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, CustomMsg, Deps, DepsMut, Env, Event, MessageInfo,
-    Response, Uint256,
+    Addr, BankMsg, Coin, CustomMsg, Deps, DepsMut, Env, Event, MessageInfo, Response, Uint256,
 };
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -11,7 +10,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cw721::msg::CollectionInfoMsg;
 use cw721::traits::Cw721Query;
 use cw721::traits::{Cw721CustomMsg, Cw721Execute};
-use cw721::Attribute;
 use cw_storage_plus::{Item, Map};
 use cw_svg::TemplateSlot;
 use cw_svg::TokenParam;
@@ -38,10 +36,7 @@ pub fn execute_mint(
     proof_hashes: Vec<String>,
     allocation: u32,
 ) -> Result<Response, ContractError> {
-    match PAUSED.may_load(deps.storage)? {
-        Some(_) => return Err(ContractError::MintingPaused {}),
-        None => {}
-    }
+    if let Some(_) = PAUSED.may_load(deps.storage)? { return Err(ContractError::MintingPaused {}) }
     let c = Cw721SvgContract::default();
     let config = c
         .query_collection_info_and_extension(deps.as_ref())?
@@ -197,9 +192,9 @@ pub fn execute_pause(
                     .add_attribute("action", "pause")
                     .add_attribute("paused", pause.to_string()))
             }
-            false => return Err(ContractError::Unauthorized {}),
+            false => Err(ContractError::Unauthorized {}),
         },
-        None => return Err(ContractError::Unauthorized {}),
+        None => Err(ContractError::Unauthorized {}),
     }
 }
 
@@ -398,12 +393,13 @@ fn verify_whitelist(
         Some(a) => a,
         None => {
             println!("no whitelist");
-            return Ok(false)}
+            return Ok(false);
+        }
     };
 
     // Build the member string: sender + allocation
     println!("checking membership");
-    let member = format!("{}{}", info.sender.to_string(), allocation);
+    let member = format!("{}{}", info.sender, allocation);
     println!("{:#?}", member);
     let res: HasMemberResponse = deps.querier.query_wasm_smart(
         whitelist.clone(),
@@ -535,7 +531,7 @@ pub fn execute_update_whitelist(
     let contract = Cw721SvgContract::default();
     let mut config = contract.query_collection_info_and_extension(deps.as_ref())?;
     match contract.query_creator_ownership(deps.storage)?.owner {
-        Some(own) => match &info.sender == own {
+        Some(own) => match info.sender == own {
             true => {}
             false => return Err(ContractError::Unauthorized {}),
         },

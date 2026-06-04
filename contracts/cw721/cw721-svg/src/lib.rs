@@ -135,7 +135,7 @@ pub mod entry {
                     execute_update_whitelist(deps, info, env, address)
                 }
             },
-            ExecuteMsg::Mint { .. } => return Err(ContractError::IncorrectEntrypoint),
+            ExecuteMsg::Mint { .. } => Err(ContractError::IncorrectEntrypoint),
             _ => Cw721SvgContract::default()
                 .execute(deps, &env, &info, msg)
                 .map_err(Into::into),
@@ -303,7 +303,7 @@ pub mod state {
                     ))
                 })?;
 
-            from_json(&metadata_attr.value).map_err(|e| Cw721ContractError::Std(e))
+            from_json(&metadata_attr.value).map_err(Cw721ContractError::Std)
         }
     }
 

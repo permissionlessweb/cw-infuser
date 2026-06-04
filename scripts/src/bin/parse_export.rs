@@ -255,7 +255,7 @@ fn main() -> Result<()> {
             .get(addr)
             .map(|(m, o)| (m.as_str(), o.as_str()))
             .unwrap_or(("", ""));
-        writer.write_record(&[addr.as_str(), operator, moniker, &tier.to_string(), &alloc.to_string()])?;
+        writer.write_record([addr.as_str(), operator, moniker, &tier.to_string(), &alloc.to_string()])?;
     }
     writer.flush()?;
     let buf = writer.into_inner()?;

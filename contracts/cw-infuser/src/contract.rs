@@ -8,7 +8,7 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
     entry_point, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin,
     CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Fraction, HexBinary, MessageInfo, MigrateInfo,
-    QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128, Uint256,
+    QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint256,
     WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
@@ -193,7 +193,7 @@ fn update_infusion_eligible_collections(
         }
     }
     // ensure new eligible collection params
-    if to_add.len() > 0 {
+    if !to_add.is_empty() {
         let collections = validate_eligible_collection_list(
             deps.storage,
             // deps.querier,
@@ -590,21 +590,18 @@ fn validate_eligible_collection_list(
         }
 
         // check feesub tokens are unique
-        match &col.payment_substitute {
-            Some(fs) => {
-                match bundle_type.strain() {
-                    1 => {}
-                    _ => {
-                        if unique_feesub.contains(&fs) {
-                            return Err(ContractError::DuplicateFeeSubToken {
-                                token: fs.denom.clone(),
-                            });
-                        }
+        if let Some(fs) = &col.payment_substitute {
+            match bundle_type.strain() {
+                1 => {}
+                _ => {
+                    if unique_feesub.contains(&fs) {
+                        return Err(ContractError::DuplicateFeeSubToken {
+                            token: fs.denom.clone(),
+                        });
                     }
                 }
-                unique_feesub.push(&fs)
             }
-            None => {}
+            unique_feesub.push(fs)
         }
 
         unique.push(col.addr.clone());
@@ -709,7 +706,7 @@ fn execute_infuse_bundle(
                 });
             if let Some(e) = fee_error {
                 return Err(e);
-            } else if funds.len() > 0 {
+            } else if !funds.is_empty() {
                 let fee_msgs = form_feesplit_helper(
                     cfg.owner_fee,
                     cfg.contract_owner.to_string(),
@@ -1694,7 +1691,7 @@ pub fn migrate(
     _msg: MigrateMsg,
     _info: MigrateInfo,
 ) -> StdResult<Response> {
-    let prev_version = cw2::get_contract_version(deps.storage)?;
+    let _prev_version = cw2::get_contract_version(deps.storage)?;
     // if prev_version.contract != CONTRACT_NAME {
     //     return Err(StdError::msg(
     //         "Cannot upgrade to a different contract",

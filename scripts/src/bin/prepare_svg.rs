@@ -20,7 +20,6 @@ use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use cw721_svg::contract::*;
 use cw_svg::*;
-use serde_json;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;

@@ -14,7 +14,6 @@ use cw_orch::daemon::DaemonBuilder;
 use cw_orch::environment::{ChainInfoOwned, ChainKind};
 use cw_orch::prelude::*;
 use cw_shitstrap::contract::msg::ExecuteMsg as ShitstrapExecuteMsg;
-use cw_svg_minter::msg::ExecuteMsgFns;
 use ict_rs::chain::cosmos::CosmosChain;
 use ict_rs::chain::Chain;
 use ict_rs::interchain::{Interchain, InterchainBuildOptions, InterchainLink};
@@ -302,7 +301,7 @@ pub async fn run_e2e(a_id: &str, b_id: &str, keep: bool) -> Result<()> {
             "bank",
             "send",
             "deployer",
-            &shitstrap_b.to_string(),
+            shitstrap_b.as_ref(),
             &format!("{}uterp", fund_amount),
             "--chain-id",
             chain_b.chain_id(),
@@ -324,7 +323,7 @@ pub async fn run_e2e(a_id: &str, b_id: &str, keep: bool) -> Result<()> {
     let amount = "1000000000000uthiol"; // 1 THIOL — above 500B cutoff
 
     let chain_b = ic.get_chain(chain_id_b).expect("chain B exists");
-    let bal_before = query_balance(chain_b, &shitstrap_b.to_string(), "uterp").await?;
+    let bal_before = query_balance(chain_b, shitstrap_b.as_ref(), "uterp").await?;
     info!("Callback SHITMOS before IBC: {}", bal_before);
 
     // Snapshot any existing NFT for the callback addr before mint
@@ -341,9 +340,9 @@ pub async fn run_e2e(a_id: &str, b_id: &str, keep: bool) -> Result<()> {
         chain_a,
         "channel-0",
         "deployer",
-        &shitstrap_b.to_string(),
+        shitstrap_b.as_ref(),
         amount,
-        &shitstrap_b.to_string(),
+        shitstrap_b.as_ref(),
     )
     .await?;
 
@@ -357,7 +356,7 @@ pub async fn run_e2e(a_id: &str, b_id: &str, keep: bool) -> Result<()> {
     // Assert: callback contract received SHITMOS from the shitstrap
     // -------------------------------------------------------------------
     let chain_b = ic.get_chain(chain_id_b).expect("chain B exists");
-    let bal_after = query_balance(chain_b, &shitstrap_b.to_string(), "uterp").await?;
+    let bal_after = query_balance(chain_b, shitstrap_b.as_ref(), "uterp").await?;
     info!("Callback SHITMOS after IBC: {}", bal_after);
 
     let before_u128: u128 = bal_before.parse()?;
@@ -366,7 +365,7 @@ pub async fn run_e2e(a_id: &str, b_id: &str, keep: bool) -> Result<()> {
     info!("SHITMOS delta for callback contract: {}", delta);
 
     if delta == 0 {
-        let ibc_bal = query_balance(chain_b, &shitstrap_b.to_string(), &ibc_denom_b).await?;
+        let ibc_bal = query_balance(chain_b, shitstrap_b.as_ref(), &ibc_denom_b).await?;
         info!("Callback IBC denom balance: {}", ibc_bal);
         anyhow::bail!(
             "Callback contract received 0 SHITMOS — IBC-or-mint flow failed. \

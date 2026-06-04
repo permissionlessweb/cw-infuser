@@ -1,11 +1,11 @@
 use crate::state::*;
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_schema::{QueryResponses, cw_serde};
 use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_infusions::{
+    CompatibleTraits,
     bundles::{Bundle, BundleType},
     state::{EligibleNFTCollection, Infusion, InfusionState, UpdateInfusion},
-    wavs::{WavsBundle, WavsRecordResponse},
-    CompatibleTraits,
+    wavs::WavsBundle,
 };
 
 #[cw_serde]
@@ -94,7 +94,7 @@ pub enum QueryMsg {
     #[returns(Vec<CompatibleTraits>)]
     InfusionGenetics { id: u64 },
 
-    #[returns(Vec<WavsRecordResponse>)]
+    #[returns(Vec<cw_infusions::wavs::WavsRecordResponse>)]
     WavsRecord {
         nfts: Vec<String>,
         burner: Option<Addr>,
