@@ -1,5 +1,5 @@
 use cosmwasm_schema::write_api;
-use cw721_svg::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use cw721_svg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

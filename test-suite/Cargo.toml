@@ -3,10 +3,8 @@ name = "test-suite"
 version = "0.1.0"
 edition = "2021"
 
-
 [lib]
 crate-type = ["cdylib", "rlib"]
-
 
 [features]
 # use library feature to disable all instantiate/execute/query exports
@@ -14,29 +12,27 @@ library = []
 default = []
 vanilla = []
 
-
 [dependencies]
-cw-infuser-scripts = { workspace = true }
-cw-infusions = { workspace = true }
-cw-infusion-minter = { workspace = true,features = ["interface"] }
-cw721-svg = { path = "../contracts/cw721/cw721-svg", features = ["library","interface"] }
-cw-svg = { path = "../packages/cw-svg" }
-cw2= { workspace = true }
-cw-orch = { workspace = true, features = ["daemon"] }
-cosmwasm-std = { workspace = true }
-cosmwasm-schema = { workspace = true }
-cw-storage-plus = { workspace = true }
-cw721 = { workspace = true }
-cw721-base = { version = "0.20.0" }
-cw-utils = { workspace = true }
 anyhow = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-infuser = { workspace = true, features = ["interface"] }
+cw-infuser-scripts = { path = "../scripts", default-features = false }
+cw-infusions = { workspace = true }
+cw-orch = { workspace = true, features = ["daemon"] }
+cw-storage-plus = { workspace = true }
+cw-svg = { workspace = true }
+cw-utils = { workspace = true }
+cw2 = { workspace = true }
+cw721 = { workspace = true }
+cw721-base = { path = "../../cw-nfts/contracts/cw721-base" }
+cw721-svg = { path = "../contracts/cw721/cw721-svg", features = ["library","interface"] }
+schemars = { workspace = true }
 serde = { workspace = true }
-schemars= { workspace = true }
 whitelist-mtree = { path = "../contracts/whitelist/whitelist-merkletree", features = ["library", "interface"] }
 
 [dev-dependencies]
+abstract-cw-multi-test = { path = "../../cw-multi-test-fork" }
 rand = "0.8.5"
-cw-multi-test = "2.5.1"
-abstract-cw-multi-test = { version = "2.2.4" }
 rs_merkle = { version = "1.4.1", default-features = false }
 

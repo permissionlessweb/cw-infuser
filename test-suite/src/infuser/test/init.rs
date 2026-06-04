@@ -1,7 +1,8 @@
 use abstract_cw_multi_test::Contract;
+use anyhow::anyhow;
 use cosmwasm_std::{coin, coins, Decimal, Event, Fraction, HexBinary, Uint128};
 use cw721::EmptyOptionalCollectionExtension;
-use cw_infusion_minter::{
+use cw_infuser::{
     msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
     state::Config,
     AnyOfErr, ContractError,
@@ -14,7 +15,7 @@ use cw_infusions::{
 };
 use std::{error::Error, str::FromStr};
 // Use prelude to get all the necessary imports
-use cw_infusion_minter::interface::CwInfuser;
+use cw_infuser::interface::CwInfuser;
 use cw_orch::{anyhow, prelude::*};
 
 fn cw721_contract() -> Box<dyn Contract<Empty>> {
@@ -158,7 +159,9 @@ impl<Chain: CwEnv> InfuserTestSuite<Chain> {
                 None,
                 &[],
             )?;
-            let cw721_a = msg_a.instantiated_contract_address()?;
+            let cw721_a = msg_a
+                .instantiated_contract_address()
+                .map_err(|e| anyhow!(e.to_string()))?;
             println!("test nft collection: {:#?},{:#?}", i, cw721_a.to_string());
             nft_collection_addrs.push(cw721_a);
         }
@@ -213,7 +216,7 @@ impl<Chain: CwEnv> InfuserTestSuite<Chain> {
         env.infuser.instantiate(
             &InstantiateMsg {
                 contract_owner: Some(env.admin.to_string()),
-                owner_fee: Decimal::from_str("0.1")?,
+                owner_fee: Decimal::from_str("0.1").map_err(|e| anyhow!(e.to_string()))?,
                 min_creation_fee: Some(coin(500u128, "ustars")),
                 min_infusion_fee: Some(coin(100u128, "ustars")),
                 min_per_bundle: None,
@@ -288,7 +291,10 @@ impl<Chain: CwEnv> InfuserTestSuite<Chain> {
 
         // store cw721
         let cw721 = cw721_contract();
-        let cw721_code_id = mock.upload_custom("cw721", cw721)?.uploaded_code_id()?;
+        let cw721_code_id = mock
+            .upload_custom("cw721", cw721)?
+            .uploaded_code_id()
+            .map_err(|e| anyhow!(e.to_string()))?;
         let nft_collection_addrs = InfuserTestSuite::<MockBech32>::default_nft_instantiate(
             mock.clone(),
             cw721_code_id,
@@ -383,7 +389,8 @@ fn test_successful_install() -> anyhow::Result<()> {
             code_id: 2,
             code_hash: HexBinary::from_hex(
                 "7e961e9369f7a3619b102834beec5bc2463f9008b40de972c91c45e3b300a805"
-            )?,
+            )
+            .map_err(|e| anyhow!(e.to_string()))?,
             owner_fee: Decimal::zero(),
             min_creation_fee: None,
             min_infusion_fee: None,
@@ -537,9 +544,12 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
 
     // create infusion accepting nft collection 1 & 2
     let res = app.create_infusion(vec![infusion.clone()])?;
-    let infusion_id = Uint128::from_str(&res.event_attr_value("wasm", "infusion-id")?)
-        .unwrap()
-        .u128() as u64;
+    let infusion_id = Uint128::from_str(
+        &res.event_attr_value("wasm", "infusion-id")
+            .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .unwrap()
+    .u128() as u64;
     // assert bundle with collection 1 & 3 errors
     // infuse
     assert_eq!(
@@ -849,7 +859,8 @@ fn test_correct_fees() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
     )
     .unwrap()
     .u128() as u64;
@@ -1024,9 +1035,12 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?;
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?;
 
-    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+    let infusion_id = Uint128::from_str(&infusion_id)
+        .map_err(|e| anyhow!(e.to_string()))?
+        .u128() as u64;
 
     // test bundle setups
     let mut bundle = Bundle { nfts: vec![] };
@@ -1163,8 +1177,10 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     let mut bundle = Bundle { nfts: vec![] };
@@ -1323,8 +1339,10 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
     assert_eq!(infusion_id, 1);
     // test bundle setups
@@ -1546,8 +1564,10 @@ fn test_anyof_mix() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     // try to infuse with just nft 1 & the right fee payment
@@ -1708,8 +1728,10 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     let mut bundle = Bundle { nfts: vec![] };
@@ -1942,8 +1964,10 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
@@ -2099,8 +2123,10 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     let mut bundle = Bundle { nfts: vec![] };
@@ -2220,8 +2246,10 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     // // NO NFTS, NO FEESUB
@@ -2337,8 +2365,10 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     //  cannot update bundle type to anyOf with incorrect addr
@@ -2396,8 +2426,11 @@ fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?;
-    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?;
+    let infusion_id = Uint128::from_str(&infusion_id)
+        .map_err(|e| anyhow!(e.to_string()))?
+        .u128() as u64;
     // update infusion accepted params
     env.infusion.collections[1].max_req = Some(3);
     env.infusion.collections[1].min_req = 2;
@@ -2454,8 +2487,10 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
@@ -2586,8 +2621,10 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
             },
             &[coin(500, "ustars")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
@@ -3030,12 +3067,12 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //     )?;
 
 //     env.chain.call_as(&env.admin).migrate(
-//         &cw_infusion_minter::msg::MigrateMsg {},
+//         &cw_infuser::msg::MigrateMsg {},
 //         env.infuser.code_id()?,
 //         &infuse_addrs[0],
 //     )?;
 //     env.chain.call_as(&env.admin).migrate(
-//         &cw_infusion_minter::msg::MigrateMsg {},
+//         &cw_infuser::msg::MigrateMsg {},
 //         env.infuser.code_id()?,
 //         &infuse_addrs[1],
 //     )?;

@@ -1,17 +1,15 @@
-use crate::admin::{
-    can_execute, execute_freeze, execute_update_admins, query_admin_list, query_can_execute,
+use crate::{
+    admin::{
+        can_execute, execute_freeze, execute_update_admins, query_admin_list, query_can_execute,
+    },
+    error::ContractError,
+    msg::{
+        ExecuteMsg, HasMemberResponse, InstantiateMsg, MerkleRootResponse, MerkleTreeURIResponse,
+        QueryMsg,
+    },
+    state::{AdminList, ADMIN_LIST, GENESIS_MINT_START_TIME, MERKLE_ROOT, MERKLE_TREE_URI},
 };
-use crate::error::ContractError;
-use crate::helpers::crypto::{string_to_hash, valid_hash_string, verify_merkle_root};
-use crate::helpers::utils::verify_tree_uri;
-use crate::helpers::validators::map_validate;
-use crate::msg::{
-    ConfigResponse, ExecuteMsg, HasEndedResponse, HasMemberResponse, HasStartedResponse,
-    InstantiateMsg, IsActiveResponse, MerkleRootResponse, MerkleTreeURIResponse, QueryMsg,
-};
-use crate::state::{
-    AdminList, Config, ADMIN_LIST, CONFIG, GENESIS_MINT_START_TIME, MERKLE_ROOT, MERKLE_TREE_URI,
-};
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -19,11 +17,14 @@ use cosmwasm_std::{
     StdResult, Timestamp,
 };
 use cw2::set_contract_version;
+use mtree_tooling::helpers::{
+    map_validate, string_to_hash, valid_hash_string, verify_merkle_root, verify_tree_uri,
+};
 
 use semver::Version;
 
 // version info for migration info
-pub const WLIST_MERKLETREE: &str = "crates.io:whitelist-merkletree";
+pub const WLIST_MERKLETREE: &str = "whitelist-mtree";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // contract governance params
@@ -33,43 +34,13 @@ pub const MIN_MINT_PRICE: u128 = 0;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     verify_merkle_root(&msg.merkle_root)?;
     verify_tree_uri(&msg.merkle_tree_uri)?;
     set_contract_version(deps.storage, WLIST_MERKLETREE, CONTRACT_VERSION)?;
-
-    if msg.start_time > msg.end_time {
-        return Err(ContractError::InvalidStartTime(
-            msg.start_time,
-            msg.end_time,
-        ));
-    }
-
-    if env.block.time >= msg.start_time {
-        return Err(ContractError::InvalidStartTime(
-            env.block.time,
-            msg.start_time,
-        ));
-    }
-
-    let genesis_start_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    if msg.start_time < genesis_start_time {
-        return Err(ContractError::InvalidStartTime(
-            msg.start_time,
-            genesis_start_time,
-        ));
-    }
-
-    let mut res = Response::new();
-    let config = Config {
-        start_time: msg.start_time,
-        end_time: msg.end_time,
-        mint_price: msg.mint_price,
-        per_address_limit: msg.per_address_limit,
-    };
 
     let admin_config = AdminList {
         admins: map_validate(deps.api, &msg.admins)?,
@@ -78,12 +49,10 @@ pub fn instantiate(
 
     MERKLE_ROOT.save(deps.storage, &msg.merkle_root)?;
     ADMIN_LIST.save(deps.storage, &admin_config)?;
-    CONFIG.save(deps.storage, &config)?;
 
     let tree_url = msg.merkle_tree_uri.unwrap_or_default();
 
     let mut attrs = Vec::with_capacity(6);
-
     attrs.push(("action", "update_merkle_tree"));
     attrs.push(("merkle_root", &msg.merkle_root));
     attrs.push(("contract_name", WLIST_MERKLETREE));
@@ -93,7 +62,7 @@ pub fn instantiate(
     }
     attrs.push(("sender", info.sender.as_str()));
 
-    Ok(res.add_attributes(attrs))
+    Ok(Response::new().add_attributes(attrs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -104,8 +73,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateStartTime(time) => execute_update_start_time(deps, env, info, time),
-        ExecuteMsg::UpdateEndTime(time) => execute_update_end_time(deps, env, info, time),
         ExecuteMsg::UpdateAdmins { admins } => execute_update_admins(deps, env, info, admins),
         ExecuteMsg::Freeze {} => execute_freeze(deps, env, info),
     }
@@ -118,14 +85,9 @@ pub fn execute_update_merkle_tree(
     merkle_root: String,
     merkle_tree_uri: Option<String>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
     can_execute(&deps, info.sender.clone())?;
     verify_merkle_root(&merkle_root)?;
     verify_tree_uri(&merkle_tree_uri)?;
-
-    if env.block.time < config.end_time {
-        return Err(ContractError::AlreadyEnded {});
-    }
 
     MERKLE_ROOT.save(deps.storage, &merkle_root)?;
 
@@ -141,101 +103,18 @@ pub fn execute_update_merkle_tree(
     Ok(Response::new().add_attributes(attrs))
 }
 
-pub fn execute_update_start_time(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    start_time: Timestamp,
-) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
-    can_execute(&deps, info.sender.clone())?;
-
-    // don't allow updating start time if whitelist is active
-    if env.block.time >= config.start_time {
-        return Err(ContractError::AlreadyStarted {});
-    }
-
-    if start_time > config.end_time {
-        return Err(ContractError::InvalidStartTime(start_time, config.end_time));
-    }
-
-    let genesis_start_time = Timestamp::from_nanos(GENESIS_MINT_START_TIME);
-    let start_time = if start_time < genesis_start_time {
-        genesis_start_time
-    } else {
-        start_time
-    };
-
-    config.start_time = start_time;
-    CONFIG.save(deps.storage, &config)?;
-    Ok(Response::new()
-        .add_attribute("action", "update_start_time")
-        .add_attribute("start_time", start_time.to_string())
-        .add_attribute("sender", info.sender))
-}
-
-pub fn execute_update_end_time(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    end_time: Timestamp,
-) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
-    can_execute(&deps, info.sender.clone())?;
-
-    if env.block.time >= config.start_time && end_time > config.end_time {
-        return Err(ContractError::AlreadyStarted {});
-    }
-
-    if end_time < config.start_time {
-        return Err(ContractError::InvalidEndTime(end_time, config.start_time));
-    }
-
-    config.end_time = end_time;
-    CONFIG.save(deps.storage, &config)?;
-    Ok(Response::new()
-        .add_attribute("action", "update_end_time")
-        .add_attribute("end_time", end_time.to_string())
-        .add_attribute("sender", info.sender))
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::HasStarted {} => to_json_binary(&query_has_started(deps, env)?),
-        QueryMsg::HasEnded {} => to_json_binary(&query_has_ended(deps, env)?),
-        QueryMsg::IsActive {} => to_json_binary(&query_is_active(deps, env)?),
         QueryMsg::HasMember {
             member,
             proof_hashes,
         } => to_json_binary(&query_has_member(deps, member, proof_hashes)?),
-        QueryMsg::Config {} => to_json_binary(&query_config(deps, env)?),
         QueryMsg::AdminList {} => to_json_binary(&query_admin_list(deps)?),
         QueryMsg::CanExecute { sender, .. } => to_json_binary(&query_can_execute(deps, &sender)?),
         QueryMsg::MerkleRoot {} => to_json_binary(&query_merkle_root(deps)?),
         QueryMsg::MerkleTreeURI {} => to_json_binary(&query_merkle_tree_uri(deps)?),
     }
-}
-
-fn query_has_started(deps: Deps, env: Env) -> StdResult<HasStartedResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(HasStartedResponse {
-        has_started: (env.block.time >= config.start_time),
-    })
-}
-
-fn query_has_ended(deps: Deps, env: Env) -> StdResult<HasEndedResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(HasEndedResponse {
-        has_ended: (env.block.time >= config.end_time),
-    })
-}
-
-fn query_is_active(deps: Deps, env: Env) -> StdResult<IsActiveResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(IsActiveResponse {
-        is_active: (env.block.time >= config.start_time) && (env.block.time < config.end_time),
-    })
 }
 
 pub fn query_has_member(
@@ -262,26 +141,13 @@ pub fn query_has_member(
     );
 
     if final_hash.is_err() {
-        return Err(cosmwasm_std::StdError::generic_err(
+        return Err(cosmwasm_std::StdError::msg(
             "Invalid Merkle Proof".to_string(),
         ));
     }
 
     Ok(HasMemberResponse {
         has_member: merkle_root == hex::encode(final_hash.unwrap().as_bytes()),
-    })
-}
-
-pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(ConfigResponse {
-        num_members: 0,
-        member_limit: 0,
-        per_address_limit: config.per_address_limit,
-        start_time: config.start_time,
-        end_time: config.end_time,
-        mint_price: config.mint_price,
-        is_active: (env.block.time >= config.start_time) && (env.block.time < config.end_time),
     })
 }
 
@@ -301,18 +167,18 @@ pub fn query_merkle_tree_uri(deps: Deps) -> StdResult<MerkleTreeURIResponse> {
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let current_version = cw2::get_contract_version(deps.storage)?;
     if current_version.contract != WLIST_MERKLETREE {
-        return Err(StdError::generic_err("Cannot upgrade to a different contract").into());
+        return Err(StdError::msg("Cannot upgrade to a different contract").into());
     }
     let version: Version = current_version
         .version
         .parse()
-        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+        .map_err(|_| StdError::msg("Invalid contract version"))?;
     let new_version: Version = CONTRACT_VERSION
         .parse()
-        .map_err(|_| StdError::generic_err("Invalid contract version"))?;
+        .map_err(|_| StdError::msg("Invalid contract version"))?;
 
     if version > new_version {
-        return Err(StdError::generic_err("Cannot upgrade to a previous contract version").into());
+        return Err(StdError::msg("Cannot upgrade to a previous contract version").into());
     }
     // if same version return
     if version == new_version {

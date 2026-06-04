@@ -6,9 +6,11 @@ members = [
     "packages/cw-infusions",
     "packages/cw-svg",
     "packages/easy-addr",
+    "packages/mtree-tooling",
     "scripts",
     "test-suite",
 ]
+exclude = ["scripts", "test-suite"]
 resolver = "2"
 
 [workspace.package]
@@ -25,26 +27,29 @@ default = []
 
 [workspace.dependencies]
 
-anyhow = "1.0.79"
+anyhow = "1"
 blake3 = "1.8.3"
-cosmwasm-schema = "2.3.2"
-cosmwasm-std = { version = "2.3.2", features = ["cosmwasm_1_2"] }
-cw-controllers = { version = "2.0.0" }
-cw-infuser-scripts = { path = "./scripts", default-features = false }
-cw-infusion-minter = { path = "./contracts/cw-infuser" }
-cw-svg-minter = { path = "./contracts/cw721/cw721-svg-minter" }
+cosmwasm-schema = { path = "../cosmwasm/packages/schema" }
+cosmwasm-std = { path = "../cosmwasm/packages/std" }
+cw-controllers = { path = "../cw-minus/packages/controllers" }
+cw-infuser = { path = "./contracts/cw-infuser" }
 cw-infusions = { path = "./packages/cw-infusions" }
-cw-orch = { version = "0.28.0" }
-cw-storage-plus = "2.0.0"
-cw-utils = "2.0.0"
-cw2 = "2.0.0"
-cw721 =  "0.21.0"
+cw-orch = { path = "../cw-orchestrator/cw-orch" }
+cw-ownable = { path = "../cw-plus-plus/packages/ownable" }
+cw-storage-plus = { path = "../cw-storage-plus" }
+cw-svg = { path = "./packages/cw-svg" }
+cw-svg-minter = { path = "./contracts/cw721/cw721-svg-minter" }
+cw-utils = { path = "../cw-minus/packages/cw-utils" }
+cw2 = { path = "../cw-minus/packages/cw2" }
+cw721 = { path = "../cw-nfts/packages/cw721" }
+hex = "0.4"
+mtree-tooling = { path = "./packages/mtree-tooling" }
 schemars = "0.8.16"
-semver                      = "1"
+semver = "1"
 serde = { version = "1.0.197", default-features = false, features = ["derive"] }
-sha2                 = { version = "0.10.2", default-features = false }
+sha2 = { version = "0.10.2", default-features = false }
 thiserror = { version = "1.0.58" }
-url                  = "2.2.2"
+url = "2.2.2"
 whitelist-mtree = { path = "./contracts/whitelist/whitelist-merkletree" }
 
 [profile.release]

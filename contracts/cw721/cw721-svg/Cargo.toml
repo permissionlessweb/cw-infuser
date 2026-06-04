@@ -7,6 +7,30 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+interface = ["cw-orch"]
+
+[dependencies]
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-orch = { workspace = true, optional = true }
+cw-ownable = { workspace = true }
+cw-storage-plus = { workspace = true }
+cw-svg = { workspace = true }
+cw-utils = { workspace = true }
+cw2 = { workspace = true }
+cw721 = { workspace = true }
+schemars = "0.8.16"
+serde = { version = "1.0.197", default-features = false, features = ["derive"] }
+sha2 = { workspace = true }
+thiserror = { version = "1.0.58" }
+whitelist-mtree = { workspace = true, features = ["library"] }
+
+[dev-dependencies]
+cw-multi-test = { package = "abstract-cw-multi-test", path = "../../../../cw-multi-test-fork" }
+
 [profile.release]
 opt-level = 3
 debug = false
@@ -17,33 +41,3 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
-
-[features]
-# use library feature to disable all instantiate/execute/query exports
-library = []
-interface = ["cw-orch"]
-
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.15.0
-"""
-
-[dependencies]
-cw-orch =  { workspace = true, optional = true }
-cw721 = { workspace = true }
-whitelist-mtree = { workspace = true, features = ["library"] }
-cw-storage-plus = { workspace = true }
-cosmwasm-schema = { workspace = true }
-cosmwasm-std = { workspace = true }
-cw2 = { workspace = true }
-cw-ownable = "2.1.0"
-cw-utils = { workspace = true }
-schemars = "0.8.16"
-serde = { version = "1.0.197", default-features = false, features = ["derive"] }
-sha2 = { workspace = true }
-thiserror = { version = "1.0.58" }
-
-[dev-dependencies]
-cw-multi-test = "2.5.1"

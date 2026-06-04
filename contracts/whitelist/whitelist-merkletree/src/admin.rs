@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use mtree_tooling::helpers::map_validate;
 
 use crate::{
-    helpers::validators::map_validate,
     msg::{AdminListResponse, CanExecuteResponse},
     state::ADMIN_LIST,
     ContractError,

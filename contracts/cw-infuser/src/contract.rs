@@ -6,10 +6,10 @@ use crate::state::{
 };
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
-    coin, entry_point, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary,
-    Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Event, Fraction, HexBinary, MessageInfo,
-    QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
-    WasmQuery,
+    entry_point, instantiate2_address, to_json_binary, Addr, Attribute, BankMsg, Binary, Coin,
+    CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Fraction, HexBinary, MessageInfo, MigrateInfo,
+    QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128, Uint256,
+    WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 
@@ -40,7 +40,7 @@ use sha2::{Digest, Sha256};
 use url::Url;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:sg-minter";
+pub(crate) const CONTRACT_NAME: &str = "cw-infuser";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -65,16 +65,16 @@ pub fn instantiate(
         return Err(ContractError::MaxInfusionErrror);
     }
     if msg.owner_fee > Decimal::one() {
-        return Err(ContractError::Std(StdError::generic_err(
+        return Err(ContractError::Std(StdError::msg(
             "admin fee incorrect. Must be less than or 100%",
         )));
     }
     if msg
         .min_creation_fee
         .clone()
-        .is_some_and(|f| f.amount.u128() == 0u128)
+        .is_some_and(|f| f.amount == Uint256::zero())
     {
-        return Err(ContractError::Std(StdError::generic_err(
+        return Err(ContractError::Std(StdError::msg(
             "admin fee incorrect. Must be less than 100%",
         )));
     }
@@ -923,9 +923,13 @@ fn check_bundles(
                 let (len, remaining_funds) = check_fee_sub(btype, &eli.addr, ps, &funds_sent)?;
                 funds_sent = remaining_funds;
 
+                let len_u64: u64 = match Uint128::try_from(len) {
+                    Ok(v) => v.u128() as u64,
+                    Err(_) => 0,
+                };
                 match btype {
                     1 => {
-                        if len != 1 {
+                        if len != Uint256::one() {
                             return Err(ContractError::FeeSubNotProvided {
                                 col: eli.addr.to_string(),
                                 want: ps.clone(),
@@ -941,7 +945,7 @@ fn check_bundles(
                         fee_sub_map.push(eli.addr.to_string());
                     }
                     2 => {
-                        for _ in 0..len {
+                        for _ in 0..len_u64 {
                             // TODO: multiple weights by len to create single msg with multiple transfers
                             let msgmsgs = form_feesplit_helper(
                                 cfg.owner_fee,
@@ -953,10 +957,10 @@ fn check_bundles(
                             check_bundle_msgs.extend(msgmsgs);
                             fee_sub_map.push(eli.addr.to_string());
                         }
-                        infused_mint_count += len;
+                        infused_mint_count += len_u64;
                     }
                     _ => {
-                        for _ in 0..len {
+                        for _ in 0..len_u64 {
                             let fee_msgs = form_feesplit_helper(
                                 cfg.owner_fee,
                                 cfg.contract_owner.to_string(),
@@ -965,7 +969,7 @@ fn check_bundles(
                             )?;
                             check_bundle_msgs.extend(fee_msgs);
                         }
-                        infused_mint_count += len;
+                        infused_mint_count += len_u64;
                         fee_sub_map.push(eli.addr.to_string());
                     }
                 }
@@ -1283,7 +1287,7 @@ fn check_fee_sub(
     elig_addr: &Addr,
     ps: &Coin,
     sent: &Vec<Coin>,
-) -> Result<(u64, Vec<Coin>), ContractError> {
+) -> Result<(Uint256, Vec<Coin>), ContractError> {
     let mut remaining_funds = sent.to_vec();
     let mut fee_ti = 0usize;
     // Calculate the total number of whole divisions of the sent amounts by the required amount
@@ -1295,7 +1299,7 @@ fn check_fee_sub(
             fee_ti = ii;
             coin.amount / ps.amount
         })
-        .sum::<Uint128>();
+        .sum::<Uint256>();
     // println!("feesub_mint_count: {:#?}, bundle_type", mint_count);
     // calculated mint count may include other eligible collection fee sub payments, if they are using same token denom.
     // if calulated is more than provided, we use the provided, unless provided is more that the max (if there is one).
@@ -1304,7 +1308,7 @@ fn check_fee_sub(
     // if mint count is >  expected, set reduce by by what should be expected from feesub
     match btype {
         1 => {
-            if mint_count == Uint128::zero() {
+            if mint_count == Uint256::zero() {
                 // Collect all relevant coins for the error message
                 let mut have = Coin::default();
                 for coin in sent {
@@ -1314,7 +1318,10 @@ fn check_fee_sub(
                     }
                 }
                 return Err(ContractError::PaymentSubstituteNotProvided {
-                    have: coin(have.amount.into(), ps.denom.to_string()),
+                    have: Coin::new(
+                        Uint128::try_from(have.amount).unwrap_or(Uint128::zero()),
+                        ps.denom.to_string(),
+                    ),
                     want: ps.clone(),
                     col: elig_addr.to_string(),
                 });
@@ -1322,14 +1329,18 @@ fn check_fee_sub(
             // remove 1 ps instances
             remaining_funds[fee_ti].amount -= ps.amount;
 
-            Ok((1u64, remaining_funds))
+            Ok((Uint256::one(), remaining_funds))
         }
         _ => {
-            for _ in 0..mint_count.u128() {
+            let mint_count_u64: u64 = match Uint128::try_from(mint_count) {
+                Ok(v) => v.u128() as u64,
+                Err(_) => 0,
+            };
+            for _ in 0..mint_count_u64 {
                 // remove mint_count ps instances
                 remaining_funds[fee_ti].amount -= ps.amount;
             }
-            Ok((mint_count.u128() as u64, remaining_funds))
+            Ok((mint_count, remaining_funds))
         } // _ => return Err(ContractError::InfusionFeeCannotbeZero {}),
     }
 }
@@ -1413,7 +1424,7 @@ pub fn query_retrieve_wavs_record(
 ) -> StdResult<Vec<WavsRecordResponse>> {
     // Limit 10 nfts
     if nfts.len() > 10usize {
-        return Err(StdError::generic_err("try to query less nft at once"));
+        return Err(StdError::msg("try to query less nft at once"));
     }
     // querying count for specific  addr
     if let Some(burn) = addr {
@@ -1549,7 +1560,7 @@ pub fn random_token_list(
     let mut shuffler = FisherYates::default();
     shuffler
         .shuffle(&mut tokens, &mut rng)
-        .map_err(StdError::generic_err)?;
+        .map_err(StdError::msg)?;
     Ok(tokens)
 }
 
@@ -1625,10 +1636,10 @@ fn form_feesplit_helper(
         .amount
         .checked_multiply_ratio(dec.numerator(), dec.denominator())?;
 
-    if dev_fee != Uint128::zero() {
+    if dev_fee != Uint256::zero() {
         let base_fee = CosmosMsg::Bank(BankMsg::Send {
             to_address: owner,
-            amount: vec![coin(dev_fee.into(), fee.denom.clone())],
+            amount: vec![Coin::new(dev_fee, fee.denom.clone())],
         });
         msgs.push(base_fee);
     }
@@ -1636,7 +1647,7 @@ fn form_feesplit_helper(
     // remaining fee to infusion owner
     let fee_msg = CosmosMsg::Bank(BankMsg::Send {
         to_address: payment_recipient.to_string(),
-        amount: vec![coin(remaining_fee_amount.into(), fee.denom.clone())],
+        amount: vec![Coin::new(remaining_fee_amount, fee.denom.clone())],
     });
 
     msgs.push(fee_msg);
@@ -1684,10 +1695,15 @@ pub fn execute_shuffle(
 
 // //  source: https://github.com/public-awesome/launchpad/blob/main/contracts/minters/vending-minter/src/contract.rs#L1371
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(
+    deps: DepsMut,
+    env: Env,
+    _msg: MigrateMsg,
+    _info: MigrateInfo,
+) -> StdResult<Response> {
     let prev_version = cw2::get_contract_version(deps.storage)?;
     // if prev_version.contract != CONTRACT_NAME {
-    //     return Err(StdError::generic_err(
+    //     return Err(StdError::msg(
     //         "Cannot upgrade to a different contract",
     //     ));
     // }
@@ -1696,36 +1712,34 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> StdResult<Response>
     // let version: Version = prev_version
     //     .version
     //     .parse()
-    //     .map_err(|_| StdError::generic_err("Invalid current contract version"))?;
+    //     .map_err(|_| StdError::msg("Invalid current contract version"))?;
     // let new_version: Version = CONTRACT_VERSION
     //     .parse()
-    //     .map_err(|_| StdError::generic_err("Invalid new contract version"))?;
+    //     .map_err(|_| StdError::msg("Invalid new contract version"))?;
 
     // if version > new_version {
-    //     return Err(StdError::generic_err(
+    //     return Err(StdError::msg(
     //         "Cannot upgrade to a previous contract version",
     //     ));
     // }
 
-    #[allow(clippy::cmp_owned)]
-    if prev_version.version < "0.6.0".to_string() {
-        // v050_patch_upgrade(deps.storage).map_err(|e| StdError::generic_err(e.to_string()))?;
-    }
-    let to_address = CONFIG.load(deps.storage)?.contract_owner.to_string();
-    let amount = deps
-        .querier
-        .query_all_balances(env.contract.address.to_string())?;
+    // #[allow(clippy::cmp_owned)]
+    // if prev_version.version < "0.6.0".to_string() {
+    //     // v050_patch_upgrade(deps.storage).map_err(|e| StdError::msg(e.to_string()))?;
+    // }
+    // let to_address = CONFIG.load(deps.storage)?.contract_owner.to_string();
+    // let amount = deps
+    //     .querier
+    //     .query_all_balances(env.contract.address.to_string())?;
 
-    // set new contract version
-    let event = Event::new("migrate")
-        .add_attribute("from_name", prev_version.contract)
-        .add_attribute("from_version", prev_version.version)
-        .add_attribute("to_name", CONTRACT_NAME)
-        .add_attribute("to_version", CONTRACT_VERSION);
+    // // set new contract version
+    // let event = Event::new("migrate")
+    //     .add_attribute("from_name", prev_version.contract)
+    //     .add_attribute("from_version", prev_version.version)
+    //     .add_attribute("to_name", CONTRACT_NAME)
+    //     .add_attribute("to_version", CONTRACT_VERSION);
 
-    Ok(res
-        .add_event(event)
-        .add_message(BankMsg::Send { to_address, amount }))
+    Ok(res)
 }
 
 #[cfg(test)]

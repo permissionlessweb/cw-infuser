@@ -9,9 +9,9 @@ repository  = { workspace = true }
 license     = { workspace = true }
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -26,15 +26,16 @@ library = []
 interface = ["cw-orch"]
 
 [dependencies]
-cw-orch  = { workspace = true, optional = true }
+blake3          = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std    = { workspace = true }
-cw2             = { workspace = true }
-blake3          = { workspace = true }
+cw-orch  = { workspace = true, optional = true }
 cw-storage-plus = { workspace = true }
 cw-utils        = { workspace = true }
-thiserror       = { workspace = true }
-url             = { workspace = true }
+cw2             = { workspace = true }
 hex             = "0.4.3"
+mtree-tooling   = { workspace = true }
 rs_merkle       = { version = "1.4.1", default-features = false }
 semver          = { workspace = true }
+thiserror       = { workspace = true }
+url             = { workspace = true }

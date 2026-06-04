@@ -4,13 +4,12 @@ authors = ["hard-nett <hardnettt@proton.me>"]
 description = "Helper library for building SVG NFT collection instantiation payloads."
 version = "0.1.0"
 edition = "2021"
-ignore = ["svgs","dicts"]
+ignore = ["svgs", "dicts"]
 
 [lib]
 crate-type = ["rlib"]
 
 [dependencies]
-cosmwasm-std = { workspace = true, features = [] }
 cosmwasm-schema = { workspace = true }
-cw721-svg = { path = "../../contracts/cw721/cw721-svg", features = ["library"] }
+cosmwasm-std = { workspace = true }
 sha2 = { workspace = true }

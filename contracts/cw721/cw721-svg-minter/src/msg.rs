@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cw721_svg::InstantiateMsg as SvgInstantiateMsg;
 use cw_ownable::cw_ownable_execute;
-use cw721_svg::msg::InstantiateMsg as SvgInstantiateMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {

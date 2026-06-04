@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        contract::{execute, instantiate, query_config, query_has_member},
+        contract::{execute, instantiate, query_has_member},
         msg::{ExecuteMsg, InstantiateMsg},
         state::{GENESIS_MINT_START_TIME, NATIVE_FEE_DENOM},
         tests::{hasher::SortingBlake3Hasher, test_helpers::hash_and_build_tree},
@@ -79,10 +79,7 @@ mod tests {
         let msg = InstantiateMsg {
             merkle_root: root,
             merkle_tree_uri: None,
-            per_address_limit: 1,
-            start_time: GENESIS_START_TIME,
-            end_time: END_TIME,
-            mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
+
             admins: vec![ADMIN.to_string()],
             admins_mutable: true,
         };
@@ -114,10 +111,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: NON_HEX_MERKLE_ROOT.to_string(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: GENESIS_START_TIME,
-                end_time: END_TIME,
-                mint_price: coin(1, NATIVE_FEE_DENOM),
+
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
@@ -125,10 +119,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: NON_32BYTES_MERKLE_ROOT.to_string(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: GENESIS_START_TIME,
-                end_time: END_TIME,
-                mint_price: coin(1, NATIVE_FEE_DENOM),
+
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
@@ -136,10 +127,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: GENESIS_START_TIME,
-                end_time: END_TIME,
-                mint_price: coin(UNIT_AMOUNT, "not_ustars"),
+
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
@@ -147,10 +135,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: GENESIS_START_TIME,
-                end_time: END_TIME,
-                mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
+
                 admins: vec!["A".to_string()],
                 admins_mutable: false,
             },
@@ -158,10 +143,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: END_TIME.plus_nanos(1u64),
-                end_time: END_TIME,
-                mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
+
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
@@ -169,10 +151,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: GENESIS_START_TIME.minus_nanos(1u64),
-                end_time: END_TIME,
-                mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
+
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
@@ -180,10 +159,7 @@ mod tests {
             InstantiateMsg {
                 merkle_root: valid_root.clone(),
                 merkle_tree_uri: None,
-                per_address_limit: 1,
-                start_time: env.block.time.minus_nanos(1u64),
-                end_time: END_TIME,
-                mint_price: coin(UNIT_AMOUNT, NATIVE_FEE_DENOM),
+
                 admins: vec![admin.to_string()],
                 admins_mutable: false,
             },
@@ -193,34 +169,6 @@ mod tests {
         for msg in invalid_msgs {
             instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap_err();
         }
-    }
-
-    #[test]
-    fn update_start_time() {
-        let mut deps = mock_dependencies();
-        let (admin, _tree) = setup_contract(deps.as_mut(), None);
-
-        let msg = ExecuteMsg::UpdateStartTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME - 100));
-        let info = message_info(&admin, &[]);
-        let res = execute(deps.as_mut(), early_mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 3);
-        let res = query_config(deps.as_ref(), early_mock_env()).unwrap();
-        assert_eq!(res.start_time, GENESIS_START_TIME);
-    }
-
-    #[test]
-    fn update_end_time() {
-        let mut deps = mock_dependencies();
-        let (admin, _tree) = setup_contract(deps.as_mut(), None);
-
-        let msg = ExecuteMsg::UpdateEndTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME + 100));
-        let info = message_info(&admin, &[]);
-        let res = execute(deps.as_mut(), early_mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 3);
-
-        let msg = ExecuteMsg::UpdateEndTime(Timestamp::from_nanos(GENESIS_MINT_START_TIME - 100));
-        let info = message_info(&admin, &[]);
-        execute(deps.as_mut(), early_mock_env(), info, msg).unwrap_err();
     }
 
     #[test]
@@ -249,9 +197,12 @@ mod tests {
 
         // mismatched proof: proof for index 1 presented with ADDR_0's address
         let wrong_proof = tree.proof(&[1]);
-        let res =
-            query_has_member(deps.as_ref(), ADDR_0.to_string(), wrong_proof.proof_hashes_hex())
-                .unwrap();
+        let res = query_has_member(
+            deps.as_ref(),
+            ADDR_0.to_string(),
+            wrong_proof.proof_hashes_hex(),
+        )
+        .unwrap();
         assert!(!res.has_member);
 
         // invalid proof hashes (not valid hex) must error

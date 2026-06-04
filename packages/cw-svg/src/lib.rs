@@ -1,11 +1,56 @@
-pub mod dao;
+use cosmwasm_schema::cw_serde;
 
-// Re-export contract types for convenience
-pub use cw721_svg::msg::{
-    ConfigResponse, ExecuteMsg, HasMemberResponse, InstantiateMsg, MintConfig, MintCountResponse,
-    PriceTier, QueryMsg, SvgMetadata, SvgTemplateResponse, SvgTokenUriResponse, TemplateSlot,
-    TokenParam, VariableDef, VariableKind, WhitelistHasMemberMsg,
-};
+pub mod callback;
+pub mod dao;
+pub use callback::{MintMsg, SvgMintCallbackAction};
+
+#[cosmwasm_schema::cw_serde]
+pub struct RgbRange {
+    pub r_min: u8,
+    pub r_max: u8,
+    pub g_min: u8,
+    pub g_max: u8,
+    pub b_min: u8,
+    pub b_max: u8,
+}
+
+#[cw_serde]
+pub enum VariableKind {
+    /// Pick from a list of string values
+    Options(Vec<String>),
+    /// Generate a decimal string in [min, max] at given precision.
+    /// `min` and `max` are decimal strings (e.g. "-2.5", "80").
+    Range {
+        min: String,
+        max: String,
+        precision: u32,
+    },
+    /// Generate a random `rgb(R,G,B)` color string.
+    /// Each channel is independently random in 0–255.
+    Rgb,
+    /// Pick a random range from the list, then generate a random shade within it.
+    /// Each channel is constrained to [min, max] of the selected range.
+    RgbStyled(Vec<RgbRange>),
+}
+
+#[cw_serde]
+pub struct VariableDef {
+    pub name: String,
+    pub kind: VariableKind,
+}
+
+#[cw_serde]
+pub struct TokenParam {
+    pub name: String,
+    pub value: String,
+}
+
+#[cw_serde]
+pub struct TemplateSlot {
+    pub start: u32,
+    pub end: u32,
+    pub var_idx: u16,
+}
 
 /// Compute template slots by scanning a template for `${varname}` placeholders.
 /// This is the off-chain counterpart to the on-chain `validate_template_slots`.

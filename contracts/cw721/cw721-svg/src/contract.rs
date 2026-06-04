@@ -1,34 +1,246 @@
-use crate::error::ContractError;
-use crate::msg::{
-    HasMemberResponse, MintConfig, PriceTier, SvgMetadata, TemplateSlot, TokenParam, VariableDef,
-    VariableKind, WhitelistHasMemberMsg,
-};
-use crate::state::{
-    MINTER_ADDRS, MINT_CONFIG, SVG_TEMPLATE, TEMPLATE_SLOTS, VARIABLES, WHITELIST, WL_MINTER_ADDRS,
-};
 use crate::Cw721SvgContract;
+use cosmwasm_std::{from_json, StdError};
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, Deps, DepsMut, Env, Event, MessageInfo, Response, Uint128,
+    to_json_binary, Addr, BankMsg, Binary, Coin, CustomMsg, Deps, DepsMut, Env, Event, MessageInfo,
+    Response, Timestamp, Uint256,
 };
 
-use cw721::state::NftInfo;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cw721::error::Cw721ContractError;
+use cw721::traits::Cw721CustomMsg;
+use cw721::traits::Cw721Query;
+use cw721::Attribute;
+use cw_orch::core::serde_json;
+use cw_storage_plus::{Item, Map};
+use cw_svg::TemplateSlot;
+use cw_svg::TokenParam;
+use cw_svg::VariableDef;
+use cw_svg::VariableKind;
 use sha2::{Digest, Sha256};
-use whitelist_mtree::msg::{ConfigResponse as WhitelistConfigRes, QueryMsg as WlistQueryMsg};
+
+// 0.043 MB limit
+pub const MAX_SVG_SIZE: usize = 42 * 1024;
+pub const MAX_TOTAL_SUPPLY: u64 = 10_000;
+pub const PAUSED: Item<()> = Item::new("svg_paused");
+pub const SVG_TEMPLATE: Item<String> = Item::new("svg_template");
+pub const VARIABLES: Item<Vec<VariableDef>> = Item::new("variables");
+pub const TEMPLATE_SLOTS: Item<Vec<TemplateSlot>> = Item::new("template_slots");
+// TODO: utilize cw721 state trait to implement this somehow
+pub const MINTER_ADDRS: Map<&Addr, u32> = Map::new("minter_addrs");
+pub const WL_MINTER_ADDRS: Map<&Addr, u32> = Map::new("wl_minter_addrs");
 
 /// Find the price per token for the current mint count from the tier list.
 /// Returns None if no tiers are configured (free mint).
-fn current_tier_price(tiers: &[PriceTier], mint_count: u64) -> Option<&Coin> {
+pub fn current_tier_price(tiers: &[PriceTier], mint_count: u64) -> Option<&Coin> {
     tiers
         .iter()
         .find(|tier| mint_count < tier.until_count)
         .map(|tier| &tier.price)
 }
 
+/// A price tier that applies until the mint count reaches `until_count`.
+/// Tiers must be sorted ascending by `until_count`.
+/// Example: [{ until_count: 100, price: 1_000_000utoken }, { until_count: 500, price: 5_000_000utoken }]
+/// means: first 100 mints cost 1 token, mints 101-500 cost 5 tokens.
+#[cw_serde]
+pub struct PriceTier {
+    /// This tier applies while mint_count < until_count
+    pub until_count: u64,
+    /// Price per token in this tier
+    pub price: Coin,
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct SvgMetadata {
+    pub params: Vec<TokenParam>,
+}
+
+#[cw_serde]
+pub struct SvgCollectionMetadata {
+    pub seed: Binary,
+    pub svg_template: String,
+    pub variables: Vec<VariableDef>,
+    /// Pre-computed placeholder positions in the SVG template.
+    /// Each slot maps a `${varname}` occurrence to its byte offsets and variable index.
+    pub template_slots: Vec<TemplateSlot>,
+    /// Price tiers for minting. Empty or None = free mint.
+    pub price_tiers: Vec<PriceTier>,
+    pub total: u64,
+    /// Timestamp of mint start. If less than current block, mints available
+    pub mint_start_time: Option<Timestamp>,
+    pub mint_end_time: Option<Timestamp>,
+    /// Optional merkle whitelist contract address. Whitelisted minters bypass fees.
+    pub whitelist: Option<String>,
+}
+
+impl cw721::traits::Cw721State for SvgCollectionMetadata {}
+impl cw721::traits::Cw721CustomMsg for SvgCollectionMetadata {}
+impl cw721::traits::ToAttributesState for SvgCollectionMetadata {
+    fn to_attributes_state(&self) -> Result<Vec<Attribute>, Cw721ContractError> {
+        Ok(vec![Attribute {
+            key: "metadata".to_string(),
+            value: to_json_binary(self)?,
+        }])
+    }
+}
+
+impl cw721::traits::FromAttributesState for SvgCollectionMetadata {
+    fn from_attributes_state(value: &[Attribute]) -> Result<Self, Cw721ContractError> {
+        // Find the metadata attribute
+        let metadata_attr = value
+            .iter()
+            .find(|attr| attr.key == "metadata")
+            .ok_or_else(|| {
+                Cw721ContractError::Std(StdError::msg("Missing 'metadata' attribute".to_string()))
+            })?;
+
+        from_json(&metadata_attr.value).map_err(|e| Cw721ContractError::Std(StdError::msg("msg")))
+    }
+}
+
+impl cw721::traits::StateFactory<SvgCollectionMetadata> for SvgCollectionMetadata {
+    fn create(
+        &self,
+        _deps: cosmwasm_std::Deps,
+        _env: &cosmwasm_std::Env,
+        _info: Option<&cosmwasm_std::MessageInfo>,
+        _current: Option<&SvgCollectionMetadata>,
+    ) -> Result<SvgCollectionMetadata, Cw721ContractError> {
+        Ok(self.clone())
+    }
+
+    fn validate(
+        &self,
+        _deps: cosmwasm_std::Deps,
+        _env: &cosmwasm_std::Env,
+        _info: Option<&cosmwasm_std::MessageInfo>,
+        _current: Option<&SvgCollectionMetadata>,
+    ) -> Result<(), Cw721ContractError> {
+        // Add your validation logic here
+        if self.svg_template.is_empty() {
+            return Err(Cw721ContractError::Std(StdError::msg(
+                "SVG template cannot be empty".to_string(),
+            )));
+        }
+        if self.total == 0 {
+            return Err(Cw721ContractError::Std(StdError::msg(
+                "Total supply must be greater than 0".to_string(),
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// Query message for the merkle whitelist contract.
+/// Must match the whitelist contract's QueryMsg::HasMember variant.
+#[cw_serde]
+pub enum WhitelistHasMemberMsg {
+    HasMember {
+        member: String,
+        proof_hashes: Vec<String>,
+    },
+}
+
+/// Response from the whitelist HasMember query
+#[cw_serde]
+pub struct HasMemberResponse {
+    pub has_member: bool,
+}
+
+#[cw_serde]
+#[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))]
+pub enum SvgExecuteMsgExt {
+    Mint(cw_svg::MintMsg),
+    Pause {
+        pause: bool,
+    },
+    /// Owner-only: set or clear the merkle whitelist contract address
+    UpdateWhitelist {
+        /// Set to Some(addr) to enable whitelist, None to disable
+        address: Option<String>,
+    },
+    // TransferNft {
+    //     recipient: String,
+    //     token_id: String,
+    // },
+    // SendNft {
+    //     contract: String,
+    //     token_id: String,
+    //     msg: Binary,
+    // },
+    // Approve {
+    //     spender: String,
+    //     token_id: String,
+    //     expires: Option<Expiration>,
+    // },
+    // Revoke {
+    //     spender: String,
+    //     token_id: String,
+    // },
+    // ApproveAll {
+    //     operator: String,
+    //     expires: Option<Expiration>,
+    // },
+    // RevokeAll {
+    //     operator: String,
+    // },
+    // UpdateOwnership(cw_ownable::Action),
+}
+
+#[cw_ownable::cw_ownable_query]
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))]
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum SvgQueryMsgExt {
+    #[returns(SvgTokenUriResponse)]
+    SvgTokenUri { token_id: String },
+    /// Returns a preview SVG with random placeholder values filled in.
+    #[returns(SvgTokenUriResponse)]
+    SvgPlaceholder { seed: Option<String> },
+    #[returns(SvgTemplateResponse)]
+    SvgTemplate {},
+    #[returns(Option<Addr>)]
+    Whitelist {},
+    /// Returns the total mint count for a given address.
+    #[returns(MintCountResponse)]
+    MintCount { address: String },
+    /// Returns the whitelist mint count for a given address.
+    #[returns(MintCountResponse)]
+    WlMintCount { address: String },
+    #[returns(PriceTier)]
+    CurrentPriceTier {},
+}
+
+impl CustomMsg for SvgQueryMsgExt {}
+impl Cw721CustomMsg for SvgQueryMsgExt {}
+
+#[cw_serde]
+pub struct MigrateMsg {}
+
+#[cw_serde]
+pub struct SvgTokenUriResponse {
+    pub svg: String,
+}
+
+#[cw_serde]
+pub struct SvgTemplateResponse {
+    pub template: String,
+}
+
+#[cw_serde]
+pub struct MintCountResponse {
+    pub address: String,
+    pub count: u32,
+}
+
 /// Validate that the sent funds match the required payment for `amount` tokens.
 /// Returns the total cost as a BankMsg to forward to the payment address.
 fn validate_and_build_payment(
-    config: &MintConfig,
+    payment_address: String,
+    config: &SvgCollectionMetadata,
     info: &MessageInfo,
+    mint_count: u64,
     amount: u64,
 ) -> Result<Option<BankMsg>, ContractError> {
     // If no price tiers, mint is free — require no funds
@@ -43,11 +255,11 @@ fn validate_and_build_payment(
 
     // Calculate total cost across all tokens being minted.
     // Each token might span different tiers.
-    let mut total_cost: Uint128 = Uint128::zero();
+    let mut total_cost: Uint256 = Uint256::zero();
     let mut expected_denom: Option<String> = None;
 
     for i in 0..amount {
-        let count_at = config.mint_count + i;
+        let count_at = mint_count + i;
         let price = current_tier_price(&config.price_tiers, count_at)
             .ok_or(ContractError::CannotMintMoreThanTotal {})?;
 
@@ -67,7 +279,6 @@ fn validate_and_build_payment(
     }
 
     let denom = expected_denom.unwrap();
-
     if total_cost.is_zero() {
         return Ok(None);
     }
@@ -78,7 +289,7 @@ fn validate_and_build_payment(
         .iter()
         .find(|c| c.denom == denom)
         .map(|c| c.amount)
-        .unwrap_or(Uint128::zero());
+        .unwrap_or(Uint256::zero());
 
     if sent != total_cost {
         return Err(ContractError::IncorrectPayment {
@@ -87,7 +298,7 @@ fn validate_and_build_payment(
     }
 
     Ok(Some(BankMsg::Send {
-        to_address: config.payment_address.to_string(),
+        to_address: payment_address,
         amount: vec![Coin {
             denom,
             amount: total_cost,
@@ -102,25 +313,23 @@ fn validate_and_build_payment(
 /// address may mint up to `allocation` tokens via whitelist. When None, the leaf is
 /// just `hash(sender)` and the whitelist contract's `per_address_limit` is used.
 fn verify_whitelist(
-    deps: &Deps,
+    deps: Deps,
     info: &MessageInfo,
     proof_hashes: Vec<String>,
-    allocation: Option<u32>,
+    allocation: u32,
     mint_amount: u64,
 ) -> Result<bool, ContractError> {
-    let whitelist = match WHITELIST.may_load(deps.storage)? {
-        Some(addr) => addr,
-        None => {
-            // No whitelist configured — no bypass
-            return Ok(false);
-        }
+    let whitelist = match Cw721SvgContract::default()
+        .query_collection_info_and_extension(deps)?
+        .extension
+        .whitelist
+    {
+        Some(a) => a,
+        None => return Ok(false),
     };
 
-    // Build the member string: sender + allocation if provided
-    let member = match allocation {
-        Some(alloc) => format!("{}{}", info.sender, alloc),
-        None => info.sender.to_string(),
-    };
+    // Build the member string: sender + allocation
+    let member = format!("{}{}", info.sender, allocation);
 
     let res: HasMemberResponse = deps.querier.query_wasm_smart(
         whitelist.clone(),
@@ -137,19 +346,9 @@ fn verify_whitelist(
     }
 
     // Determine max mints allowed for this address
-    let max_count: u32 = match allocation {
-        Some(alloc) => alloc,
-        None => {
-            let wl_config: WhitelistConfigRes = deps
-                .querier
-                .query_wasm_smart(whitelist, &WlistQueryMsg::Config {})?;
-            wl_config.per_address_limit
-        }
-    };
-
     // Enforce per-address whitelist mint limit
-    let current_wl_count = whitelist_mint_count(*deps, &info.sender);
-    if current_wl_count + mint_amount as u32 > max_count {
+    let current_wl_count = whitelist_mint_count(deps, &info.sender);
+    if current_wl_count + mint_amount as u32 > allocation {
         return Err(ContractError::MaxPerAddressLimitExceeded {});
     }
 
@@ -324,15 +523,20 @@ pub fn execute_mint(
     info: MessageInfo,
     amount: u64,
     proof_hashes: Option<Vec<String>>,
-    allocation: Option<u32>,
+    allocation: u32,
 ) -> Result<Response, ContractError> {
-    let mut config = MINT_CONFIG.load(deps.storage)?;
-
-    if config.paused {
-        return Err(ContractError::MintingPaused {});
+    match PAUSED.may_load(deps.storage)? {
+        Some(_) => return Err(ContractError::MintingPaused {}),
+        None => {}
     }
+    let c = Cw721SvgContract::default();
 
-    if env.block.time < config.mint_start_time {
+    let config = c
+        .query_collection_info_and_extension(deps.as_ref())?
+        .extension;
+    let mint_count = c.config.token_count(deps.storage)?;
+
+    if env.block.time < config.mint_start_time.unwrap_or_default() {
         return Err(ContractError::MintingNotStarted {});
     }
 
@@ -342,13 +546,13 @@ pub fn execute_mint(
         }
     }
 
-    if config.mint_count + amount > config.total {
+    if mint_count + amount > config.total {
         return Err(ContractError::CannotMintMoreThanTotal {});
     }
 
     // Check whitelist — if verified, bypass payment
     let is_whitelisted = match proof_hashes {
-        Some(ph) => verify_whitelist(&deps.as_ref(), &info, ph, allocation, amount)?,
+        Some(ph) => verify_whitelist(deps.as_ref(), &info, ph, allocation, amount)?,
         None => false,
     };
 
@@ -356,7 +560,13 @@ pub fn execute_mint(
     let payment_msg = if is_whitelisted {
         None
     } else {
-        validate_and_build_payment(&config, &info, amount)?
+        validate_and_build_payment(
+            c.config.withdraw_address.load(deps.storage)?,
+            &config,
+            &info,
+            mint_count,
+            amount,
+        )?
     };
 
     let variables = VARIABLES.load(deps.storage)?;
@@ -364,7 +574,7 @@ pub fn execute_mint(
     let mut events = vec![];
 
     for i in 0..amount {
-        let tid = config.mint_count + i;
+        let tid = mint_count + i;
         let token_id = tid.to_string();
 
         // Generate per-token entropy: sha256(tid || seed || block_height)
@@ -383,24 +593,27 @@ pub fn execute_mint(
 
         let extension = SvgMetadata { params };
 
-        let token = NftInfo {
+        let token = cw721::state::NftInfo {
             owner: info.sender.clone(),
             approvals: vec![],
             token_uri: None,
             extension,
         };
 
-        Cw721SvgContract::default()
-            .config
-            .nft_info
-            .update(deps.storage, &token_id, |old| match old {
+        Cw721SvgContract::default().config.nft_info.update(
+            deps.storage,
+            &token_id,
+            |old| match old {
                 Some(_) => Err(ContractError::Base(
                     cw721::error::Cw721ContractError::Claimed {},
                 )),
                 None => Ok(token),
-            })?;
+            },
+        )?;
 
-        Cw721SvgContract::default().config.increment_tokens(deps.storage)?;
+        Cw721SvgContract::default()
+            .config
+            .increment_tokens(deps.storage)?;
 
         events.push(
             Event::new("mint")
@@ -409,15 +622,11 @@ pub fn execute_mint(
         );
     }
 
-    config.mint_count += amount;
-    MINT_CONFIG.save(deps.storage, &config)?;
-
     // Track per-address mint count
     let prev_count = MINTER_ADDRS
         .may_load(deps.storage, &info.sender)?
         .unwrap_or(0);
     MINTER_ADDRS.save(deps.storage, &info.sender, &(prev_count + amount as u32))?;
-
     // Track whitelist mint count if applicable
     if is_whitelisted {
         let prev_wl = WL_MINTER_ADDRS
@@ -449,11 +658,10 @@ pub fn execute_pause(
 ) -> Result<Response, ContractError> {
     cw_ownable::assert_owner(deps.storage, &info.sender)?;
 
-    MINT_CONFIG.update(deps.storage, |mut config| -> Result<_, ContractError> {
-        config.paused = pause;
-        Ok(config)
-    })?;
-
+    match PAUSED.may_load(deps.storage)? {
+        Some(_) => PAUSED.remove(deps.storage),
+        None => PAUSED.save(deps.storage, &())?,
+    }
     Ok(Response::new()
         .add_attribute("action", "pause")
         .add_attribute("paused", pause.to_string()))
@@ -519,8 +727,10 @@ pub fn query_svg_placeholder(
     Ok(result)
 }
 
-pub fn query_config(deps: cosmwasm_std::Deps) -> Result<crate::msg::MintConfig, ContractError> {
-    Ok(MINT_CONFIG.load(deps.storage)?)
+pub fn query_config(
+    deps: cosmwasm_std::Deps,
+) -> Result<cw721::msg::CollectionInfoAndExtensionResponse<SvgCollectionMetadata>, ContractError> {
+    Ok(Cw721SvgContract::default().query_collection_info_and_extension(deps)?)
 }
 
 pub fn query_svg_template(deps: cosmwasm_std::Deps) -> Result<String, ContractError> {
@@ -603,7 +813,7 @@ pub fn validate_variables(variables: &[VariableDef]) -> Result<(), ContractError
 
 pub fn validate_template_slots(
     template: &str,
-    variables: &[crate::msg::VariableDef],
+    variables: &[VariableDef],
     slots: &[TemplateSlot],
 ) -> Result<(), ContractError> {
     let tpl_len = template.len() as u32;
@@ -670,13 +880,33 @@ pub fn execute_update_whitelist(
     match address {
         Some(addr) => {
             let validated = deps.api.addr_validate(&addr)?;
-            WHITELIST.save(deps.storage, &validated)?;
+            Cw721SvgContract::default()
+                .config
+                .collection_extension
+                .save(
+                    deps.storage,
+                    "whitelist".into(),
+                    &Attribute {
+                        key: "whitelist".into(),
+                        value: to_json_binary(&validated)?,
+                    },
+                )?;
             Ok(Response::new()
                 .add_attribute("action", "update_whitelist")
                 .add_attribute("whitelist", validated.to_string()))
         }
         None => {
-            WHITELIST.remove(deps.storage);
+            Cw721SvgContract::default()
+                .config
+                .collection_extension
+                .save(
+                    deps.storage,
+                    "whitelist".into(),
+                    &Attribute {
+                        key: "whitelist".into(),
+                        value: Binary::default(),
+                    },
+                )?;
             Ok(Response::new()
                 .add_attribute("action", "update_whitelist")
                 .add_attribute("whitelist", "removed"))
@@ -684,8 +914,110 @@ pub fn execute_update_whitelist(
     }
 }
 
-pub fn query_whitelist(
-    deps: cosmwasm_std::Deps,
-) -> Result<Option<cosmwasm_std::Addr>, ContractError> {
-    Ok(WHITELIST.may_load(deps.storage)?)
+pub fn query_whitelist(deps: cosmwasm_std::Deps) -> Result<Option<String>, ContractError> {
+    Ok(Cw721SvgContract::default()
+        .query_collection_info_and_extension(deps)?
+        .extension
+        .whitelist)
+}
+
+pub use error::ContractError;
+mod error {
+    use cosmwasm_std::StdError;
+    use cw_ownable::OwnershipError;
+    use cw_utils::PaymentError;
+    use thiserror::Error;
+
+    #[derive(Error, Debug)]
+    pub enum ContractError {
+        #[error("{0}")]
+        Std(#[from] StdError),
+
+        #[error("{0}")]
+        OwnershipError(#[from] OwnershipError),
+
+        #[error("{0}")]
+        Payment(#[from] PaymentError),
+
+        #[error("{0}")]
+        Base(#[from] cw721::error::Cw721ContractError),
+
+        #[error("Minting is paused")]
+        MintingPaused {},
+
+        #[error("Please wrap the SvgExecuteMsgExt::Mint inside the default ExecuteMsg::UpdateExtension option.")]
+        IncorrectEntrypoint,
+
+        #[error("Minting has not started yet")]
+        MintingNotStarted {},
+
+        #[error("Minting has not started yet")]
+        PricingTierError {},
+
+        #[error("Cannot mint more than total supply")]
+        CannotMintMoreThanTotal {},
+
+        #[error("Unauthorized")]
+        Unauthorized {},
+
+        #[error("SVG template exceeds max size of {max} bytes (got {got})")]
+        SvgTemplateTooLarge { max: usize, got: usize },
+
+        #[error("Total supply {got} exceeds maximum of {max}")]
+        TotalSupplyTooHigh { max: u64, got: u64 },
+
+        #[error("Minting period has ended")]
+        MintingEnded {},
+
+        #[error("Incorrect payment: expected {expected}")]
+        IncorrectPayment { expected: String },
+
+        #[error("Proof hashes required for whitelist verification")]
+        MissingProofHashes {},
+
+        #[error("Address {addr} is not whitelisted")]
+        NotWhitelisted { addr: String },
+
+        #[error("No whitelist contract configured")]
+        NoWhitelistConfigured {},
+
+        #[error("{e}")]
+        General { e: String },
+
+        #[error("Whitelist per-address mint limit exceeded")]
+        MaxPerAddressLimitExceeded {},
+
+        #[error("Invalid variable definition: {reason}")]
+        InvalidVariableDef { reason: String },
+
+        #[error("Invalid template placeholder: {reason}")]
+        InvalidTemplatePlaceholder { reason: String },
+    }
+}
+
+#[cfg(feature = "interface")]
+pub use interface::Cw721SvgContractSuite;
+#[cfg(feature = "interface")]
+mod interface {
+    use crate::{
+        entry::{execute, instantiate, query},
+        CONTRACT_NAME, *,
+    };
+    use cw_orch::prelude::*;
+
+    #[cw_orch::interface(InstantiateMsg, ExecuteMsg, QueryMsg, Empty, id = CONTRACT_NAME)]
+    pub struct Cw721SvgContractSuite;
+
+    impl<Chain: CwEnv> Uploadable for Cw721SvgContractSuite<Chain> {
+        /// Return the path to the wasm file corresponding to the contract
+        fn wasm(_chain: &ChainInfoOwned) -> WasmPath {
+            artifacts_dir_from_workspace!()
+                .find_wasm_path_from_crates_label(CONTRACT_NAME)
+                .unwrap()
+        }
+        /// Returns a CosmWasm contract wrapper
+        fn wrapper() -> Box<dyn MockContract<Empty>> {
+            Box::new(ContractWrapper::new_with_empty(execute, instantiate, query))
+        }
+    }
 }

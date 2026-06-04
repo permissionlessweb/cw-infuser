@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    instantiate2_address, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdResult, WasmMsg,
+    instantiate2_address, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -12,7 +12,7 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{svg_collections, SvgCollection, COLLECTION_NONCE, SVG_CODE_ID};
 
-pub(crate) const CONTRACT_NAME: &str = "crates.io:cw-svg-minter";
+pub(crate) const CONTRACT_NAME: &str = "cw-svg-minter";
 pub(crate) const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const DEFAULT_LIMIT: u32 = 10;
@@ -58,7 +58,7 @@ pub fn execute_create_svg_collection(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    instantiate_msg: cw721_svg::msg::InstantiateMsg,
+    instantiate_msg: cw721_svg::InstantiateMsg,
     label: String,
 ) -> Result<Response, ContractError> {
     // If owner is set, only owner may create collections.
@@ -77,13 +77,18 @@ pub fn execute_create_svg_collection(
     let code_info = deps.querier.query_wasm_code_info(code_id)?;
 
     // The "creator" in the instantiate2 formula is the factory contract itself.
+    let sender = info.sender.clone();
     let creator = deps.api.addr_canonicalize(env.contract.address.as_str())?;
+    let tru_creator = match &instantiate_msg.creator {
+        Some(c) => c,
+        None => &sender.to_string(),
+    };
 
     // Build a unique, deterministic salt: sha256(sender_bytes || nonce_le_bytes).
     // Using the sender ensures different creators can't collide even at the same nonce.
     let nonce = COLLECTION_NONCE.load(deps.storage)?;
     let mut hasher = Sha256::new();
-    hasher.update(info.sender.as_bytes());
+    hasher.update(sender.as_bytes());
     hasher.update(nonce.to_le_bytes());
     let salt_bytes: [u8; 32] = hasher.finalize().into();
     let salt = Binary::from(salt_bytes.as_slice());
@@ -93,14 +98,13 @@ pub fn execute_create_svg_collection(
         instantiate2_address(code_info.checksum.as_slice(), &creator, salt.as_slice())
             .map_err(|e| ContractError::Instantiate2AddressError { msg: e.to_string() })?;
     let predicted_addr = deps.api.addr_humanize(&predicted_canonical)?;
-
     // Record the collection before sending the sub-message.
     svg_collections().save(
         deps.storage,
         predicted_addr.as_ref(),
         &SvgCollection {
             contract: predicted_addr.to_string(),
-            creator: info.sender.to_string(),
+            creator: tru_creator.to_string(),
             name: instantiate_msg.name.clone(),
             symbol: instantiate_msg.symbol.clone(),
         },
@@ -110,7 +114,7 @@ pub fn execute_create_svg_collection(
     COLLECTION_NONCE.save(deps.storage, &(nonce + 1))?;
 
     let wasm_msg = WasmMsg::Instantiate2 {
-        admin: instantiate_msg.owner.clone(),
+        admin: Some(tru_creator.to_string()),
         code_id,
         label,
         msg: to_json_binary(&instantiate_msg)?,

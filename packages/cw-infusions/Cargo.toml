@@ -5,9 +5,9 @@ description = "Rust definition of name service metadata, used by Bitsong Account
 version.workspace = true 
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -17,6 +17,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 base64 = "0.22.1"
-sha2 = { version = "0.10.8", default-features = false }
-cosmwasm-schema =  { workspace = true }
+cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true, features = [ ] }
+sha2 = { version = "0.10.8", default-features = false }
