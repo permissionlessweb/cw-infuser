@@ -88,7 +88,16 @@ fn workflow(network: ChainInfoOwned) -> anyhow::Result<()> {
     let sender = chain.sender_addr();
     let data = deploy_data(sender.clone(), &network.chain_id)?;
     let mut suite = CwSvgSuite::deploy_on(chain.clone(), data)?;
-    suite.shit = CwShitstrapSuite::deploy_on(chain.clone(), shit_deploy_data(sender))?;
+    suite.shit = CwShitstrapSuite::deploy_on(
+        chain.clone(),
+        shit_deploy_data(
+            sender,
+            match network.chain_id == "morocco-1" {
+                true => "mainnet".into(),
+                false => "".into(),
+            },
+        ),
+    )?;
     // Print addresses in a format the shell script can parse
     println!("CONTRACT_ADDR:cw_svg_minter={}", suite.minter.addr_str()?);
     println!("CONTRACT_ADDR:cw721_svg={}", suite.cwsvg.addr_str()?);
@@ -196,53 +205,66 @@ pub fn shit_deploy_data_single(admin: Addr) -> Option<CwShitstrapSuiteDeployData
     Some(dd)
 }
 
-pub fn shit_deploy_data(admin: Addr) -> Option<CwShitstrapSuiteDeployData> {
+pub fn shit_deploy_data(admin: Addr, method: &str) -> Option<CwShitstrapSuiteDeployData> {
     let mut dd = CwShitstrapSuiteDeployData::default();
     let mut shit = Vec::new();
 
+    //  todo: get full trace for ibc denoms :
+    // atom from osmosis
+    // akt from akt
+    // bcna from osmosis
+    // eth from osmosis
+    // get information from terp about osmosis and akt clients
+    // get information from osmosis and akt about the canoni
+    // um monero and zec will be native ibc clients, we dont worry about that
+
+    match method {
+        "mainnet" => {}
+        _ => {}
+    };
     // Spot prices @ 2026-03-02 — THIOL ≈ $0.01
     // Cutoff: uthiol (6 decimals) — 710_000_000_000u128 = 710,000 THIOL = $7,100 payout cap
     let cut = 710_000_000_000u128;
 
     // atom @ $1.81
-    let rate = calc_rates(Decimal::from_ratio(181u128, 100u128));
-    let tf = tf_denom(&admin, "atom");
-    shit.push(build_shit_init(&admin, &tf, rate, cut, "atom"));
+    // let rate = calc_rates(Decimal::from_ratio(181u128, 100u128));
+    // let tf = tf_denom(&admin, "atom"); // atom from osmosis
+    // shit.push(build_shit_init(&admin, &tf, rate, cut, "atom"));
 
     // btc @ $66,350
     let rate = calc_rates(Decimal::from_ratio(66350u128, 1u128));
-    let tf = tf_denom(&admin, "btc");
+    let tf = tf_denom(&admin, "btc"); // btc from osmosis
     shit.push(build_shit_init(&admin, &tf, rate, cut, "btc"));
 
     // akt @ $0.29
     let rate = calc_rates(Decimal::from_ratio(29u128, 100u128));
-    let tf = tf_denom(&admin, "akt");
+    let tf = tf_denom(&admin, "akt"); // akt from akt
     shit.push(build_shit_init(&admin, &tf, rate, cut, "akt"));
 
     // um @ $0.007
     let rate = calc_rates(Decimal::from_ratio(7u128, 1000u128));
-    let tf = tf_denom(&admin, "um");
+    let tf = tf_denom(&admin, "um"); // um from osmosis
     shit.push(build_shit_init(&admin, &tf, rate, cut, "um"));
 
     // bcna @ $0.00006686
     let rate = calc_rates(Decimal::from_ratio(6686u128, 100_000_000u128));
-    let tf = tf_denom(&admin, "bcna");
+    let tf = tf_denom(&admin, "bcna"); // bcna from osmosis
     shit.push(build_shit_init(&admin, &tf, rate, cut, "btsg"));
 
-    // monero @ $350.76
-    let rate = calc_rates(Decimal::from_ratio(35076u128, 100u128));
-    let tf = tf_denom(&admin, "monero");
-    shit.push(build_shit_init(&admin, &tf, rate, cut, "monero"));
+    // // monero @ $350.76
+    // let rate = calc_rates(Decimal::from_ratio(35076u128, 100u128));
+    // let tf = tf_denom(&admin, "monero");
+    // shit.push(build_shit_init(&admin, &tf, rate, cut, "monero"));
 
     // eth @ $1,956.12
     let rate = calc_rates(Decimal::from_ratio(195612u128, 100u128));
-    let tf = tf_denom(&admin, "eth");
+    let tf = tf_denom(&admin, "eth"); // eth from osmosis (from ibc-eureka)
     shit.push(build_shit_init(&admin, &tf, rate, cut, "eth"));
 
-    // zec @ $215.16
-    let rate = calc_rates(Decimal::from_ratio(21516u128, 100u128));
-    let tf = tf_denom(&admin, "zec");
-    shit.push(build_shit_init(&admin, &tf, rate, cut, "zec"));
+    // // zec @ $215.16
+    // let rate = calc_rates(Decimal::from_ratio(21516u128, 100u128));
+    // let tf = tf_denom(&admin, "zec"); // eth from
+    // shit.push(build_shit_init(&admin, &tf, rate, cut, "zec"));
 
     dd.admin = Some(admin);
     dd.shit = shit;

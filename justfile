@@ -5,38 +5,21 @@ docker_image := env_var_or_default('DOCKER_IMAGE', 'cw-infuser-optimizer:0.17.0'
 arch := `if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then echo "linux/arm64"; else echo "linux/amd64"; fi`
 
 
-# wasm:
-#     docker run --rm \
-#             -v "{{justfile_directory()}}/..":/workspace \
-#             --mount type=volume,source=scw_infuser_cache,target=/target \
-#             --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-#             --platform {{arch}} \
-#             {{docker_image}}
-
-
 optimizer-build:
         docker build -t {{docker_image}} optimizer/
 
 workspace-optimize: optimizer-build
-        docker run --rm \
-                -v "{{justfile_directory()}}/..":/workspace \
-                --mount type=volume,source=cw_infuser_cache,target=/target \
-                --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-                --platform {{arch}} \
-                {{docker_image}}
-
-# Quick rebuild without rebuilding the Docker image
-workspace-optimize-quick:
-        docker run --rm \
-                -v "{{justfile_directory()}}/..":/workspace \
-                --mount type=volume,source=cw_infuser_cache,target=/target \
-                --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-                --platform {{arch}} \
-                {{docker_image}}
+	docker run --rm \
+		-v $(pwd)/..:/workspace \
+		--env PROJECT_DIR=$$(basename $$(pwd)) \
+		--mount type=volume,source=terp_optimizer_cache,target=/target \
+		--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+		--platform {{arch}} \
+		{{docker_image}}
 
 # Clear build caches (useful after toolchain changes or if builds fail)
 optimizer-clean:
-        docker volume rm cw_infuser_cache registry_cache 2>/dev/null || true%          
+        docker volume rm terp_optimizer_cache 2>/dev/null || true%          
 
 # Sync vendored external contract schemas from their source repos
 sync-vendor:

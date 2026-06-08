@@ -10,7 +10,7 @@ use shit_scripts::CwShitstrapSuite;
 use whitelist_mtree::interface::WhitelistMerkleTree;
 
 #[derive(Clone, Debug)]
-pub struct CwSvgSuiteDeployData {
+pub struct CwSvgSuiteDeployData { 
     pub svg: Vec<(
         cw721_svg::InstantiateMsg,
         Option<whitelist_mtree::msg::InstantiateMsg>,
@@ -21,7 +21,7 @@ pub struct CwSvgSuiteDeployData {
     pub infuse_coins: Vec<Coin>,
 }
 
-pub struct CwSvgSuite<Chain> {
+pub struct CwSvgSuite<Chain> { // CwPermissionlessArtSuite
     pub chain: Chain,
     pub infuser: CwInfuser<Chain>,
     pub cwsvg: Cw721SvgContractSuite<Chain>,
