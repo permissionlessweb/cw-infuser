@@ -11442,11 +11442,9 @@ dependencies = [
  "cw-shitstrap-factory",
  "dotenv",
  "env_logger",
- "ict-rs",
  "serde_json",
  "sha2 0.10.9",
  "terp-rs",
- "tokio",
  "tracing",
 ]
 
@@ -12074,11 +12072,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
- "ibc-app-nft-transfer-types",
- "ibc-app-transfer-types",
- "ibc-client-wasm-types",
  "ibc-proto",
- "ibc-types",
  "pbjson-types",
  "prost",
  "serde",

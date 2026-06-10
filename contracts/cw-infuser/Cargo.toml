@@ -4,16 +4,15 @@ version  = { workspace = true }
 authors = ["hard-nett <hardnettt@proton.me>"]
 edition = "2024"
 exclude = ["scripts"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+# cw-orchestrator interface
 interface = ["cw-orch"]
+# zk-cosmwasmvm api support
 zk = ["cosmwasm-std/zk"]
 
 [dependencies]

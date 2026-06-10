@@ -30,9 +30,9 @@ zk = ["cosmwasm-std/zk", "cosmwasm-std/cosmwasm_3_0"]
 
 anyhow = "1"
 blake3 = "1.8.3"
-cosmwasm-schema = { path = "../cosmwasm/packages/schema" }
-cosmwasm-std = { path = "../cosmwasm/packages/std" , features = ["cosmwasm_3_0"]}
-cw-controllers = { path = "../cw-minus/packages/controllers" }
+cosmwasm-schema = { path = "../cosmwasm/packages/schema"}
+cosmwasm-std = { path = "../cosmwasm/packages/std", features = ["cosmwasm_3_0"]}
+cw-controllers = { path = "../cw-minus/packages/controllers"}
 cw-infuser = { path = "./contracts/cw-infuser" }
 cw-infusions = { path = "./packages/cw-infusions" }
 cw-orch = { path = "../cw-orchestrator/cw-orch" }
@@ -52,7 +52,8 @@ sha2 = { version = "0.10.2", default-features = false }
 thiserror = { version = "1.0.58" }
 url = "2.2.2"
 whitelist-mtree = { path = "./contracts/whitelist/whitelist-merkletree" }
-
+ 
+ 
 [profile.release]
 rpath = false
 lto = true
