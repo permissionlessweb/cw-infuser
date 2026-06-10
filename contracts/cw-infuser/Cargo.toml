@@ -1,14 +1,39 @@
 [package]
-name = "cw-infusion-minter"
+name = "cw-infuser"
 version  = { workspace = true }
 authors = ["hard-nett <hardnettt@proton.me>"]
-edition = "2021"
+edition = "2024"
 exclude = ["scripts"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+# cw-orchestrator interface
+interface = ["cw-orch"]
+# zk-cosmwasmvm api support
+zk = ["cosmwasm-std/zk"]
+
+[dependencies]
+cosmwasm-schema  = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-controllers = { workspace = true }
+cw-infusions = { workspace = true }
+cw-orch = { workspace = true, optional = true }
+cw-storage-plus = { workspace = true }
+cw2 = { workspace = true }
+cw721 = { workspace = true }
+nois = { version = "2.0.0" }
+rand_xoshiro = { version = "0.6.0", default-features = false }
+semver = "1"
+sha2 = { version = "0.10.8", default-features = false }
+shuffle = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
+thiserror = { version = "1.0.58" }
+url = "2.2.2"
+
+[dev-dependencies]
+cw-multi-test = { package = "abstract-cw-multi-test", path = "../../../cw-multi-test-fork" }
 
 [profile.release]
 opt-level = 3
@@ -20,45 +45,3 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
-
-[features]
-# use library feature to disable all instantiate/execute/query exports
-library = []
-
-[dependencies]
-cw-controllers =  { workspace = true }
-cw2 =  { workspace = true }
-cosmwasm-schema  = {workspace = true }
-cw-storage-plus =  { workspace = true }
-cosmwasm-std = { workspace = true, features = [
-  "cosmwasm_1_4",
-  
-] }
-
-# using for post cosmwasm v2 compabtility
-cw721 =  { workspace = true }
-cw721-base  = { workspace = true, features = ["library"] }
-# < v2 ccosmwasm sg721 support
-# cw721-v18 = { version = "0.18.0", package= "cw721" }
-
-cw-infusions = {workspace = true }
-cw-orch =  { workspace = true }
-
-schemars = "0.8.16"
-sha2 = { version = "0.10.8", default-features = false }
-serde = { version = "1.0.197", default-features = false, features = ["derive"] }
-semver                      = "1"
-thiserror = { version = "1.0.58" }
-url                  = "2.2.2"
-
-# cw-infuser-v050 = { git = "https://github.com/permissionlessweb/cw-infuser", rev = "70bcdeeb33e2d6be0225ac7d0583395084d7737f", package = "cw-infuser", features = ["library"] }
-# cosmwasm-std-v1511 = { version = "1.5.11", package = "cosmwasm-std", features = [] }
-
-shuffle         = { git = "https://github.com/webmaster128/shuffle", branch = "rm-getrandom", version = "0.1.7" }
-# rand_core       = { version = "0.6.4", default-features = false }
-rand_xoshiro    = { version = "0.6.0", default-features = false }
-nois            = { version = "2.0.0" }
-
- 
-[dev-dependencies]
-cw-multi-test = "2.2.0"

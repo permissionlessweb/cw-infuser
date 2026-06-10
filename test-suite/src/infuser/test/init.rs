@@ -1,6 +1,8 @@
 use abstract_cw_multi_test::Contract;
+use anyhow::anyhow;
 use cosmwasm_std::{coin, coins, Decimal, Event, Fraction, HexBinary, Uint128};
-use cw_infusion_minter::{
+use cw721::EmptyOptionalCollectionExtension;
+use cw_infuser::{
     msg::{ExecuteMsg, ExecuteMsgFns, InstantiateMsg, QueryMsgFns},
     state::Config,
     AnyOfErr, ContractError,
@@ -13,7 +15,7 @@ use cw_infusions::{
 };
 use std::{error::Error, str::FromStr};
 // Use prelude to get all the necessary imports
-use cw_infuser_scripts::CwInfuser;
+use cw_infuser::interface::CwInfuser;
 use cw_orch::{anyhow, prelude::*};
 
 fn cw721_contract() -> Box<dyn Contract<Empty>> {
@@ -37,7 +39,7 @@ fn cw721_contract() -> Box<dyn Contract<Empty>> {
 // }
 
 // minimal infuser
-pub struct InfuserSuite<Chain> {
+pub struct InfuserTestSuite<Chain> {
     pub chain: MockBech32,
     pub infuser: CwInfuser<Chain>,
     pub nfts: Vec<Addr>,
@@ -47,7 +49,7 @@ pub struct InfuserSuite<Chain> {
     pub payment_recipient: Addr,
 }
 
-impl<Chain: CwEnv> InfuserSuite<Chain> {
+impl<Chain: CwEnv> InfuserTestSuite<Chain> {
     fn default_infused_collection() -> anyhow::Result<InfusedCollection> {
         Ok(InfusedCollection {
             addr: None,
@@ -95,16 +97,16 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         for i in nft_collection_addrs.clone() {
             // mint 11 nfts?
             for n in 0..nft_count {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Mint {
+                let msg: &cw721::msg::Cw721ExecuteMsg<Option<Empty>, Empty, Empty> =
+                    &cw721::msg::Cw721ExecuteMsg::Mint {
                         token_id: n.to_string(),
                         owner: chain.sender.to_string(),
                         token_uri: None,
                         extension: None,
                     };
                 chain.execute(msg, &[], &i.clone())?;
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
+                let msg: &cw721::msg::Cw721ExecuteMsg<Option<Empty>, Empty, Empty> =
+                    &cw721::msg::Cw721ExecuteMsg::Approve {
                         spender: infuser.to_string(),
                         token_id: n.to_string(),
                         expires: None,
@@ -113,16 +115,16 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 chain.execute(msg, &[], &i.clone())?;
             }
             for n in 11..21 {
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Mint {
+                let msg: &cw721::msg::Cw721ExecuteMsg<Option<Empty>, Empty, Empty> =
+                    &cw721::msg::Cw721ExecuteMsg::Mint {
                         token_id: n.to_string(),
                         owner: admin.to_string(),
                         token_uri: None,
                         extension: None,
                     };
                 chain.execute(msg, &[], &i.clone())?;
-                let msg: &cw721_base::ExecuteMsg<Option<Empty>, Empty> =
-                    &cw721_base::ExecuteMsg::Approve {
+                let msg: &cw721::msg::Cw721ExecuteMsg<Option<Empty>, Empty, Empty> =
+                    &cw721::msg::Cw721ExecuteMsg::Approve {
                         spender: infuser.to_string(),
                         token_id: n.to_string(),
                         expires: None,
@@ -145,19 +147,21 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         for i in 0..4 {
             let msg_a = chain.instantiate(
                 cw721_code,
-                &cw721_base::msg::InstantiateMsg {
+                &cw721::msg::Cw721InstantiateMsg::<EmptyOptionalCollectionExtension> {
                     name: "good-chronic".to_string(),
                     symbol: "CHRONIC-".to_owned() + i.to_string().as_str(),
-                    minter: minter.to_string(),
-                    // withdraw_address: Some(withdraw.to_string()),
-                    // collection_info_extension: None,
-                    // creator: None,
+                    minter: Some(minter.to_string()),
+                    collection_info_extension: None,
+                    creator: Some(minter.to_string()),
+                    withdraw_address: Some(withdraw.to_string()),
                 },
                 Some("cw721-base-good-chronic"),
                 None,
                 &[],
             )?;
-            let cw721_a = msg_a.instantiated_contract_address()?;
+            let cw721_a = msg_a
+                .instantiated_contract_address()
+                .map_err(|e| anyhow!(e.to_string()))?;
             println!("test nft collection: {:#?},{:#?}", i, cw721_a.to_string());
             nft_collection_addrs.push(cw721_a);
         }
@@ -173,21 +177,23 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         // approve nfts for new infusion
         for i in nfts.clone() {
             for n in 0..10 {
-                let msg = &cw721::Cw721ExecuteMsg::Approve {
-                    spender: infuser.to_string(),
-                    token_id: n.to_string(),
-                    expires: None,
-                };
+                let msg: &cw721::msg::Cw721ExecuteMsg<Option<Empty>, Empty, Empty> =
+                    &cw721::msg::Cw721ExecuteMsg::Approve {
+                        spender: infuser.to_string(),
+                        token_id: n.to_string(),
+                        expires: None,
+                    };
                 // approve infuser for nft
                 chain.execute(msg, &[], &i.clone())?;
             }
             // mint nfts to contract owner
             for n in 11..21 {
-                let msg = &cw721::Cw721ExecuteMsg::Approve {
-                    spender: infuser.to_string(),
-                    token_id: n.to_string(),
-                    expires: None,
-                };
+                let msg: &cw721::msg::Cw721ExecuteMsg<Option<Empty>, Empty, Empty> =
+                    &cw721::msg::Cw721ExecuteMsg::Approve {
+                        spender: infuser.to_string(),
+                        token_id: n.to_string(),
+                        expires: None,
+                    };
                 // approve infuser for nft
                 chain.call_as(&admin).execute(msg, &[], &i.clone())?;
             }
@@ -199,9 +205,9 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         bundle_type: BundleType,
         nft_owners: Vec<Addr>,
         wavs_public_key: bool,
-    ) -> anyhow::Result<InfuserSuite<MockBech32>> {
+    ) -> anyhow::Result<InfuserTestSuite<MockBech32>> {
         // setup infuser with admin fees
-        let env = InfuserSuite::<MockBech32>::setup()?;
+        let env = InfuserTestSuite::<MockBech32>::setup()?;
         let payment_recipient = env
             .chain
             .addr_make_with_balance("payment-recipient", vec![])?;
@@ -210,9 +216,9 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         env.infuser.instantiate(
             &InstantiateMsg {
                 contract_owner: Some(env.admin.to_string()),
-                owner_fee: Decimal::from_str("0.1")?,
-                min_creation_fee: Some(coin(500u128, "ustars")),
-                min_infusion_fee: Some(coin(100u128, "ustars")),
+                owner_fee: Decimal::from_str("0.1").map_err(|e| anyhow!(e.to_string()))?,
+                min_creation_fee: Some(coin(500u128, "uterp")),
+                min_infusion_fee: Some(coin(100u128, "uterp")),
                 min_per_bundle: None,
                 max_per_bundle: None,
                 max_bundles: None,
@@ -224,13 +230,13 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 },
             },
             Some(&env.admin.clone()),
-            Some(&[]),
+            &[],
         )?;
         let nft1 = env.nfts[0].clone();
         let nft2 = env.nfts[1].clone();
 
         let good_nfts = env.default_good_nfts(&vec![nft1, nft2])?;
-        InfuserSuite::<MockBech32>::default_nft_approvals(
+        InfuserTestSuite::<MockBech32>::default_nft_approvals(
             env.chain.clone(),
             env.nfts.clone(),
             env.infuser.address()?,
@@ -244,9 +250,9 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             wavs_enabled: false,
         };
 
-        let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
+        let good_infused = InfuserTestSuite::<MockBech32>::default_infused_collection()?;
         // ensure fee set is within contract level bounds
-        infusion_params.mint_fee = Some(coin(100, "ustars"));
+        infusion_params.mint_fee = Some(coin(100, "uterp"));
 
         let infusion = Infusion {
             collections: good_nfts.clone(),
@@ -256,7 +262,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
             owner: None,
             description: Some("testewates".to_string()),
         };
-        Ok(InfuserSuite {
+        Ok(InfuserTestSuite {
             chain: env.chain,
             infuser: env.infuser,
             nfts: env.nfts,
@@ -268,12 +274,12 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
     }
 
     // setsup the infuser suite by storing, instantiating, and configuring nft collections & the cw-infuser
-    fn setup() -> anyhow::Result<InfuserSuite<MockBech32>> {
+    fn setup() -> anyhow::Result<InfuserTestSuite<MockBech32>> {
         let mock = MockBech32::new("mock");
         let sender = mock.sender_addr();
-        let admin = mock.addr_make_with_balance("admin", coins(1000000000, "ustars"))?;
+        let admin = mock.addr_make_with_balance("admin", coins(1000000000, "uterp"))?;
         mock.add_balance(&sender, coins(100000000, "ubtsg"))?;
-        mock.add_balance(&sender, coins(100000000, "ustars"))?;
+        mock.add_balance(&sender, coins(100000000, "uterp"))?;
         let treasury = mock.addr_make("treasury");
         let wavs_service = mock.addr_make("wavs_service");
 
@@ -285,8 +291,11 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
 
         // store cw721
         let cw721 = cw721_contract();
-        let cw721_code_id = mock.upload_custom("cw721", cw721)?.uploaded_code_id()?;
-        let nft_collection_addrs = InfuserSuite::<MockBech32>::default_nft_instantiate(
+        let cw721_code_id = mock
+            .upload_custom("cw721", cw721)?
+            .uploaded_code_id()
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let nft_collection_addrs = InfuserTestSuite::<MockBech32>::default_nft_instantiate(
             mock.clone(),
             cw721_code_id,
             sender.clone(),
@@ -307,10 +316,10 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         };
 
         // create cw-infsion app
-        infuser.instantiate(&default_init, None, Some(&[]))?;
+        infuser.instantiate(&default_init, None, &[])?;
 
         // mint
-        InfuserSuite::<MockBech32>::mint_and_approve_helper(
+        InfuserTestSuite::<MockBech32>::mint_and_approve_helper(
             mock.clone(),
             infuser.address()?.clone(),
             admin.clone(),
@@ -319,7 +328,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
         )?;
         let mut infusion = Infusion {
             collections: vec![],
-            infused_collection: InfuserSuite::<MockBech32>::default_infused_collection()?,
+            infused_collection: InfuserTestSuite::<MockBech32>::default_infused_collection()?,
             infusion_params: InfusionParamState {
                 params: None,
                 mint_fee: None,
@@ -346,11 +355,11 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
                 &ExecuteMsg::CreateInfusion {
                     infusions: vec![infusion.clone()],
                 },
-                Some(&[]),
+                &[],
             )?;
             mock.next_block()?;
         }
-        Ok(InfuserSuite {
+        Ok(InfuserTestSuite {
             chain: mock,
             infuser,
             nfts: nft_collection_addrs,
@@ -364,7 +373,7 @@ impl<Chain: CwEnv> InfuserSuite<Chain> {
 
 #[test]
 fn test_successful_install() -> anyhow::Result<()> {
-    let env = InfuserSuite::<MockBech32>::setup()?;
+    let env = InfuserTestSuite::<MockBech32>::setup()?;
     let app = env.infuser;
 
     let config = app.config()?;
@@ -380,7 +389,8 @@ fn test_successful_install() -> anyhow::Result<()> {
             code_id: 2,
             code_hash: HexBinary::from_hex(
                 "7e961e9369f7a3619b102834beec5bc2463f9008b40de972c91c45e3b300a805"
-            )?,
+            )
+            .map_err(|e| anyhow!(e.to_string()))?,
             owner_fee: Decimal::zero(),
             min_creation_fee: None,
             min_infusion_fee: None,
@@ -391,7 +401,7 @@ fn test_successful_install() -> anyhow::Result<()> {
 
 #[test]
 fn test_successful_infusion() -> anyhow::Result<()> {
-    let env = InfuserSuite::<MockBech32>::setup()?;
+    let env = InfuserTestSuite::<MockBech32>::setup()?;
     let app = env.infuser;
 
     // infuse
@@ -422,7 +432,7 @@ fn test_successful_infusion() -> anyhow::Result<()> {
 
     // error if too few nfts provided in bundle
     let err = app.infuse(vec![], 1).unwrap_err();
-    assert_eq!(err.source().unwrap().to_string(), "Bundle cannot be empty.");
+    assert!(err.to_string().contains(&"Bundle cannot be empty."));
 
     // error if too many nfts provided in bundle
     let err = app
@@ -447,15 +457,14 @@ fn test_successful_infusion() -> anyhow::Result<()> {
         )
         .unwrap_err();
     println!("{:#?}", err);
-    assert_eq!(
-        err.source().unwrap().to_string(),
-        ContractError::BundleNotAccepted {
+    assert!(err.to_string().contains(
+        &ContractError::BundleNotAccepted {
             have: 3,
             want: 2,
             addr: env.nfts[0].to_string(),
         }
         .to_string()
-    );
+    ),);
 
     // assert queries
     let res = app.infusion_by_id(1)?;
@@ -469,7 +478,7 @@ fn test_successful_infusion() -> anyhow::Result<()> {
 // Multiple Collections In Bundle
 #[test]
 fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
-    let env = InfuserSuite::<MockBech32>::setup()?;
+    let env = InfuserTestSuite::<MockBech32>::setup()?;
     let app = env.infuser.clone();
 
     let bad_nfts = vec![
@@ -502,7 +511,7 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
         },
     ];
 
-    let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
+    let good_infused = InfuserTestSuite::<MockBech32>::default_infused_collection()?;
     let good_infusion_params = InfusionParamState {
         mint_fee: None,
         params: None,
@@ -522,25 +531,25 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
     // cannot provide same nft collection twice
     infusion.collections = bad_nfts;
 
-    assert_eq!(
-        app.create_infusion(vec![infusion.clone()])
-            .unwrap_err()
-            .downcast::<ContractError>()
-            .unwrap()
-            .to_string(),
-        ContractError::DuplicateCollectionInInfusion.to_string()
-    );
+    assert!(app
+        .create_infusion(vec![infusion.clone()])
+        .unwrap_err()
+        .to_string()
+        .contains(&ContractError::DuplicateCollectionInInfusion.to_string()));
     infusion.collections = good_nfts;
 
     // create infusion accepting nft collection 1 & 2
     let res = app.create_infusion(vec![infusion.clone()])?;
-    let infusion_id = Uint128::from_str(&res.event_attr_value("wasm", "infusion-id")?)
-        .unwrap()
-        .u128() as u64;
+    let infusion_id = Uint128::from_str(
+        &res.event_attr_value("wasm", "infusion-id")
+            .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .unwrap()
+    .u128() as u64;
     // assert bundle with collection 1 & 3 errors
     // infuse
-    assert_eq!(
-        app.infuse(
+    assert!(app
+        .infuse(
             vec![Bundle {
                 nfts: vec![
                     NFT {
@@ -572,20 +581,20 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
             infusion_id,
         )
         .unwrap_err()
-        .downcast::<ContractError>()?
-        .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            col: env.nfts[1].to_string(),
-            bun_type: 1,
-            wavs: false,
-            min_req: 4,
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                col: env.nfts[1].to_string(),
+                bun_type: 1,
+                wavs: false,
+                min_req: 4,
+            }
+            .to_string()
+        ),);
 
     // assert bundle with collection 2 & 3 errors
-    assert_eq!(
-        app.infuse(
+    assert!(app
+        .infuse(
             vec![Bundle {
                 nfts: vec![
                     NFT {
@@ -613,21 +622,21 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
             infusion_id,
         )
         .unwrap_err()
-        .downcast::<ContractError>()?
-        .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            col: env.nfts[0].to_string(),
-            bun_type: 1,
-            wavs: false,
-            min_req: 2,
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                col: env.nfts[0].to_string(),
+                bun_type: 1,
+                wavs: false,
+                min_req: 2,
+            }
+            .to_string()
+        ));
     // assert right number of collections for each bundle
 
     // assert bundle with collection 2 & 3 errors
-    assert_eq!(
-        app.infuse(
+    assert!(app
+        .infuse(
             vec![Bundle {
                 nfts: vec![
                     NFT {
@@ -659,16 +668,16 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
             infusion_id,
         )
         .unwrap_err()
-        .downcast::<ContractError>()?
-        .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            col: env.nfts[0].to_string(),
-            bun_type: 1,
-            wavs: false,
-            min_req: 2,
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                col: env.nfts[0].to_string(),
+                bun_type: 1,
+                wavs: false,
+                min_req: 2,
+            }
+            .to_string()
+        ),);
     env.chain.wait_blocks(1)?;
 
     // good infusion
@@ -744,7 +753,7 @@ fn test_allof_infuse_multiple_collections_in_bundle() -> anyhow::Result<()> {
 #[test]
 fn test_allof_eligible_nft_collections() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let env = InfuserSuite::<MockBech32>::setup()?;
+    let env = InfuserTestSuite::<MockBech32>::setup()?;
     let app = env.infuser.clone();
     let not_nft = env.chain.addr_make("mock-nft");
     println!("{:#?}", not_nft);
@@ -762,7 +771,7 @@ fn test_allof_eligible_nft_collections() -> anyhow::Result<()> {
             payment_substitute: None,
         },
     ];
-    let good_infused = InfuserSuite::<MockBech32>::default_infused_collection()?;
+    let good_infused = InfuserTestSuite::<MockBech32>::default_infused_collection()?;
     let good_infusion_params = InfusionParamState {
         mint_fee: None,
         params: None,
@@ -795,47 +804,45 @@ fn test_allof_eligible_nft_collections() -> anyhow::Result<()> {
 // Correct Fees & Destination
 #[test]
 fn test_correct_fees() -> anyhow::Result<()> {
-    let env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let env = InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
 
     let nft1 = env.nfts[0].clone();
     let nft2 = env.nfts[1].clone();
 
     // err when sending less fees than required
-    assert_eq!(
-        app.execute(
+    assert!(app
+        .execute(
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(499, "ustars")]),
+            &[coin(499, "uterp")],
         )
         .unwrap_err()
-        .downcast::<ContractError>()
-        .unwrap()
-        .to_string(),
-        ContractError::RequirednfusionFeeError {
-            fee: coin(500, "ustars")
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::RequirednfusionFeeError {
+                fee: coin(500, "uterp")
+            }
+            .to_string()
+        ));
 
     // err on more than required mint fee set
-    assert_eq!(
-        app.execute(
+    assert!(app
+        .execute(
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(501, "ustars")]),
+            &[coin(501, "uterp")],
         )
         .unwrap_err()
-        .downcast::<ContractError>()
-        .unwrap()
-        .to_string(),
-        ContractError::RequirednfusionFeeError {
-            fee: coin(500, "ustars")
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::RequirednfusionFeeError {
+                fee: coin(500, "uterp")
+            }
+            .to_string()
+        ));
 
     // good infusion creation
 
@@ -844,9 +851,10 @@ fn test_correct_fees() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
     )
     .unwrap()
     .u128() as u64;
@@ -866,46 +874,46 @@ fn test_correct_fees() -> anyhow::Result<()> {
 
     // ensure fee is required when infusing
     // wrong amount
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(1, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::FeeNotAccepted {
-            have: coin(1, "ustars"),
-            want: coin(1, "ustars")
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(1, "uterp")]
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::FeeNotAccepted {
+                have: coin(1, "uterp"),
+                want: coin(1, "uterp")
+            }
+            .to_string()
+        ),);
 
     // wrong token
-    assert_eq!(
-        env.chain
-            .call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                &[coin(1, "ustars")],
-                &app.address()?,
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::FeeNotAccepted {
-            have: coin(1, "ustars"),
-            want: coin(1, "ustars")
-        }
+    assert!(env
+        .chain
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(1, "uterp")],
+            &app.address()?,
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::FeeNotAccepted {
+                have: coin(1, "uterp"),
+                want: coin(1, "uterp")
+            }
+            .to_string()
+        ),);
 
     // ensure fee is required when infusing
     bundle.nfts[0].token_id = 12;
@@ -915,7 +923,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
             id: infusion_id,
             bundle: vec![bundle.clone()],
         },
-        Some(&[coin(100, "ustars")]),
+        &[coin(100, "uterp")],
     );
     assert!(infuse.is_ok());
 
@@ -931,7 +939,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(100, "ustars")]),
+            &[coin(100, "uterp")],
         )?
         .events;
 
@@ -956,7 +964,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .iter()
         .find(|a| a.key == "amount")
         .expect("incorrect amount of tokens were sent to the contract owner for infusion creation fees.");
-    assert_eq!(admin_payment.value, "10ustars".to_string());
+    assert_eq!(admin_payment.value, "10uterp".to_string());
 
     // for attribute with env.sender as recipient key value
     let infusion_owner_payment = fee_transfers
@@ -972,7 +980,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         .find(|a| a.key == "amount")
         .expect("No amount attribute found");
 
-    assert_eq!(infusion_owner_payment.value, "90ustars".to_string());
+    assert_eq!(infusion_owner_payment.value, "90uterp".to_string());
     env.chain.wait_blocks(1)?;
 
     // ensure admin is ommitted from creation fee validation
@@ -980,7 +988,7 @@ fn test_correct_fees() -> anyhow::Result<()> {
         &ExecuteMsg::CreateInfusion {
             infusions: vec![env.infusion.clone()],
         },
-        Some(&[]),
+        &[],
     )?;
 
     Ok(())
@@ -1000,7 +1008,8 @@ fn test_anyof_eligible_nft_collections() -> anyhow::Result<()> {
 #[test]
 fn test_allof_infusion_fee() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
     let nft1 = env.nfts[0].clone();
     let nft2 = env.nfts[1].clone();
@@ -1009,8 +1018,8 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
     // update infusion bundle type
 
     env.infusion.collections[0].min_req = 2;
-    // update substitute payment for infusion being created to 200ustars
-    env.infusion.collections[1].payment_substitute = Some(coin(200u128, "ustars"));
+    // update substitute payment for infusion being created to 200uterp
+    env.infusion.collections[1].payment_substitute = Some(coin(200u128, "uterp"));
 
     // good infusion creation
     let infusion_id = app
@@ -1018,11 +1027,14 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?;
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?;
 
-    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+    let infusion_id = Uint128::from_str(&infusion_id)
+        .map_err(|e| anyhow!(e.to_string()))?
+        .u128() as u64;
 
     // test bundle setups
     let mut bundle = Bundle { nfts: vec![] };
@@ -1040,25 +1052,25 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
     ];
 
     // error on incorrect nft collections
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(100, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: env.nfts[1].to_string(),
-            have: coin(0, "ustars").into(),
-            want: coin(200u128, "ustars")
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(100, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: env.nfts[1].to_string(),
+                have: coin(0, "uterp").into(),
+                want: coin(200u128, "uterp")
+            }
+            .to_string()
+        ),);
 
     // add ineligible nft collection to bundle
     bundle.nfts.push(NFT {
@@ -1066,23 +1078,23 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
         token_id: 11,
     });
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(500, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::NftIsNotEligible {
-            col: env.nfts[2].to_string(),
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(500, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::NftIsNotEligible {
+                col: env.nfts[2].to_string(),
+            }
+            .to_string()
+        ));
     bundle.nfts.pop();
 
     let res = app
@@ -1092,7 +1104,7 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1113,24 +1125,24 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
         },
     ];
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(50, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::FeeNotAccepted {
-            have: coin(1, "ustars"),
-            want: coin(1, "ustars")
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(50, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::FeeNotAccepted {
+                have: coin(1, "uterp"),
+                want: coin(1, "uterp")
+            }
+            .to_string()
+        ));
 
     let res = app
         .call_as(&env.admin)
@@ -1139,7 +1151,7 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1157,34 +1169,36 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     let mut bundle = Bundle { nfts: vec![] };
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(300, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            bun_type: 1,
-            col: env.nfts[0].to_string(),
-            wavs: false,
-            min_req: 2,
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(300, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                bun_type: 1,
+                col: env.nfts[0].to_string(),
+                wavs: false,
+                min_req: 2,
+            }
+            .to_string()
+        ),);
 
     bundle.nfts = vec![
         NFT {
@@ -1197,26 +1211,26 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
         },
     ];
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(300, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            bun_type: 1,
-            col: env.nfts[1].to_string(),
-            wavs: false,
-            min_req: 1,
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(300, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                bun_type: 1,
+                col: env.nfts[1].to_string(),
+                wavs: false,
+                min_req: 1,
+            }
+            .to_string()
+        ),);
     bundle.nfts.extend(vec![
         NFT {
             addr: env.nfts[1].clone(),
@@ -1236,7 +1250,7 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1254,7 +1268,7 @@ fn test_allof_infusion_fee() -> anyhow::Result<()> {
 fn test_anyof_infusion_fee() -> anyhow::Result<()> {
     let mut bundle_type = BundleType::AnyOf { addrs: vec![] };
     // setup infuser with admin fees
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(bundle_type, vec![], false)?;
+    let mut env = InfuserTestSuite::<MockBech32>::setup_fee_suite(bundle_type, vec![], false)?;
     let app = env.infuser;
     let nft1 = env.nfts[0].clone();
     let nft2 = env.nfts[1].clone();
@@ -1264,21 +1278,21 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
     env.infusion.collections[0].min_req = 2;
 
     // cannot create w/ empty anyof
-    assert_eq!(
-        app.execute(
+    assert!(app
+        .execute(
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )
         .unwrap_err()
-        .downcast::<ContractError>()?
-        .to_string(),
-        ContractError::AnyOfConfigError {
-            err: AnyOfErr::Empty
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::AnyOfConfigError {
+                err: AnyOfErr::Empty
+            }
+            .to_string()
+        ),);
 
     // cannot use not uneligible collection
     bundle_type = BundleType::AnyOf {
@@ -1286,21 +1300,21 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
     };
     env.infusion.infusion_params.bundle_type = bundle_type;
 
-    assert_eq!(
-        app.execute(
+    assert!(app
+        .execute(
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )
         .unwrap_err()
-        .downcast::<ContractError>()?
-        .to_string(),
-        ContractError::AnyOfConfigError {
-            err: AnyOfErr::Uneligible
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::AnyOfConfigError {
+                err: AnyOfErr::Uneligible
+            }
+            .to_string()
+        ));
 
     // using correct one works
     bundle_type = BundleType::AnyOf {
@@ -1309,7 +1323,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
     env.infusion.infusion_params.bundle_type = bundle_type;
 
     // set fee substitute for only one of them
-    env.infusion.collections[1].payment_substitute = Some(coin(200u128, "ustars"));
+    env.infusion.collections[1].payment_substitute = Some(coin(200u128, "uterp"));
 
     // good infusion creation
     let infusion_id = Uint128::from_str(
@@ -1317,10 +1331,12 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
     assert_eq!(infusion_id, 1);
     // test bundle setups
@@ -1335,25 +1351,26 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
         token_id: 11,
     }];
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(100, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::InvalidAnyOfBundle {}.to_string()
-    );
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(100, "uterp")],
+        )
+        .unwrap_err()
+        .to_string()
+        .contains(&ContractError::InvalidAnyOfBundle {}.to_string()));
     bundle.nfts.extend(vec![NFT {
         addr: nft1.clone(),
         token_id: 14,
     }]);
-
+    let b = env.chain.query_balance(&env.admin, "uterp")?;
+    println!("{:#?}", b);
+    let b = env.chain.query_balance(&app.address()?, "uterp")?;
+    println!("{:#?}", b);
     // 1x correct amount nft1, good static fee, incorrect feesub nft2
     let mut infusion_res = app
         .call_as(&env.admin)
@@ -1362,7 +1379,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(150, "ustars")]),
+            &[coin(150, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // 2 burn, one mint
@@ -1371,12 +1388,12 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
     assert_eq!(infusion_res[1], "burn");
     assert_eq!(infusion_res[2], "mint");
     // .unwrap_err()
-    // .downcast::<ContractError>()?
+    //
     // .to_string(),
     // ContractError::PaymentSubstituteNotProvided {
     //     col: nft2.to_string(),
-    //     have: coin(50u128, "ustars").into(),
-    //     want: coin(200u128, "ustars")
+    //     have: coin(50u128, "uterp").into(),
+    //     want: coin(200u128, "uterp")
     // }
     // .to_string()
 
@@ -1390,7 +1407,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // println!("event attribute values for infusion: {:#?}", res);
@@ -1416,7 +1433,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     assert_eq!(res.len(), 4);
@@ -1433,7 +1450,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
 
@@ -1449,7 +1466,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     assert_eq!(res.len(), 2);
@@ -1465,7 +1482,7 @@ fn test_anyof_infusion_fee() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(700, "ustars")]),
+            &[coin(700, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     assert_eq!(res.len(), 3);
@@ -1486,7 +1503,8 @@ fn test_anyof_blend_infusion_fee() -> anyhow::Result<()> {
 #[test]
 fn test_anyof_mix() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
     let nft1 = env.nfts[0].clone();
     let nft2 = env.nfts[1].clone();
@@ -1496,7 +1514,7 @@ fn test_anyof_mix() -> anyhow::Result<()> {
     env.chain.add_balance(
         &env.admin,
         vec![
-            coin(1000000, "ustars"),
+            coin(1000000, "uterp"),
             coin(
                 2000000u128,
                 "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
@@ -1508,13 +1526,13 @@ fn test_anyof_mix() -> anyhow::Result<()> {
     let mut bundle = Bundle { nfts: vec![] };
 
     // set parameters as infusion #1 for
-    env.infusion.collections[0].payment_substitute = Some(coin(100u128, "ustars"));
+    env.infusion.collections[0].payment_substitute = Some(coin(100u128, "uterp"));
     env.infusion.collections[0].min_req = 1;
     env.infusion.collections[1].payment_substitute = Some(coin(
         100u128,
         "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
     ));
-    env.infusion.infusion_params.mint_fee = Some(coin(2000, "ustars"));
+    env.infusion.infusion_params.mint_fee = Some(coin(2000, "uterp"));
     env.infusion.collections[1].min_req = 1;
 
     env.infusion.infusion_params.bundle_type = BundleType::AnyOf {
@@ -1539,10 +1557,12 @@ fn test_anyof_mix() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     // try to infuse with just nft 1 & the right fee payment
@@ -1558,7 +1578,7 @@ fn test_anyof_mix() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(2000, "ustars")]),
+            &[coin(2000, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // one nft burnt, one minterd
@@ -1577,7 +1597,7 @@ fn test_anyof_mix() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(2100, "ustars")]),
+            &[coin(2100, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     println!("{:#?}", infuse_res);
@@ -1596,7 +1616,7 @@ fn test_anyof_mix() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(2200, "ustars")]),
+            &[coin(2200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // 0 nft burnt, two minted
@@ -1612,7 +1632,7 @@ fn test_anyof_mix() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(2199, "ustars")]),
+            &[coin(2199, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // 0 nft burnt, two minted
@@ -1637,13 +1657,13 @@ fn test_anyof_mix() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[
-                coin(2000, "ustars"),
+            &[
+                coin(2000, "uterp"),
                 coin(
                     199,
                     "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
                 ),
-            ]),
+            ],
         )?
         .event_attr_values("wasm", "action");
     // 2 nft burnt, 3 minted
@@ -1660,7 +1680,8 @@ fn test_anyof_mix() -> anyhow::Result<()> {
 #[test]
 fn test_allof_payment_substitute() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
     let nft1 = env.nfts[0].clone();
     let nft2 = env.nfts[1].clone();
@@ -1680,7 +1701,7 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
     let spender = env.chain.addr_make_with_balance(
         "spain",
         vec![
-            coin(1000u128, "ustars"),
+            coin(1000u128, "uterp"),
             coin(
                 20000u128,
                 "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
@@ -1688,7 +1709,7 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
         ],
     )?;
 
-    // update substitute payment for infusion being created to 200ustars
+    // update substitute payment for infusion being created to 200uterp
     env.infusion.collections[1].payment_substitute = Some(coin(
         200u128,
         "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
@@ -1700,51 +1721,51 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     let mut bundle = Bundle { nfts: vec![] };
 
     // 0 bundles
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![],
-                },
-                Some(&[]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::EmptyBundle {}.to_string()
-    );
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![],
+            },
+            &[],
+        )
+        .unwrap_err()
+        .to_string()
+        .contains(&ContractError::EmptyBundle {}.to_string()),);
 
     // empty, single bundle with no fee payment, and no eligible collection
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            col: nft1.to_string(),
-            bun_type: 1,
-            wavs: false,
-            min_req: 1,
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                col: nft1.to_string(),
+                bun_type: 1,
+                wavs: false,
+                min_req: 1,
+            }
+            .to_string()
+        ),);
 
     //  bundle with correct # of non-subpayment col, incorrect fees for subpayment col
     bundle.nfts = vec![NFT {
@@ -1752,38 +1773,38 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
         token_id: 11,
     }];
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[
-                    coin(100, "ustars"),
-                    coin(
-                        100,
-                        "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-                    )
-                ]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: nft2.to_string(),
-            have: coin(
-                100u128,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-            )
-            .into(),
-            want: coin(
-                200u128,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-            )
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[
+                coin(100, "uterp"),
+                coin(
+                    100,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+            ]
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: nft2.to_string(),
+                have: coin(
+                    100u128,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+                .into(),
+                want: coin(
+                    200u128,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+            }
+            .to_string()
+        ),);
 
     // ensure no static fee and no feesub errors
     let infuse = app
@@ -1793,13 +1814,12 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(100, "ustars")]),
+            &[coin(100, "uterp")],
         )
         .unwrap_err();
 
-    assert_eq!(
-        infuse.downcast::<ContractError>()?.to_string(),
-        ContractError::PaymentSubstituteNotProvided {
+    assert!(infuse.to_string().contains(
+        &ContractError::PaymentSubstituteNotProvided {
             col: nft2.to_string(),
             have: coin(
                 0,
@@ -1812,55 +1832,55 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
             )
         }
         .to_string()
-    );
+    ),);
 
     // too many non paymentsub collection
     bundle.nfts.extend([NFT {
         addr: nft1.clone(),
         token_id: 12,
     }]);
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(200, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::BundleNotAccepted {
-            have: 2,
-            want: 1,
-            addr: nft1.to_string(),
-        }
-        .to_string()
-    );
-
-    // ensure correct payment substitute but incorrect bundle
-    bundle = Bundle { nfts: vec![] };
-
-    assert_eq!(
-        app.execute(
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
             &ExecuteMsg::Infuse {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(200, "uterp")],
         )
         .unwrap_err()
-        .downcast::<ContractError>()?
-        .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            col: nft1.to_string(),
-            bun_type: 1,
-            wavs: false,
-            min_req: 1,
-        }
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleNotAccepted {
+                have: 2,
+                want: 1,
+                addr: nft1.to_string(),
+            }
+            .to_string()
+        ),);
+
+    // ensure correct payment substitute but incorrect bundle
+    bundle = Bundle { nfts: vec![] };
+
+    assert!(app
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(300, "uterp")],
+        )
+        .unwrap_err()
+        .to_string()
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                col: nft1.to_string(),
+                bun_type: 1,
+                wavs: false,
+                min_req: 1,
+            }
+            .to_string()
+        ));
 
     // ensure correct payment substitute but incorrect bundle
     bundle = Bundle {
@@ -1870,52 +1890,52 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
         }],
     };
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                Some(&[coin(100, "ustars"), coin(200, "ubtsg")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: nft2.to_string(),
-            have: coin(
-                0,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-            )
-            .into(),
-            want: coin(
-                200u128,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-            )
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[coin(100, "uterp"), coin(200, "ubtsg")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: nft2.to_string(),
+                have: coin(
+                    0,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+                .into(),
+                want: coin(
+                    200u128,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+            }
+            .to_string()
+        ),);
 
     app.call_as(&env.admin).execute(
         &ExecuteMsg::Infuse {
             id: infusion_id,
             bundle: vec![bundle.clone()],
         },
-        Some(&[
-            coin(100, "ustars"),
+        &[
+            coin(100, "uterp"),
             coin(
                 200u128,
                 "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
             ),
-        ]),
+        ],
     )?;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
 
     // check with multiple collections
     env.infusion.infused_collection.addr = None;
-    env.infusion.collections[0].payment_substitute = Some(coin(200u128, "ustars"));
+    env.infusion.collections[0].payment_substitute = Some(coin(200u128, "uterp"));
     env.infusion.collections[0].max_req = Some(env.infusion.collections[0].min_req);
 
     env.infusion.collections.push(EligibleNFTCollection {
@@ -1934,108 +1954,110 @@ fn test_allof_payment_substitute() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
 
     // NO NFTS, NO FEESUB
-    assert_eq!(
-        app.call_as(&spender)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![Bundle { nfts: vec![] }],
-                },
-                None
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: nft1.to_string(),
-            have: coin(0, "ustars").into(),
-            want: coin(200u128, "ustars")
-        }
+    assert!(app
+        .call_as(&spender)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![Bundle { nfts: vec![] }],
+            },
+            &[]
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: nft1.to_string(),
+                have: coin(0, "uterp").into(),
+                want: coin(200u128, "uterp")
+            }
+            .to_string()
+        ));
     // NO NFTS,0/3 FEESUB
-    assert_eq!(
-        app.call_as(&spender)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![Bundle { nfts: vec![] }],
-                },
-                Some(&[coin(100, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: nft1.to_string(),
-            have: coin(0, "ustars").into(),
-            want: coin(200u128, "ustars")
-        }
+    assert!(app
+        .call_as(&spender)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![Bundle { nfts: vec![] }],
+            },
+            &[coin(100, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: nft1.to_string(),
+                have: coin(0, "uterp").into(),
+                want: coin(200u128, "uterp")
+            }
+            .to_string()
+        ));
     // NO NFTS,1/3 FEESUB
-    assert_eq!(
-        app.call_as(&spender)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![Bundle { nfts: vec![] }],
-                },
-                Some(&[coin(300, "ustars")]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: nft2.to_string(),
-            have: coin(
-                0,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-            )
-            .into(),
-            want: coin(
-                200u128,
-                "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-            )
-        }
+    assert!(app
+        .call_as(&spender)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![Bundle { nfts: vec![] }],
+            },
+            &[coin(300, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: nft2.to_string(),
+                have: coin(
+                    0,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+                .into(),
+                want: coin(
+                    200u128,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+            }
+            .to_string()
+        ),);
 
     // NO NFTS,2/3 FEESUB
-    assert_eq!(
-        app.call_as(&spender)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![Bundle { nfts: vec![] }],
-                },
-                Some(&[
-                    coin(500, "ustars"),
-                    coin(
-                        200u128,
-                        "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
-                    )
-                ]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::PaymentSubstituteNotProvided {
-            col: nft3.to_string(),
-            have: coin(0, "ubtsg").into(),
-            want: coin(200u128, "ubtsg")
-        }
+    assert!(app
+        .call_as(&spender)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![Bundle { nfts: vec![] }],
+            },
+            &[
+                coin(500, "uterp"),
+                coin(
+                    200u128,
+                    "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591"
+                )
+            ],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::PaymentSubstituteNotProvided {
+                col: nft3.to_string(),
+                have: coin(0, "ubtsg").into(),
+                want: coin(200u128, "ubtsg")
+            }
+            .to_string()
+        ));
 
     Ok(())
 }
@@ -2048,14 +2070,15 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
         "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
     );
 
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
 
     let payment_recipient = env.chain.addr_make("payment_recipient");
     let spender = env.chain.addr_make_with_balance(
         "spain",
         vec![
-            coin(1000u128, "ustars"),
+            coin(1000u128, "uterp"),
             coin(
                 1000u128,
                 "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
@@ -2090,47 +2113,45 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     let mut bundle = Bundle { nfts: vec![] };
 
     // // 0 bundles
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![],
-                },
-                None
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::EmptyBundle {}.to_string()
-    );
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![],
+            },
+            &[]
+        )
+        .unwrap_err()
+        .to_string()
+        .contains(&ContractError::EmptyBundle {}.to_string()),);
 
     // empty, single bundle with no fee payment, and no eligible collection
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![bundle.clone()],
-                },
-                None
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::InvalidAnyOfBundle {}.to_string()
-    );
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![bundle.clone()],
+            },
+            &[]
+        )
+        .unwrap_err()
+        .to_string()
+        .contains(&ContractError::InvalidAnyOfBundle {}.to_string()));
 
-    //  empty bundle with correct # of non-feesub nfts, incorrect feesub payment
+    //  bundle with correct # of non-feesub nfts, incorrect feesub payment
     bundle.nfts = vec![NFT {
         addr: nft1.clone(),
         token_id: 11,
@@ -2143,7 +2164,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(100, "ustars")]),
+            &[coin(100, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // one nft burnt, one minted
@@ -2161,7 +2182,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // one nft burnt, one minterd
@@ -2178,13 +2199,13 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![bundle.clone()],
             },
-            Some(&[
-                coin(100, "ustars"),
+            &[
+                coin(100, "uterp"),
                 coin(
                     200,
                     "ibc/4A1C18CA7F50544760CF306189B810CE4C1CB156C7FC870143D401FE7280E591",
                 ),
-            ]),
+            ],
         )?
         .event_attr_values("wasm", "action");
     // one nft burnt, 2 minted
@@ -2196,7 +2217,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     // set owner
     // check with multiple collections
     env.infusion.infused_collection.addr = None;
-    env.infusion.collections[0].payment_substitute = Some(coin(200u128, "ustars"));
+    env.infusion.collections[0].payment_substitute = Some(coin(200u128, "uterp"));
     env.infusion.collections.push(EligibleNFTCollection {
         addr: env.nfts[2].clone(),
         min_req: 1u64,
@@ -2211,27 +2232,27 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     // // NO NFTS, NO FEESUB
-    assert_eq!(
-        app.call_as(&spender)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![Bundle { nfts: vec![] }],
-                },
-                Some(&[]),
-            )
-            .unwrap_err()
-            .downcast::<ContractError>()?
-            .to_string(),
-        ContractError::InvalidAnyOfBundle {}.to_string()
-    );
+    assert!(app
+        .call_as(&spender)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![Bundle { nfts: vec![] }],
+            },
+            &[],
+        )
+        .unwrap_err()
+        .to_string()
+        .contains(&ContractError::InvalidAnyOfBundle {}.to_string()),);
 
     // NO NFTS,1/3 FEESUB
     infuse_res = app
@@ -2241,7 +2262,7 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![Bundle { nfts: vec![] }],
             },
-            Some(&[coin(300, "ustars")]),
+            &[coin(300, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     assert_eq!(infuse_res.len(), 1);
@@ -2254,8 +2275,8 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
     println!("{:#?}", inf);
     // println!("{:#?}", res);
 
-    let bal_be4_owner = env.chain.query_balance(&cfg.contract_owner, "ustars")?;
-    let bal_b4_pay_recipient = env.chain.query_balance(&payment_recipient, "ustars")?;
+    let bal_be4_owner = env.chain.query_balance(&cfg.contract_owner, "uterp")?;
+    let bal_b4_pay_recipient = env.chain.query_balance(&payment_recipient, "uterp")?;
 
     // 270 should go to payment recipient, 30 should go to contract owner
     let res = app.call_as(&spender).execute(
@@ -2263,13 +2284,13 @@ fn test_anyof_payment_substitute() -> anyhow::Result<()> {
             id: infusion_id,
             bundle: vec![Bundle { nfts: vec![] }],
         },
-        Some(&[coin(300, "ustars")]),
+        &[coin(300, "uterp")],
     )?;
     println!("{:#?}", res);
     env.chain.wait_blocks(2)?;
 
-    let bal_aft_owner = env.chain.query_balance(&cfg.contract_owner, "ustars")?;
-    let bal_aft_pay_recipient = env.chain.query_balance(&payment_recipient, "ustars")?;
+    let bal_aft_owner = env.chain.query_balance(&cfg.contract_owner, "uterp")?;
+    let bal_aft_pay_recipient = env.chain.query_balance(&payment_recipient, "uterp")?;
 
     println!(
         "bal_be4_owner {:#?}: {:#?}",
@@ -2318,7 +2339,7 @@ fn test_anyofblend_payment_substitute() -> anyhow::Result<()> {
 #[test]
 fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let env = InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
 
     // good infusion creation
@@ -2328,10 +2349,12 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     //  cannot update bundle type to anyOf with incorrect addr
@@ -2349,13 +2372,12 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
         )
         .unwrap_err();
 
-    assert_eq!(
-        err.downcast::<ContractError>()?.to_string(),
-        ContractError::AnyOfConfigError {
+    assert!(err.to_string().contains(
+        &ContractError::AnyOfConfigError {
             err: AnyOfErr::Uneligible,
         }
         .to_string()
-    );
+    ),);
 
     bundle_type = BundleType::AnyOf {
         addrs: vec![env.nfts[1].clone()],
@@ -2374,11 +2396,12 @@ fn test_updating_infusion_bundle_type() -> anyhow::Result<()> {
 #[test]
 fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
     // setup infuser with admin fees
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], false)?;
     let app = env.infuser;
 
     // update infusion collect params to undesired state
-    env.infusion.collections[1].payment_substitute = Some(coin(1u128, "ustars"));
+    env.infusion.collections[1].payment_substitute = Some(coin(1u128, "uterp"));
 
     // good infusion creation
     let infusion_id = app
@@ -2386,10 +2409,13 @@ fn test_updating_infusion_eligible_collections() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?;
-    let infusion_id = Uint128::from_str(&infusion_id)?.u128() as u64;
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?;
+    let infusion_id = Uint128::from_str(&infusion_id)
+        .map_err(|e| anyhow!(e.to_string()))?
+        .u128() as u64;
     // update infusion accepted params
     env.infusion.collections[1].max_req = Some(3);
     env.infusion.collections[1].min_req = 2;
@@ -2418,7 +2444,8 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let mut wavs_bundle = vec![];
     // let mut bundles = vec![];
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], true)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], true)?;
     let app = env.infuser;
     let not_wavs = env.chain.addr_make("not-wavs");
 
@@ -2432,7 +2459,7 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
     env.infusion.infusion_params.wavs_enabled = true;
     env.infusion.collections[0].min_req = 2;
     env.infusion.collections[1].min_req = 1;
-    env.infusion.collections[1].payment_substitute = Some(coin(100u128, "ustars"));
+    env.infusion.collections[1].payment_substitute = Some(coin(100u128, "uterp"));
     env.infusion.infusion_params.bundle_type = BundleType::AnyOf {
         addrs: vec![nft1.clone()],
     };
@@ -2443,25 +2470,23 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
 
     println!("assert only wavs operator can update");
-    assert_eq!(
-        app.call_as(&not_wavs)
-            .wavs_entry_point(wavs_bundle)
-            .unwrap_err()
-            .source()
-            .unwrap()
-            .to_string(),
-        "Caller is not admin"
-    );
-
+    assert!(app
+        .call_as(&not_wavs)
+        .wavs_entry_point(wavs_bundle)
+        .unwrap_err()
+        .to_string()
+        .contains(&"Caller is not admin"));
     println!("assert nft is recorded to state");
     wavs_bundle = vec![WavsBundle {
         infuser: env.admin.to_string(),
@@ -2478,7 +2503,7 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![],
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
 
@@ -2487,25 +2512,21 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
     assert_eq!(res[0], "mint");
 
     // println!("assert the stored record from wavs has been updated and cannot be reconsumed");
-    assert_eq!(
+    assert!(
         app.call_as(&env.admin)
             .execute(
                 &ExecuteMsg::Infuse {
                     id: infusion_id,
                     bundle: vec![],
                 },
-                Some(&[coin(100, "ustars")]),
+                &[coin(100, "uterp")],
             )
             .unwrap_err()
-            .source()
-            .unwrap()
-            .to_string(),
-        ContractError::InvalidAnyOfBundle {}
-            // ContractError::WavsBundleNotAccepted {
-            //     have: 0u64,
-            //     need: 1u64,
-            // }
             .to_string()
+            .contains(&ContractError::InvalidAnyOfBundle {}.to_string()) // ContractError::WavsBundleNotAccepted {
+                                                                         //     have: 0u64,
+                                                                         //     need: 1u64,
+                                                                         // }
     );
 
     // println!(
@@ -2534,7 +2555,7 @@ fn test_wavs_record_anyof() -> anyhow::Result<()> {
     //             id: infusion_id,
     //             bundle: bundles.clone(),
     //         },
-    //         Some(&[coin(200, "ustars")]),
+    //         Some(&[coin(200, "uterp")]),
     //     )?
     //     .event_attr_values("wasm", "action");
 
@@ -2556,7 +2577,8 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
     // setup infuser with admin fees
     let mut wavs_bundle = vec![];
     let mut bundles = vec![];
-    let mut env = InfuserSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], true)?;
+    let mut env =
+        InfuserTestSuite::<MockBech32>::setup_fee_suite(BundleType::AllOf {}, vec![], true)?;
     let app = env.infuser;
     let not_wavs = env.chain.addr_make("not-wavs");
 
@@ -2566,7 +2588,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
     println!(" update infusion collect params to undesired state");
     env.infusion.infusion_params.wavs_enabled = true;
     env.infusion.collections[0].min_req = 2;
-    env.infusion.collections[1].payment_substitute = Some(coin(100u128, "ustars"));
+    env.infusion.collections[1].payment_substitute = Some(coin(100u128, "uterp"));
 
     println!("good infusion creation");
     let infusion_id = Uint128::from_str(
@@ -2574,24 +2596,23 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
             &ExecuteMsg::CreateInfusion {
                 infusions: vec![env.infusion.clone()],
             },
-            Some(&[coin(500, "ustars")]),
+            &[coin(500, "uterp")],
         )?
-        .event_attr_value("wasm", "infusion-id")?,
-    )?
+        .event_attr_value("wasm", "infusion-id")
+        .map_err(|e| anyhow!(e.to_string()))?,
+    )
+    .map_err(|e| anyhow!(e.to_string()))?
     .u128() as u64;
 
     println!("{:#?}", app.infusion_by_id(infusion_id)?);
 
     println!("assert only wavs operator can update");
-    assert_eq!(
-        app.call_as(&not_wavs)
-            .wavs_entry_point(wavs_bundle)
-            .unwrap_err()
-            .source()
-            .unwrap()
-            .to_string(),
-        "Caller is not admin"
-    );
+    assert!(app
+        .call_as(&not_wavs)
+        .wavs_entry_point(wavs_bundle)
+        .unwrap_err()
+        .to_string()
+        .contains(&"Caller is not admin"));
 
     println!("assert nft is recorded to state");
     wavs_bundle = vec![WavsBundle {
@@ -2602,19 +2623,18 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
     app.call_as(&env.wavs_service.clone())
         .wavs_entry_point(wavs_bundle.clone())?;
 
-    assert_eq!(
-        app.call_as(&env.admin)
-            .infuse(vec![], infusion_id)
-            .unwrap_err()
-            .source()
-            .unwrap()
-            .to_string(),
-        ContractError::WavsBundleNotAccepted {
-            have: 1u64,
-            need: 2u64,
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .infuse(vec![], infusion_id)
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::WavsBundleNotAccepted {
+                have: 1u64,
+                need: 2u64,
+            }
+            .to_string()
+        ));
 
     println!("use record from WAVS expect to mint 1 NFT");
     wavs_bundle[0].infused_ids = vec![12.to_string()];
@@ -2628,7 +2648,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![],
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // println!("{:#?}", res);
@@ -2636,27 +2656,26 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
     assert_eq!(res[0], "mint");
 
     println!("assert the stored record from wavs has been updated and cannot be reconsumed");
-    assert_eq!(
-        app.call_as(&env.admin)
-            .execute(
-                &ExecuteMsg::Infuse {
-                    id: infusion_id,
-                    bundle: vec![],
-                },
-                Some(&[coin(200, "ustars")]),
-            )
-            .unwrap_err()
-            .source()
-            .unwrap()
-            .to_string(),
-        ContractError::BundleCollectionNotEligilbe {
-            col: env.nfts[0].to_string(),
-            bun_type: 1,
-            wavs: true,
-            min_req: 2,
-        }
+    assert!(app
+        .call_as(&env.admin)
+        .execute(
+            &ExecuteMsg::Infuse {
+                id: infusion_id,
+                bundle: vec![],
+            },
+            &[coin(200, "uterp")],
+        )
+        .unwrap_err()
         .to_string()
-    );
+        .contains(
+            &ContractError::BundleCollectionNotEligilbe {
+                col: env.nfts[0].to_string(),
+                bun_type: 1,
+                wavs: true,
+                min_req: 2,
+            }
+            .to_string()
+        ));
 
     println!(
         "assert that leftovers can be combined with nft in bundle to satisfy min requirements"
@@ -2683,7 +2702,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: bundles.clone(),
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
 
@@ -2709,7 +2728,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: bundles.clone(),
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     // println!("{:#?}", res);
@@ -2733,7 +2752,7 @@ fn test_wavs_record_allof() -> anyhow::Result<()> {
                 id: infusion_id,
                 bundle: vec![],
             },
-            Some(&[coin(200, "ustars")]),
+            &[coin(200, "uterp")],
         )?
         .event_attr_values("wasm", "action");
     assert_eq!(res.len(), 1);
@@ -2768,7 +2787,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //     let inf2_token_id = vec!["487"];
 
 //     // setup nft & infusion simulating current infusions
-//     let env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
+//     let env = InfuserTestSuite::<MockBech32>::setup_fee_suite()?;
 
 //     let v020_infusion = v020_infusion();
 //     let v020_infusion_code_id = env
@@ -2786,8 +2805,8 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                 &v020infuse::msg::InstantiateMsg {
 //                     contract_owner: Some(env.admin.to_string()),
 //                     owner_fee: 10,
-//                     min_creation_fee: Some(coin(1, "ustars")),
-//                     min_infusion_fee: Some(coin(2, "ustars")),
+//                     min_creation_fee: Some(coin(1, "uterp")),
+//                     min_infusion_fee: Some(coin(2, "uterp")),
 //                     min_per_bundle: None,
 //                     max_per_bundle: None,
 //                     max_bundles: None,
@@ -2806,7 +2825,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //     // configure cw721
 
 //     let good_nfts = env.default_good_nfts(&vec![env.nfts[0].clone(), env.nfts[1].clone()])?;
-//     let infused_col = InfuserSuite::<MockBech32>::default_infused_collection()?;
+//     let infused_col = InfuserTestSuite::<MockBech32>::default_infused_collection()?;
 //     // create infusion for both
 //     for ia in 0..infuse_addrs.len() {
 //         let mut total_supply = 666u64;
@@ -2842,7 +2861,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                         external_link: infused_col.external_link.clone(),
 //                     },
 //                     infusion_params: v020infuse::state::InfusionParams {
-//                         mint_fee: Some(coin(100, "ustars")),
+//                         mint_fee: Some(coin(100, "uterp")),
 //                         params: None,
 //                     },
 //                     payment_recipient: env.infusion.payment_recipient.clone(),
@@ -2850,11 +2869,11 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                     owner: env.infusion.owner.clone(),
 //                 }],
 //             },
-//             &[coin(1, "ustars".to_string())],
+//             &[coin(1, "uterp".to_string())],
 //             &infuse_addrs[ia],
 //         )?;
 
-//         InfuserSuite::<MockBech32>::default_nft_approvals(
+//         InfuserTestSuite::<MockBech32>::default_nft_approvals(
 //             env.chain.clone(),
 //             env.nfts.clone(),
 //             infuse_addrs[ia ].clone(),
@@ -2881,7 +2900,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                     infusion_id: 1,
 //                     bundle: vec![bundle.clone()],
 //                 },
-//                 &[coin(100u128, "ustars")],
+//                 &[coin(100u128, "uterp")],
 //                 &infuse_addrs[0],
 //             )?;
 //         }
@@ -2893,7 +2912,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 // #[test]
 // fn test_migration_v030() -> anyhow::Result<()> {
 //     // setup infuser with admin fees
-//     let env = InfuserSuite::<MockBech32>::setup_fee_suite()?;
+//     let env = InfuserTestSuite::<MockBech32>::setup_fee_suite()?;
 
 //     // store cw721
 //     let v020_infusion = v020_infusion();
@@ -2912,8 +2931,8 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                 &v020infuse::msg::InstantiateMsg {
 //                     contract_owner: Some(env.admin.to_string()),
 //                     owner_fee: 10,
-//                     min_creation_fee: Some(coin(1, "ustars")),
-//                     min_infusion_fee: Some(coin(2, "ustars")),
+//                     min_creation_fee: Some(coin(1, "uterp")),
+//                     min_infusion_fee: Some(coin(2, "uterp")),
 //                     min_per_bundle: None,
 //                     max_per_bundle: None,
 //                     max_bundles: None,
@@ -2933,7 +2952,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 
 //     let good_nfts = env.default_good_nfts(&vec![env.nfts[0].clone(), env.nfts[1].clone()])?;
 
-//     let infused_col = InfuserSuite::<MockBech32>::default_infused_collection()?;
+//     let infused_col = InfuserTestSuite::<MockBech32>::default_infused_collection()?;
 //     // create infusion for both
 //     for ia in &infuse_addrs {
 //         env.chain.execute(
@@ -2965,7 +2984,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                         external_link: infused_col.external_link.clone(),
 //                     },
 //                     infusion_params: v020infuse::state::InfusionParams {
-//                         mint_fee: Some(coin(100, "ustars")),
+//                         mint_fee: Some(coin(100, "uterp")),
 //                         params: None,
 //                     },
 //                     payment_recipient: env.infusion.payment_recipient.clone(),
@@ -2973,11 +2992,11 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //                     owner: env.infusion.owner.clone(),
 //                 }],
 //             },
-//             &[coin(1, "ustars".to_string())],
+//             &[coin(1, "uterp".to_string())],
 //             &ia,
 //         )?;
 
-//         InfuserSuite::<MockBech32>::default_nft_approvals(
+//         InfuserTestSuite::<MockBech32>::default_nft_approvals(
 //             env.chain.clone(),
 //             env.nfts.clone(),
 //             ia.clone(),
@@ -3003,7 +3022,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //             infusion_id: 1,
 //             bundle: vec![bundle.clone()],
 //         },
-//         &[coin(100, "ustars")],
+//         &[coin(100, "uterp")],
 //         &infuse_addrs[0].clone(),
 //     )?;
 //     bundle.nfts[0].token_id = 7;
@@ -3015,17 +3034,17 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //             infusion_id: 1,
 //             bundle: vec![bundle.clone()],
 //         },
-//         &[coin(100, "ustars")],
+//         &[coin(100, "uterp")],
 //         &infuse_addrs[0].clone(),
 //     )?;
 
 //     env.chain.call_as(&env.admin).migrate(
-//         &cw_infusion_minter::msg::MigrateMsg {},
+//         &cw_infuser::msg::MigrateMsg {},
 //         env.infuser.code_id()?,
 //         &infuse_addrs[0],
 //     )?;
 //     env.chain.call_as(&env.admin).migrate(
-//         &cw_infusion_minter::msg::MigrateMsg {},
+//         &cw_infuser::msg::MigrateMsg {},
 //         env.infuser.code_id()?,
 //         &infuse_addrs[1],
 //     )?;
@@ -3061,7 +3080,7 @@ fn test_allof_feesub_payment_destination() -> anyhow::Result<()> {
 //             infusion_id: 1,
 //             bundle: vec![bundle.clone()],
 //         },
-//         &[coin(100, "ustars")],
+//         &[coin(100, "uterp")],
 //         &infuse_addrs[0].clone(),
 //     )?;
 

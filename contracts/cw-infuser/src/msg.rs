@@ -1,11 +1,11 @@
 use crate::state::*;
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_schema::{QueryResponses, cw_serde};
 use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_infusions::{
-    bundles::{Bundle, BundleType},
-    state::{EligibleNFTCollection, Infusion, InfusionState},
-    wavs::{WavsBundle, WavsRecordResponse},
     CompatibleTraits,
+    bundles::{Bundle, BundleType},
+    state::{EligibleNFTCollection, Infusion, InfusionState, UpdateInfusion},
+    wavs::WavsBundle,
 };
 
 #[cw_serde]
@@ -33,7 +33,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(cw_orch::ExecuteFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))]
 pub enum ExecuteMsg {
     CreateInfusion {
         infusions: Vec<Infusion>,
@@ -65,14 +65,18 @@ pub enum ExecuteMsg {
         id: u64,
         mint_fee: Option<Coin>,
     },
-
+    UpdateInfusionParams {
+        id: u64,
+        params: UpdateInfusion,
+    },
     Shuffle {
         id: u64,
     },
 }
 
 #[cw_serde]
-#[derive(QueryResponses, cw_orch::QueryFns)]
+#[cfg_attr(feature = "interface", derive(cw_orch::QueryFns))]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Config)]
     Config {},
@@ -90,7 +94,7 @@ pub enum QueryMsg {
     #[returns(Vec<CompatibleTraits>)]
     InfusionGenetics { id: u64 },
 
-    #[returns(Vec<WavsRecordResponse>)]
+    #[returns(Vec<cw_infusions::wavs::WavsRecordResponse>)]
     WavsRecord {
         nfts: Vec<String>,
         burner: Option<Addr>,

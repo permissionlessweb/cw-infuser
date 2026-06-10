@@ -34,16 +34,12 @@ A minimum creation fee may be set on the contract level, requiring a fee in orde
 
 ### Infusion Fees 
 A minimum fee required to infuse may be set on the contract level, requiring all unique infusions for a contract to have at least this fee and token set as eligible fee.
+ 
 
-### Goals & TODO:
+## GOALS: 
 - add documentation
-- add pagination for querying infusions
 - create infusion minter contract
-
-
-
-
-## TODO: 
+- cross-chain burn-to-mint via polytone
 - add pagination for querying infusions
 - max mint limit for each eligible collection
 - support for depositing nfts (used to ommit nfts approval tx requirement)
